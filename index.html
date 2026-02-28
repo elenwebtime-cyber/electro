@@ -11,7 +11,7 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- Подключаем Firebase SDK (Compat версии для работы через CDN без сборщиков) -->
+  <!-- Подключаем Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
@@ -44,26 +44,23 @@
     // ⚠️ ВАЖНЫЕ НАСТРОЙКИ - ЗАПОЛНИТЕ ЭТИ ПОЛЯ СВОИМИ ДАННЫМИ! ⚠️
     // =========================================================================
 
-    const ADMIN_TG_ID = 758556732; // <-- ВПИШИ СВОЙ TELEGRAM ID СЮДА (ЦИФРЫ, БЕЗ КАВЫЧЕК)
+    const ADMIN_TG_ID = 758556732; 
     
-    // НАСТРОЙКИ TELEGRAM БОТА
-    const BOT_TOKEN = "8674902102:AAEqbdZ8pbmFaq9Gx5UF8vXCbElTdNEIPzU"; // <-- ВПИШИ ТОКЕН ОТ @BotFather (В КАВЫЧКАХ)
-    const CHAT_ID = "758556732"; // <-- ВПИШИ СВОЙ ID ИЛИ ID ГРУППЫ КУДА ПРИСЫЛАТЬ УВЕДОМЛЕНИЯ О ЗАПИСЯХ (В КАВЫЧКАХ)
+    const BOT_TOKEN = "8674902102:AAEqbdZ8pbmFaq9Gx5UF8vXCbElTdNEIPzU"; 
+    const CHAT_ID = "758556732"; 
 
-    // НАСТРОЙКИ FIREBASE (РАЗБИЛИ КЛЮЧ НА ДВЕ ЧАСТИ ДЛЯ GITHUB)
-    const FB_API_KEY_PART_1 = "AIzaSyDlDVoN"; // <-- ПЕРВАЯ ПОЛОВИНА FIREBASE API KEY
-    const FB_API_KEY_PART_2 = "dfA1TsrfvssVcAcXDxEktJtT28c"; // <-- ВТОРАЯ ПОЛОВИНА FIREBASE API KEY
+    const FB_API_KEY_PART_1 = "AIzaSyDlDVoN"; 
+    const FB_API_KEY_PART_2 = "dfA1TsrfvssVcAcXDxEktJtT28c"; 
     
     const firebaseConfig = {
       apiKey: FB_API_KEY_PART_1 + FB_API_KEY_PART_2,
-      authDomain: "electro-6335d.firebaseapp.com", // <-- ВПИШИ AUTH DOMAIN
-      projectId: "electro-6335d", // <-- ВПИШИ PROJECT ID
-      storageBucket: "electro-6335d.firebasestorage.app", // <-- ВПИШИ STORAGE BUCKET
-      messagingSenderId: "385798330790", // <-- ВПИШИ SENDER ID
-      appId: "1:385798330790:web:4f35f12cf734d01bd51767" // <-- ВПИШИ APP ID
+      authDomain: "electro-6335d.firebaseapp.com", 
+      projectId: "electro-6335d", 
+      storageBucket: "electro-6335d.firebasestorage.app", 
+      messagingSenderId: "385798330790", 
+      appId: "1:385798330790:web:4f35f12cf734d01bd51767" 
     };
 
-    // Инициализация Firebase
     if (!firebase.apps.length && firebaseConfig.projectId !== "ВАШ_ПРОЕКТ") {
       firebase.initializeApp(firebaseConfig);
     }
@@ -140,7 +137,6 @@
         { id: 'a1', name: 'Иголочка-электрод', price: 200, icon: '🪡' },
         { id: 'a2', name: 'Анестезия (крем/гель)', price: 400, icon: '🧊' }
       ],
-      // Теперь слоты хранятся внутри конкретного дня!
       dates: [
         { date: globalCalendarDays[1].date, day: globalCalendarDays[1].day, slots: [...defaultSlots] },
         { date: globalCalendarDays[2].date, day: globalCalendarDays[2].day, slots: [...defaultSlots] },
@@ -156,22 +152,16 @@
         const saved = localStorage.getItem('electroAppData');
         let parsed = saved ? JSON.parse(saved) : initialMasterData;
         
-        // МИГРАЦИЯ СТОРИЗ
         if (parsed.stories && parsed.stories.length > 0 && typeof parsed.stories[0] === 'string') {
           parsed.stories = parsed.stories.map((name, i) => ({
             id: 'st' + i, name: name, type: name.toLowerCase() === 'отзывы' ? 'reviews' : 'page', content: '', images: []
           }));
         }
         
-        // МИГРАЦИЯ ДАТ (перенос глобальных слотов в конкретные даты, если старый формат)
         if (parsed.slots && Array.isArray(parsed.slots)) {
-          parsed.dates = parsed.dates.map(d => ({
-            ...d,
-            slots: d.slots ? d.slots : parsed.slots
-          }));
-          delete parsed.slots; // удаляем старые глобальные слоты
+          parsed.dates = parsed.dates.map(d => ({ ...d, slots: d.slots ? d.slots : parsed.slots }));
+          delete parsed.slots; 
         }
-        // Защита: чтобы у всех дат был массив слотов
         if (parsed.dates) {
           parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
         }
@@ -188,6 +178,11 @@
       const [selectedAddons, setSelectedAddons] = useState([]); 
       const [tapCount, setTapCount] = useState(0);
 
+      // Новые состояния для UX улучшений
+      const [dbConnected, setDbConnected] = useState(false);
+      const [showAdminGear, setShowAdminGear] = useState(false);
+      const [toastMsg, setToastMsg] = useState('');
+
       const [revName, setRevName] = useState('');
       const [revText, setRevText] = useState('');
       const [revRating, setRevRating] = useState('5');
@@ -197,6 +192,12 @@
 
       let tapTimeout = useRef(null);
 
+      // Глобальная функция показа красивых уведомлений
+      const showToast = (msg) => {
+        setToastMsg(msg);
+        setTimeout(() => setToastMsg(''), 3000);
+      };
+
       useEffect(() => {
         if (window.Telegram && window.Telegram.WebApp) {
           window.Telegram.WebApp.ready();
@@ -205,6 +206,7 @@
 
         if (db) {
           db.collection("settings").doc("masterData").get().then((doc) => {
+            setDbConnected(true); // Точка стала зеленой
             if (doc.exists) {
               let parsed = doc.data();
               if (parsed.stories && parsed.stories.length > 0 && typeof parsed.stories[0] === 'string') {
@@ -221,7 +223,12 @@
               }
               setAppData(parsed);
             }
-          }).catch(err => console.error("Firebase load error:", err));
+          }).catch(err => {
+            setDbConnected(false); // Точка красная
+            console.error("Firebase load error:", err);
+          });
+        } else {
+          setDbConnected(false);
         }
       }, []);
 
@@ -229,8 +236,10 @@
         if (db) {
           try {
             await db.collection("settings").doc("masterData").set(newData);
+            setDbConnected(true);
           } catch (error) {
             console.error("Firebase sync error:", error);
+            setDbConnected(false);
           }
         }
       };
@@ -251,7 +260,9 @@
           if (prev + 1 >= 5) {
             const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
             if (userTgId === ADMIN_TG_ID || !window.Telegram?.WebApp?.initDataUnsafe?.user) {
-              setActiveTab('admin');
+              // Вместо прямого входа показываем шестеренку!
+              setShowAdminGear(true);
+              triggerHaptic();
             } else {
               alert("Доступ запрещен! Ваш TG ID: " + (userTgId || "Неизвестен"));
             }
@@ -291,7 +302,7 @@
       const selectDateSlot = (dateObj) => { 
         triggerHaptic(); 
         setSelectedDate(dateObj.date); 
-        setSelectedTime(null); // Сбрасываем время при смене даты
+        setSelectedTime(null); 
       };
       const selectTimeSlot = (timeStr) => { triggerHaptic(); setSelectedTime(timeStr); };
 
@@ -313,7 +324,7 @@
         const servicesList = selectedServices.map(s => s.name).join(', ');
         const addonsList = selectedAddons.length > 0 ? `\n➕ Допы: ${selectedAddons.map(a => a.name).join(', ')}` : '';
         
-        const message = `🔥 *Новая запись!*\n\n` +
+        const messageToAdmin = `🔥 *Новая запись!*\n\n` +
                         `👤 Клиент: ${clientName} ${clientUsername} ${clientId}\n` +
                         `📅 ${selectedDate} в ${selectedTime}\n` +
                         `🌸 Зоны: ${servicesList}${addonsList}\n` +
@@ -321,23 +332,40 @@
                         `💰 Сумма: ~${totalPrice} ₽`;
 
         if (BOT_TOKEN && BOT_TOKEN !== "ВАШ_ТОКЕН_БОТА") {
+          // 1. Отправляем уведомление Администратору
           try {
             await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: CHAT_ID,
-                text: message,
+                text: messageToAdmin,
                 parse_mode: 'Markdown'
               })
             });
-            console.log("Уведомление в Telegram успешно отправлено!");
           } catch (error) {
-            console.error("Ошибка отправки в Telegram", error);
+            console.error("Ошибка отправки админу", error);
+          }
+
+          // 2. Отправляем красивое подтверждение Клиенту (если у нас есть его ID)
+          if (tgUser.id) {
+            const messageToClient = `✨ *${clientName}, ваша запись подтверждена!*\n\n📅 Дата: ${selectedDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${servicesList}${addonsList}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${appData.address}\n_${appData.addressNote}_\n\nЖду вас! ❤️`;
+            try {
+              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: tgUser.id,
+                  text: messageToClient,
+                  parse_mode: 'Markdown'
+                })
+              });
+            } catch (error) {
+              console.error("Ошибка отправки клиенту", error);
+            }
           }
         }
 
-        // === СОХРАНЕНИЕ В CRM И УДАЛЕНИЕ СЛОТА ИЗ ДОСТУПНЫХ ===
         const newBooking = {
           id: 'b' + Date.now(),
           date: selectedDate,
@@ -363,7 +391,6 @@
           syncToFirebase(newData);
           localStorage.setItem('electroAppData', JSON.stringify(newData));
         }
-        // ========================================================
       };
 
       const resetBooking = () => {
@@ -398,7 +425,7 @@
         setAppData(newData);
         syncToFirebase(newData);
         
-        alert("Спасибо! Отзыв отправлен на модерацию.");
+        showToast("Спасибо! Отзыв отправлен на модерацию. 💖");
         setRevName('');
         setRevText('');
         setRevRating('5');
@@ -425,7 +452,16 @@
 
       const renderMain = () => (
         <div className="pb-64 animate-[fadeIn_0.5s_ease-in-out]">
-          <div className="flex flex-col items-center text-center mt-6 mb-8">
+          <div className="flex flex-col items-center text-center mt-6 mb-8 relative">
+            
+            {/* ШЕСТЕРЕНКА ДЛЯ ВХОДА В АДМИНКУ */}
+            {showAdminGear && (
+              <div onClick={() => { triggerHaptic(); setActiveTab('admin'); setShowAdminGear(false); }} 
+                   className="absolute top-0 left-6 bg-[#1A1A1A] p-2.5 rounded-full border border-[#C89D7C] cursor-pointer shadow-[0_0_15px_rgba(200,157,124,0.4)] animate-[zoomIn_0.3s_ease-out] z-50">
+                <Icon name="Settings" className="w-6 h-6 text-[#C89D7C] animate-[spin_3s_linear_infinite]" />
+              </div>
+            )}
+
             <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-[#C89D7C] to-[#E8CDB5] p-1 shadow-[0_0_20px_rgba(200,157,124,0.3)] mb-4">
               <div className="w-full h-full rounded-full bg-[#121212] flex items-center justify-center overflow-hidden relative">
                 <img src={appData.photoUrl} alt="Master" className="object-cover w-full h-full opacity-90" />
@@ -547,7 +583,6 @@
       );
 
       const renderBooking = () => {
-        // Находим слоты для выбранной даты
         const availableSlotsForDate = appData.dates.find(d => d.date === selectedDate)?.slots || [];
 
         return (
@@ -746,12 +781,10 @@
       const AdminPanel = () => {
         const [editData, setEditData] = useState(appData);
         const [showReviewsMod, setShowReviewsMod] = useState(false);
-        
-        // Новые состояния для управления слотами конкретного дня
         const [adminSelectedDateObj, setAdminSelectedDateObj] = useState(null);
         const [newTimeVal, setNewTimeVal] = useState('');
+        const [isSaving, setIsSaving] = useState(false);
 
-        // === CRM СОСТОЯНИЯ ===
         const [adminTab, setAdminTab] = useState('settings'); 
         const [bookingsList, setBookingsList] = useState([]);
         const [loadingBookings, setLoadingBookings] = useState(false);
@@ -807,7 +840,7 @@
 
           setManualName(''); setManualDate(''); setManualTime(''); setManualService('');
           fetchBookings();
-          alert("Успешно забронировано!");
+          showToast("Слот успешно забронирован! ✨");
         };
 
         const cancelBooking = async (booking) => {
@@ -842,8 +875,8 @@
           localStorage.setItem('electroAppData', JSON.stringify(newData));
           
           fetchBookings();
+          showToast("Бронь отменена, слот возвращен. 🔄");
         };
-        // =======================
 
         const handleChange = (e, field) => { setEditData({...editData, [field]: e.target.value}); };
         const handleArrayTextChange = (e, field) => { setEditData({...editData, [field]: e.target.value.split('\n')}); };
@@ -907,6 +940,7 @@
           const newData = {...appData, reviews: updatedReviews};
           setAppData(newData);
           syncToFirebase(newData);
+          showToast("Отзыв успешно опубликован! ✅");
         };
 
         const deleteReview = (reviewId) => {
@@ -918,13 +952,17 @@
           const newData = {...appData, reviews: updatedReviews};
           setAppData(newData);
           syncToFirebase(newData);
+          showToast("Отзыв удален. 🗑️");
         };
 
-        const saveChanges = () => {
+        const saveChanges = async () => {
           triggerHaptic();
+          setIsSaving(true);
           setAppData(editData);
-          syncToFirebase(editData);
-          alert("Настройки успешно сохранены!");
+          await syncToFirebase(editData);
+          localStorage.setItem('electroAppData', JSON.stringify(editData));
+          setIsSaving(false);
+          showToast("Настройки успешно сохранены! ✓");
         };
 
         const allReviews = (editData.reviews || []).sort((a,b) => new Date(b.date) - new Date(a.date));
@@ -959,258 +997,254 @@
                   <input value={editData.photoUrl} onChange={(e) => handleChange(e, 'photoUrl')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
                 </div>
 
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-xs text-gray-400 mb-1">Имя</label>
-                <input value={editData.name} onChange={(e) => handleChange(e, 'name')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
-                
-                <label className="block text-xs text-gray-400 mt-3 mb-1">Подзаголовок (Мастер...)</label>
-                <input value={editData.profession} onChange={(e) => handleChange(e, 'profession')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
-              </div>
-
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-xs text-gray-400 mb-1">Адрес</label>
-                <input value={editData.address} onChange={(e) => handleChange(e, 'address')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
-                
-                <label className="block text-xs text-gray-400 mt-3 mb-1">Обо мне</label>
-                <textarea value={editData.about} onChange={(e) => handleChange(e, 'about')} rows="3" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm"></textarea>
-              </div>
-
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-sm font-bold text-white mb-3">Названия 5 кружочков (Сториз)</label>
-                <p className="text-xs text-gray-400 mb-4">Оставь имя пустым, чтобы скрыть кружок на главной.</p>
-                {editData.stories.map((story, i) => (
-                  <div key={i} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 mb-3">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[10px] text-[#C89D7C] font-bold uppercase tracking-wider">Кружок {i+1}</label>
-                      <div className="flex gap-3 px-1">
-                        <button onClick={() => moveStory(i, 'up')} disabled={i === 0} className={`text-lg leading-none font-bold ${i === 0 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↑</button>
-                        <button onClick={() => moveStory(i, 'down')} disabled={i === editData.stories.length - 1} className={`text-lg leading-none font-bold ${i === editData.stories.length - 1 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↓</button>
-                      </div>
-                    </div>
-                    <input 
-                      value={story.name} 
-                      onChange={(e) => handleStoryPropChange(i, 'name', e.target.value)} 
-                      placeholder="Название (напр. Отзывы)" 
-                      className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C] border border-transparent transition-colors" 
-                    />
-                    
-                    {story.name.trim() !== '' && (
-                      <div className="animate-[fadeIn_0.3s_ease-out] flex flex-col gap-2">
-                        <select 
-                          value={story.type} 
-                          onChange={(e) => handleStoryPropChange(i, 'type', e.target.value)} 
-                          className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm border border-transparent focus:outline-none focus:border-[#C89D7C]"
-                        >
-                          <option value="reviews">⭐ Системные Отзывы</option>
-                          <option value="insta">📱 Инста-сториз (Фуллскрин)</option>
-                          <option value="gallery">🖼️ Всплывающая Галерея</option>
-                          <option value="page">📄 Текстовая Страничка</option>
-                        </select>
-                        
-                        {(story.type === 'insta' || story.type === 'gallery') && (
-                           <textarea 
-                             value={(story.images || []).join('\n')} 
-                             onChange={(e) => handleStoryPropChange(i, 'images', e.target.value.split('\n'))} 
-                             placeholder="Ссылки на фото (каждая с новой строки)" 
-                             rows="3" 
-                             className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-xs border border-transparent focus:outline-none focus:border-[#C89D7C]"
-                           ></textarea>
-                        )}
-                        
-                        {story.type === 'page' && (
-                           <textarea 
-                             value={story.content || ''} 
-                             onChange={(e) => handleStoryPropChange(i, 'content', e.target.value)} 
-                             placeholder="Текст страницы..." 
-                             rows="4" 
-                             className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm border border-transparent focus:outline-none focus:border-[#C89D7C]"
-                           ></textarea>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* УЛУЧШЕННАЯ АДМИНКА ДАТ И ВРЕМЕНИ */}
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-sm font-bold text-white mb-1">Свободные даты и окошки</label>
-                <p className="text-xs text-gray-400 mb-4">Нажми на день, чтобы настроить его время.</p>
-                
-                <div className="grid grid-cols-7 gap-1 mb-4">
-                  {globalCalendarDays.map((item, idx) => {
-                    const isSelected = editData.dates.some(d => d.date === item.date);
-                    const isEditingThis = adminSelectedDateObj?.date === item.date;
-                    return (
-                      <div key={idx} onClick={() => { triggerHaptic(); setAdminSelectedDateObj(item); setNewTimeVal(''); }} 
-                           className={`flex flex-col items-center justify-center py-2 rounded-lg cursor-pointer transition-colors border-2 
-                           ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C]' : 'bg-[#1A1A1A] text-gray-500 border-gray-800'}
-                           ${isEditingThis ? 'ring-2 ring-white scale-105' : ''}`}>
-                        <span className="text-[10px] leading-none mb-1 opacity-80">{item.day}</span>
-                        <span className="text-sm font-bold leading-none">{item.date.split(' ')[0]}</span>
-                      </div>
-                    );
-                  })}
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <label className="block text-xs text-gray-400 mb-1">Имя</label>
+                  <input value={editData.name} onChange={(e) => handleChange(e, 'name')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
+                  
+                  <label className="block text-xs text-gray-400 mt-3 mb-1">Подзаголовок (Мастер...)</label>
+                  <input value={editData.profession} onChange={(e) => handleChange(e, 'profession')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
                 </div>
 
-                {/* Блок настройки выбранного дня */}
-                {adminSelectedDateObj && (() => {
-                  const dateEntryIndex = editData.dates.findIndex(d => d.date === adminSelectedDateObj.date);
-                  const isWorkingDay = dateEntryIndex !== -1;
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <label className="block text-xs text-gray-400 mb-1">Адрес</label>
+                  <input value={editData.address} onChange={(e) => handleChange(e, 'address')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
+                  
+                  <label className="block text-xs text-gray-400 mt-3 mb-1">Обо мне</label>
+                  <textarea value={editData.about} onChange={(e) => handleChange(e, 'about')} rows="3" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm"></textarea>
+                </div>
 
-                  if (!isWorkingDay) {
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <label className="block text-sm font-bold text-white mb-3">Названия 5 кружочков (Сториз)</label>
+                  <p className="text-xs text-gray-400 mb-4">Оставь имя пустым, чтобы скрыть кружок на главной.</p>
+                  {editData.stories.map((story, i) => (
+                    <div key={i} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 mb-3">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] text-[#C89D7C] font-bold uppercase tracking-wider">Кружок {i+1}</label>
+                        <div className="flex gap-3 px-1">
+                          <button onClick={() => moveStory(i, 'up')} disabled={i === 0} className={`text-lg leading-none font-bold ${i === 0 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↑</button>
+                          <button onClick={() => moveStory(i, 'down')} disabled={i === editData.stories.length - 1} className={`text-lg leading-none font-bold ${i === editData.stories.length - 1 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↓</button>
+                        </div>
+                      </div>
+                      <input 
+                        value={story.name} 
+                        onChange={(e) => handleStoryPropChange(i, 'name', e.target.value)} 
+                        placeholder="Название (напр. Отзывы)" 
+                        className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C] border border-transparent transition-colors" 
+                      />
+                      
+                      {story.name.trim() !== '' && (
+                        <div className="animate-[fadeIn_0.3s_ease-out] flex flex-col gap-2">
+                          <select 
+                            value={story.type} 
+                            onChange={(e) => handleStoryPropChange(i, 'type', e.target.value)} 
+                            className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm border border-transparent focus:outline-none focus:border-[#C89D7C]"
+                          >
+                            <option value="reviews">⭐ Системные Отзывы</option>
+                            <option value="insta">📱 Инста-сториз (Фуллскрин)</option>
+                            <option value="gallery">🖼️ Всплывающая Галерея</option>
+                            <option value="page">📄 Текстовая Страничка</option>
+                          </select>
+                          
+                          {(story.type === 'insta' || story.type === 'gallery') && (
+                             <textarea 
+                               value={(story.images || []).join('\n')} 
+                               onChange={(e) => handleStoryPropChange(i, 'images', e.target.value.split('\n'))} 
+                               placeholder="Ссылки на фото (каждая с новой строки)" 
+                               rows="3" 
+                               className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-xs border border-transparent focus:outline-none focus:border-[#C89D7C]"
+                             ></textarea>
+                          )}
+                          
+                          {story.type === 'page' && (
+                             <textarea 
+                               value={story.content || ''} 
+                               onChange={(e) => handleStoryPropChange(i, 'content', e.target.value)} 
+                               placeholder="Текст страницы..." 
+                               rows="4" 
+                               className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm border border-transparent focus:outline-none focus:border-[#C89D7C]"
+                             ></textarea>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <label className="block text-sm font-bold text-white mb-1">Свободные даты и окошки</label>
+                  <p className="text-xs text-gray-400 mb-4">Нажми на день, чтобы настроить его время.</p>
+                  
+                  <div className="grid grid-cols-7 gap-1 mb-4">
+                    {globalCalendarDays.map((item, idx) => {
+                      const isSelected = editData.dates.some(d => d.date === item.date);
+                      const isEditingThis = adminSelectedDateObj?.date === item.date;
+                      return (
+                        <div key={idx} onClick={() => { triggerHaptic(); setAdminSelectedDateObj(item); setNewTimeVal(''); }} 
+                             className={`flex flex-col items-center justify-center py-2 rounded-lg cursor-pointer transition-colors border-2 
+                             ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C]' : 'bg-[#1A1A1A] text-gray-500 border-gray-800'}
+                             ${isEditingThis ? 'ring-2 ring-white scale-105' : ''}`}>
+                          <span className="text-[10px] leading-none mb-1 opacity-80">{item.day}</span>
+                          <span className="text-sm font-bold leading-none">{item.date.split(' ')[0]}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {adminSelectedDateObj && (() => {
+                    const dateEntryIndex = editData.dates.findIndex(d => d.date === adminSelectedDateObj.date);
+                    const isWorkingDay = dateEntryIndex !== -1;
+
+                    if (!isWorkingDay) {
+                      return (
+                        <div className="animate-[fadeIn_0.3s_ease-out] bg-[#1A1A1A] p-4 rounded-xl border border-gray-700 text-center">
+                          <p className="text-white font-bold mb-1">{adminSelectedDateObj.date}, {adminSelectedDateObj.day}</p>
+                          <p className="text-gray-500 text-xs mb-3">Сейчас это выходной день.</p>
+                          <button onClick={() => {
+                            triggerHaptic();
+                            const newDates = [...editData.dates, { ...adminSelectedDateObj, slots: ['10:00', '12:00', '14:00', '16:00'] }];
+                            newDates.sort((a, b) => {
+                               const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                               const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                               return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                            });
+                            setEditData({...editData, dates: newDates});
+                          }} className="bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black px-4 py-2 rounded-lg font-bold text-sm">
+                            Сделать рабочим
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    const entry = editData.dates[dateEntryIndex];
                     return (
-                      <div className="animate-[fadeIn_0.3s_ease-out] bg-[#1A1A1A] p-4 rounded-xl border border-gray-700 text-center">
-                        <p className="text-white font-bold mb-1">{adminSelectedDateObj.date}, {adminSelectedDateObj.day}</p>
-                        <p className="text-gray-500 text-xs mb-3">Сейчас это выходной день.</p>
+                      <div className="animate-[fadeIn_0.3s_ease-out] bg-[#1A1A1A] p-4 rounded-xl border border-[#C89D7C]/50 relative">
                         <button onClick={() => {
-                          triggerHaptic();
-                          const newDates = [...editData.dates, { ...adminSelectedDateObj, slots: ['10:00', '12:00', '14:00', '16:00'] }];
-                          newDates.sort((a, b) => {
-                             const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
-                             const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
-                             return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
-                          });
-                          setEditData({...editData, dates: newDates});
-                        }} className="bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black px-4 py-2 rounded-lg font-bold text-sm">
-                          Сделать рабочим
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  // Если день рабочий, показываем слоты
-                  const entry = editData.dates[dateEntryIndex];
-                  return (
-                    <div className="animate-[fadeIn_0.3s_ease-out] bg-[#1A1A1A] p-4 rounded-xl border border-[#C89D7C]/50 relative">
-                      <button onClick={() => {
-                        triggerHaptic();
-                        const newDates = [...editData.dates];
-                        newDates.splice(dateEntryIndex, 1);
-                        setEditData({...editData, dates: newDates});
-                      }} className="absolute top-3 right-3 text-red-400 text-xs font-bold bg-red-400/10 px-2 py-1 rounded-md">Сделать выходным</button>
-                      
-                      <p className="text-[#C89D7C] font-bold mb-3">{adminSelectedDateObj.date}, {adminSelectedDateObj.day}</p>
-                      
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {entry.slots.length === 0 && <span className="text-xs text-gray-500">Нет свободного времени</span>}
-                        {entry.slots.map((time, idx) => (
-                          <div key={idx} className="bg-[#2A2A2A] border border-[#C89D7C]/30 rounded-lg px-2 py-1 flex items-center gap-1">
-                            <span className="text-sm text-white font-medium">{time}</span>
-                            <button onClick={() => {
-                              triggerHaptic();
-                              const newDates = [...editData.dates];
-                              newDates[dateEntryIndex].slots.splice(idx, 1);
-                              setEditData({...editData, dates: newDates});
-                            }} className="text-red-400 hover:text-red-300 ml-1">×</button>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex gap-2">
-                        <input value={newTimeVal} onChange={e => setNewTimeVal(e.target.value)} placeholder="Новое время (14:00)" className="flex-1 bg-[#2A2A2A] border border-gray-700 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C]" />
-                        <button onClick={() => {
-                          if(!newTimeVal) return;
                           triggerHaptic();
                           const newDates = [...editData.dates];
-                          newDates[dateEntryIndex].slots.push(newTimeVal);
-                          // Сортируем слоты по времени
-                          newDates[dateEntryIndex].slots.sort();
+                          newDates.splice(dateEntryIndex, 1);
                           setEditData({...editData, dates: newDates});
-                          setNewTimeVal('');
-                        }} className="bg-[#C89D7C] text-black px-4 py-2 rounded-lg font-bold text-sm">Добавить</button>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-xs text-gray-400 mb-1">Памятка (каждый пункт с новой строки)</label>
-                <textarea 
-                  value={editData.memo.join('\n')} 
-                  onChange={(e) => handleArrayTextChange(e, 'memo')} 
-                  rows="4" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm"></textarea>
-              </div>
-
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-sm font-bold text-white mb-3">Услуги (Зоны)</label>
-                <div className="space-y-3 mb-3">
-                  {editData.services.map((svc, idx) => (
-                    <div key={idx} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 relative">
-                      <button onClick={() => removeService(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shadow-lg">×</button>
-                      <div className="flex gap-2">
-                        <input value={svc.icon} onChange={e => handleServiceChange(idx, 'icon', e.target.value)} className="w-12 text-center bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="✨" />
-                        <input value={svc.name} onChange={e => handleServiceChange(idx, 'name', e.target.value)} className="flex-1 bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="Название зоны" />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">Время (мин):</span>
-                        <input type="number" value={svc.defaultTime} onChange={e => handleServiceChange(idx, 'defaultTime', parseInt(e.target.value)||0)} className="w-20 bg-[#2A2A2A] rounded-lg p-1.5 text-white text-sm" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={addService} className="w-full bg-[#2A2A2A] border border-[#C89D7C]/30 text-[#C89D7C] py-2 rounded-xl text-sm font-bold">+ Добавить зону</button>
-              </div>
-
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-sm font-bold text-white mb-3">Дополнительно (Допы)</label>
-                <div className="space-y-3 mb-3">
-                  {editData.addons.map((addon, idx) => (
-                    <div key={idx} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 relative">
-                      <button onClick={() => removeAddon(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shadow-lg">×</button>
-                      <div className="flex gap-2">
-                        <input value={addon.icon} onChange={e => handleAddonChange(idx, 'icon', e.target.value)} className="w-12 text-center bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="🧊" />
-                        <input value={addon.name} onChange={e => handleAddonChange(idx, 'name', e.target.value)} className="flex-1 bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="Название допа" />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">Цена (+₽):</span>
-                        <input type="number" value={addon.price} onChange={e => handleAddonChange(idx, 'price', parseInt(e.target.value)||0)} className="w-24 bg-[#2A2A2A] rounded-lg p-1.5 text-white text-sm" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={addAddon} className="w-full bg-[#2A2A2A] border border-[#C89D7C]/30 text-[#C89D7C] py-2 rounded-xl text-sm font-bold">+ Добавить доп</button>
-              </div>
-
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <button onClick={() => { triggerHaptic(); setShowReviewsMod(!showReviewsMod); }} className="w-full flex justify-between items-center">
-                  <span className="text-sm font-bold text-white">Модерация отзывов ({allReviews.length})</span>
-                  <span className="text-[#C89D7C] text-2xl leading-none">{showReviewsMod ? '−' : '+'}</span>
-                </button>
-                
-                {showReviewsMod && (
-                  <div className="space-y-3 mt-4 pt-4 border-t border-white/10">
-                    {allReviews.length === 0 ? (
-                      <p className="text-xs text-gray-500">Отзывов пока нет.</p>
-                    ) : (
-                      allReviews.map(rev => (
-                        <div key={rev.id} className={`p-4 rounded-xl border ${rev.approved ? 'border-green-500/30 bg-green-500/10' : 'border-[#C89D7C]/50 bg-[#C89D7C]/10'} relative`}>
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="font-bold text-white text-sm">{rev.name} <span className="text-[#C89D7C]">({rev.rating}⭐)</span></span>
-                            <span className={`text-[10px] px-2 py-1 rounded-full ${rev.approved ? 'bg-green-500/20 text-green-400' : 'bg-[#C89D7C]/20 text-[#C89D7C]'}`}>
-                              {rev.approved ? '✅ Опубликован' : '⏳ Ждет модерации'}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-300 mb-3">{rev.text}</p>
-                          <div className="flex gap-2">
-                            {!rev.approved && (
-                              <button onClick={() => approveReview(rev.id)} className="bg-green-600/80 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
-                                Одобрить
-                              </button>
-                            )}
-                            <button onClick={() => deleteReview(rev.id)} className="bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
-                              Удалить
-                            </button>
-                          </div>
+                        }} className="absolute top-3 right-3 text-red-400 text-xs font-bold bg-red-400/10 px-2 py-1 rounded-md">Сделать выходным</button>
+                        
+                        <p className="text-[#C89D7C] font-bold mb-3">{adminSelectedDateObj.date}, {adminSelectedDateObj.day}</p>
+                        
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {entry.slots.length === 0 && <span className="text-xs text-gray-500">Нет свободного времени</span>}
+                          {entry.slots.map((time, idx) => (
+                            <div key={idx} className="bg-[#2A2A2A] border border-[#C89D7C]/30 rounded-lg px-2 py-1 flex items-center gap-1">
+                              <span className="text-sm text-white font-medium">{time}</span>
+                              <button onClick={() => {
+                                triggerHaptic();
+                                const newDates = [...editData.dates];
+                                newDates[dateEntryIndex].slots.splice(idx, 1);
+                                setEditData({...editData, dates: newDates});
+                              }} className="text-red-400 hover:text-red-300 ml-1">×</button>
+                            </div>
+                          ))}
                         </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
 
-            </div>
+                        <div className="flex gap-2">
+                          <input value={newTimeVal} onChange={e => setNewTimeVal(e.target.value)} placeholder="Новое время (14:00)" className="flex-1 bg-[#2A2A2A] border border-gray-700 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C]" />
+                          <button onClick={() => {
+                            if(!newTimeVal) return;
+                            triggerHaptic();
+                            const newDates = [...editData.dates];
+                            newDates[dateEntryIndex].slots.push(newTimeVal);
+                            newDates[dateEntryIndex].slots.sort();
+                            setEditData({...editData, dates: newDates});
+                            setNewTimeVal('');
+                          }} className="bg-[#C89D7C] text-black px-4 py-2 rounded-lg font-bold text-sm">Добавить</button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <label className="block text-xs text-gray-400 mb-1">Памятка (каждый пункт с новой строки)</label>
+                  <textarea 
+                    value={editData.memo.join('\n')} 
+                    onChange={(e) => handleArrayTextChange(e, 'memo')} 
+                    rows="4" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm"></textarea>
+                </div>
+
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <label className="block text-sm font-bold text-white mb-3">Услуги (Зоны)</label>
+                  <div className="space-y-3 mb-3">
+                    {editData.services.map((svc, idx) => (
+                      <div key={idx} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 relative">
+                        <button onClick={() => removeService(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shadow-lg">×</button>
+                        <div className="flex gap-2">
+                          <input value={svc.icon} onChange={e => handleServiceChange(idx, 'icon', e.target.value)} className="w-12 text-center bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="✨" />
+                          <input value={svc.name} onChange={e => handleServiceChange(idx, 'name', e.target.value)} className="flex-1 bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="Название зоны" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">Время (мин):</span>
+                          <input type="number" value={svc.defaultTime} onChange={e => handleServiceChange(idx, 'defaultTime', parseInt(e.target.value)||0)} className="w-20 bg-[#2A2A2A] rounded-lg p-1.5 text-white text-sm" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={addService} className="w-full bg-[#2A2A2A] border border-[#C89D7C]/30 text-[#C89D7C] py-2 rounded-xl text-sm font-bold">+ Добавить зону</button>
+                </div>
+
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <label className="block text-sm font-bold text-white mb-3">Дополнительно (Допы)</label>
+                  <div className="space-y-3 mb-3">
+                    {editData.addons.map((addon, idx) => (
+                      <div key={idx} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 relative">
+                        <button onClick={() => removeAddon(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shadow-lg">×</button>
+                        <div className="flex gap-2">
+                          <input value={addon.icon} onChange={e => handleAddonChange(idx, 'icon', e.target.value)} className="w-12 text-center bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="🧊" />
+                          <input value={addon.name} onChange={e => handleAddonChange(idx, 'name', e.target.value)} className="flex-1 bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="Название допа" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">Цена (+₽):</span>
+                          <input type="number" value={addon.price} onChange={e => handleAddonChange(idx, 'price', parseInt(e.target.value)||0)} className="w-24 bg-[#2A2A2A] rounded-lg p-1.5 text-white text-sm" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={addAddon} className="w-full bg-[#2A2A2A] border border-[#C89D7C]/30 text-[#C89D7C] py-2 rounded-xl text-sm font-bold">+ Добавить доп</button>
+                </div>
+
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <button onClick={() => { triggerHaptic(); setShowReviewsMod(!showReviewsMod); }} className="w-full flex justify-between items-center">
+                    <span className="text-sm font-bold text-white">Модерация отзывов ({allReviews.length})</span>
+                    <span className="text-[#C89D7C] text-2xl leading-none">{showReviewsMod ? '−' : '+'}</span>
+                  </button>
+                  
+                  {showReviewsMod && (
+                    <div className="space-y-3 mt-4 pt-4 border-t border-white/10">
+                      {allReviews.length === 0 ? (
+                        <p className="text-xs text-gray-500">Отзывов пока нет.</p>
+                      ) : (
+                        allReviews.map(rev => (
+                          <div key={rev.id} className={`p-4 rounded-xl border ${rev.approved ? 'border-green-500/30 bg-green-500/10' : 'border-[#C89D7C]/50 bg-[#C89D7C]/10'} relative`}>
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="font-bold text-white text-sm">{rev.name} <span className="text-[#C89D7C]">({rev.rating}⭐)</span></span>
+                              <span className={`text-[10px] px-2 py-1 rounded-full ${rev.approved ? 'bg-green-500/20 text-green-400' : 'bg-[#C89D7C]/20 text-[#C89D7C]'}`}>
+                                {rev.approved ? '✅ Опубликован' : '⏳ Ждет модерации'}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-300 mb-3">{rev.text}</p>
+                            <div className="flex gap-2">
+                              {!rev.approved && (
+                                <button onClick={() => approveReview(rev.id)} className="bg-green-600/80 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                                  Одобрить
+                                </button>
+                              )}
+                              <button onClick={() => deleteReview(rev.id)} className="bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                                Удалить
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+              </div>
             ) : (
               <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
                 {/* Ручная запись CRM */}
@@ -1262,8 +1296,8 @@
 
             {adminTab === 'settings' && (
               <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent max-w-md mx-auto z-50">
-                <button onClick={saveChanges} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-4 rounded-2xl font-bold shadow-lg">
-                  Сохранить настройки
+                <button onClick={saveChanges} disabled={isSaving} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-4 rounded-2xl font-bold shadow-lg transition-all disabled:opacity-50">
+                  {isSaving ? "Сохранение..." : "Сохранить настройки"}
                 </button>
               </div>
             )}
@@ -1274,6 +1308,19 @@
       return (
         <div className="max-w-md mx-auto min-h-screen relative shadow-2xl bg-black/40 border-x border-white/5 overflow-hidden">
           
+          {/* ТОЧКА СТАТУСА FIREBASE (СВЕТОФОР) */}
+          <div 
+            className={`fixed top-4 right-4 w-2.5 h-2.5 rounded-full z-[60] transition-colors duration-500 ${dbConnected ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`} 
+            title={dbConnected ? "Облако подключено" : "Нет связи с облаком"}
+          ></div>
+
+          {/* ВСПЛЫВАЮЩИЕ УВЕДОМЛЕНИЯ (TOAST) */}
+          {toastMsg && (
+            <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-green-600/90 text-white px-6 py-3 rounded-full shadow-[0_5px_20px_rgba(34,197,94,0.4)] backdrop-blur-md font-bold text-sm animate-[fadeIn_0.3s_ease-out] border border-green-400/30 whitespace-nowrap">
+              {toastMsg}
+            </div>
+          )}
+
           {activeTab === 'main' && renderMain()}
           {activeTab === 'booking' && renderBooking()}
           {activeTab === 'success' && renderSuccess()}
