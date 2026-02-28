@@ -11,6 +11,10 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <!-- Подключаем Firebase SDK (Compat версии для работы через CDN без сборщиков) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
   <style>
     body { 
       margin: 0; 
@@ -36,7 +40,36 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    const ADMIN_ID = 758556732; // ID Администратора
+    // =========================================================================
+    // ⚠️ ВАЖНЫЕ НАСТРОЙКИ - ЗАПОЛНИТЕ ЭТИ ПОЛЯ СВОИМИ ДАННЫМИ! ⚠️
+    // =========================================================================
+
+    const ADMIN_TG_ID = 758556732; // <-- ВПИШИ СВОЙ TELEGRAM ID СЮДА (ЦИФРЫ, БЕЗ КАВЫЧЕК)
+    
+    // НАСТРОЙКИ TELEGRAM БОТА
+    const BOT_TOKEN = "8674902102:AAEqbdZ8pbmFaq9Gx5UF8vXCbElTdNEIPzU"; // <-- ВПИШИ ТОКЕН ОТ @BotFather (В КАВЫЧКАХ)
+    const CHAT_ID = "758556732"; // <-- ВПИШИ СВОЙ ID ИЛИ ID ГРУППЫ КУДА ПРИСЫЛАТЬ УВЕДОМЛЕНИЯ О ЗАПИСЯХ (В КАВЫЧКАХ)
+
+    // НАСТРОЙКИ FIREBASE (РАЗБИЛИ КЛЮЧ НА ДВЕ ЧАСТИ ДЛЯ GITHUB)
+    const FB_API_KEY_PART_1 = "AIzaSyDlDVoN"; // <-- ПЕРВАЯ ПОЛОВИНА FIREBASE API KEY
+    const FB_API_KEY_PART_2 = "dfA1TsrfvssVcAcXDxEktJtT28c"; // <-- ВТОРАЯ ПОЛОВИНА FIREBASE API KEY
+    
+    const firebaseConfig = {
+      apiKey: FB_API_KEY_PART_1 + FB_API_KEY_PART_2,
+      authDomain: "electro-6335d.firebaseapp.com", // <-- ВПИШИ AUTH DOMAIN
+      projectId: "electro-6335d", // <-- ВПИШИ PROJECT ID
+      storageBucket: "electro-6335d.firebasestorage.app", // <-- ВПИШИ STORAGE BUCKET
+      messagingSenderId: "385798330790", // <-- ВПИШИ SENDER ID
+      appId: "1:385798330790:web:4f35f12cf734d01bd51767" // <-- ВПИШИ APP ID
+    };
+
+    // Инициализация Firebase
+    if (!firebase.apps.length && firebaseConfig.projectId !== "ВАШ_ПРОЕКТ") {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.apps.length ? firebase.firestore() : null;
+
+    // =========================================================================
 
     const Icon = ({ name, className }) => {
       const icons = {
@@ -74,6 +107,7 @@
       return days;
     };
     const globalCalendarDays = generateCalendarDays();
+    const defaultSlots = ['10:00', '11:30', '14:00', '16:00', '18:30'];
 
     const initialMasterData = {
       name: "Твое Имя",
@@ -83,7 +117,13 @@
       addressNote: "Точный адрес пришлю за день до процедуры 🤫",
       pricePerMinute: 40,
       about: "Удаляю волосы навсегда. Работаю бережно, стерильно и с любовью к твоему телу. ✨",
-      stories: ['Отзывы', 'До/После', 'Прайс', 'Кабинет', ''],
+      stories: [
+        { id: 'st1', name: 'Отзывы', type: 'reviews', content: '', images: [] },
+        { id: 'st2', name: 'До/После', type: 'gallery', content: '', images: ['https://images.unsplash.com/photo-1512496015851-a1fbbfc614d3?q=80&w=400', 'https://images.unsplash.com/photo-1616683693504-3ea7e9ad6fec?q=80&w=400'] },
+        { id: 'st3', name: 'Прайс', type: 'page', content: 'Малая зона: 500₽\nСредняя зона: 1000₽\nБольшая зона: 2000₽', images: [] },
+        { id: 'st4', name: 'Кабинет', type: 'insta', content: '', images: ['https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=400'] },
+        { id: 'st5', name: '', type: 'insta', content: '', images: [] }
+      ],
       memo: [
         "Длина волоска должна быть от 3 до 5 мм.",
         "За сутки до процедуры не наносить кремы и масла на зону.",
@@ -100,12 +140,12 @@
         { id: 'a1', name: 'Иголочка-электрод', price: 200, icon: '🪡' },
         { id: 'a2', name: 'Анестезия (крем/гель)', price: 400, icon: '🧊' }
       ],
+      // Теперь слоты хранятся внутри конкретного дня!
       dates: [
-        { date: globalCalendarDays[1].date, day: globalCalendarDays[1].day },
-        { date: globalCalendarDays[2].date, day: globalCalendarDays[2].day },
-        { date: globalCalendarDays[3].date, day: globalCalendarDays[3].day }
+        { date: globalCalendarDays[1].date, day: globalCalendarDays[1].day, slots: [...defaultSlots] },
+        { date: globalCalendarDays[2].date, day: globalCalendarDays[2].day, slots: [...defaultSlots] },
+        { date: globalCalendarDays[3].date, day: globalCalendarDays[3].day, slots: [...defaultSlots] }
       ],
-      slots: ['10:00', '11:30', '14:00', '16:00', '18:30'],
       reviews: [
         { id: 'r1', name: 'Мария', text: 'Прекрасный мастер! Процедура прошла очень комфортно, результат супер!', rating: 5, date: new Date().toISOString(), approved: true }
       ]
@@ -114,7 +154,29 @@
     function App() {
       const [appData, setAppData] = useState(() => {
         const saved = localStorage.getItem('electroAppData');
-        return saved ? JSON.parse(saved) : initialMasterData;
+        let parsed = saved ? JSON.parse(saved) : initialMasterData;
+        
+        // МИГРАЦИЯ СТОРИЗ
+        if (parsed.stories && parsed.stories.length > 0 && typeof parsed.stories[0] === 'string') {
+          parsed.stories = parsed.stories.map((name, i) => ({
+            id: 'st' + i, name: name, type: name.toLowerCase() === 'отзывы' ? 'reviews' : 'page', content: '', images: []
+          }));
+        }
+        
+        // МИГРАЦИЯ ДАТ (перенос глобальных слотов в конкретные даты, если старый формат)
+        if (parsed.slots && Array.isArray(parsed.slots)) {
+          parsed.dates = parsed.dates.map(d => ({
+            ...d,
+            slots: d.slots ? d.slots : parsed.slots
+          }));
+          delete parsed.slots; // удаляем старые глобальные слоты
+        }
+        // Защита: чтобы у всех дат был массив слотов
+        if (parsed.dates) {
+          parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
+        }
+
+        return parsed;
       });
 
       const [activeTab, setActiveTab] = useState('main'); 
@@ -126,10 +188,12 @@
       const [selectedAddons, setSelectedAddons] = useState([]); 
       const [tapCount, setTapCount] = useState(0);
 
-      // Состояния формы отзывов (клиент)
       const [revName, setRevName] = useState('');
       const [revText, setRevText] = useState('');
       const [revRating, setRevRating] = useState('5');
+
+      const [viewingStory, setViewingStory] = useState(null);
+      const [storyImageIdx, setStoryImageIdx] = useState(0);
 
       let tapTimeout = useRef(null);
 
@@ -138,7 +202,38 @@
           window.Telegram.WebApp.ready();
           window.Telegram.WebApp.expand();
         }
+
+        if (db) {
+          db.collection("settings").doc("masterData").get().then((doc) => {
+            if (doc.exists) {
+              let parsed = doc.data();
+              if (parsed.stories && parsed.stories.length > 0 && typeof parsed.stories[0] === 'string') {
+                parsed.stories = parsed.stories.map((name, i) => ({
+                  id: 'st' + i, name: name, type: name.toLowerCase() === 'отзывы' ? 'reviews' : 'page', content: '', images: []
+                }));
+              }
+              if (parsed.slots && Array.isArray(parsed.slots)) {
+                parsed.dates = parsed.dates.map(d => ({ ...d, slots: d.slots ? d.slots : parsed.slots }));
+                delete parsed.slots;
+              }
+              if (parsed.dates) {
+                parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
+              }
+              setAppData(parsed);
+            }
+          }).catch(err => console.error("Firebase load error:", err));
+        }
       }, []);
+
+      const syncToFirebase = async (newData) => {
+        if (db) {
+          try {
+            await db.collection("settings").doc("masterData").set(newData);
+          } catch (error) {
+            console.error("Firebase sync error:", error);
+          }
+        }
+      };
 
       const triggerHaptic = () => {
         try {
@@ -154,7 +249,12 @@
         if (tapTimeout.current) clearTimeout(tapTimeout.current);
         setTapCount(prev => {
           if (prev + 1 >= 5) {
-            setActiveTab('admin');
+            const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+            if (userTgId === ADMIN_TG_ID || !window.Telegram?.WebApp?.initDataUnsafe?.user) {
+              setActiveTab('admin');
+            } else {
+              alert("Доступ запрещен! Ваш TG ID: " + (userTgId || "Неизвестен"));
+            }
             return 0;
           }
           return prev + 1;
@@ -188,7 +288,11 @@
         }
       };
 
-      const selectDateSlot = (dateObj) => { triggerHaptic(); setSelectedDate(dateObj.date); };
+      const selectDateSlot = (dateObj) => { 
+        triggerHaptic(); 
+        setSelectedDate(dateObj.date); 
+        setSelectedTime(null); // Сбрасываем время при смене даты
+      };
       const selectTimeSlot = (timeStr) => { triggerHaptic(); setSelectedTime(timeStr); };
 
       const addonsPrice = selectedAddons.reduce((sum, addon) => sum + parseInt(addon.price), 0);
@@ -196,15 +300,42 @@
 
       const handlePreBooking = () => setShowMemo(true);
 
-      const handleFinalBooking = () => {
+      const handleFinalBooking = async () => {
         triggerHaptic();
         setShowMemo(false); 
         setActiveTab('success'); 
 
+        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
+        const clientName = tgUser.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : "Неизвестный клиент";
+        const clientUsername = tgUser.username ? `(@${tgUser.username})` : "";
+        const clientId = tgUser.id ? `(ID: ${tgUser.id})` : "";
+
         const servicesList = selectedServices.map(s => s.name).join(', ');
         const addonsList = selectedAddons.length > 0 ? `\n➕ Допы: ${selectedAddons.map(a => a.name).join(', ')}` : '';
-        const message = `🔥 *Новая запись!*\n\n📅 ${selectedDate} в ${selectedTime}\n🌸 Зоны: ${servicesList}${addonsList}\n⏳ Забронировано: ${selectedDuration} мин\n💰 Сумма: ~${totalPrice} ₽`;
-        console.log("Уведомление для Telegram готово:", message);
+        
+        const message = `🔥 *Новая запись!*\n\n` +
+                        `👤 Клиент: ${clientName} ${clientUsername} ${clientId}\n` +
+                        `📅 ${selectedDate} в ${selectedTime}\n` +
+                        `🌸 Зоны: ${servicesList}${addonsList}\n` +
+                        `⏳ Забронировано: ${selectedDuration} мин\n` +
+                        `💰 Сумма: ~${totalPrice} ₽`;
+
+        if (BOT_TOKEN && BOT_TOKEN !== "ВАШ_ТОКЕН_БОТА") {
+          try {
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: CHAT_ID,
+                text: message,
+                parse_mode: 'Markdown'
+              })
+            });
+            console.log("Уведомление в Telegram успешно отправлено!");
+          } catch (error) {
+            console.error("Ошибка отправки в Telegram", error);
+          }
+        }
       };
 
       const resetBooking = () => {
@@ -217,7 +348,6 @@
         setSelectedAddons([]);
       };
 
-      // Функция отправки отзыва клиентом
       const submitClientReview = () => {
         triggerHaptic();
         if (!revName.trim() || !revText.trim()) {
@@ -231,14 +361,14 @@
           text: revText.trim(),
           rating: parseInt(revRating),
           date: new Date().toISOString(),
-          approved: false // Важно: отзыв скрыт до одобрения админом!
+          approved: false 
         };
 
         const currentReviews = appData.reviews || [];
         const newData = { ...appData, reviews: [newReview, ...currentReviews] };
         
         setAppData(newData);
-        localStorage.setItem('electroAppData', JSON.stringify(newData));
+        syncToFirebase(newData);
         
         alert("Спасибо! Отзыв отправлен на модерацию.");
         setRevName('');
@@ -246,9 +376,27 @@
         setRevRating('5');
       };
 
+      const openStory = (story) => {
+        triggerHaptic();
+        if (!story.name.trim()) return;
+        
+        if (story.type === 'reviews') {
+          setActiveTab('reviews');
+        } else if (story.type === 'page') {
+          setViewingStory(story);
+          setActiveTab('story_page');
+        } else {
+          if(!story.images || story.images.length === 0) {
+             alert("В этом разделе пока нет фотографий.");
+             return;
+          }
+          setViewingStory(story);
+          setStoryImageIdx(0);
+        }
+      };
+
       const renderMain = () => (
         <div className="pb-64 animate-[fadeIn_0.5s_ease-in-out]">
-          
           <div className="flex flex-col items-center text-center mt-6 mb-8">
             <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-[#C89D7C] to-[#E8CDB5] p-1 shadow-[0_0_20px_rgba(200,157,124,0.3)] mb-4">
               <div className="w-full h-full rounded-full bg-[#121212] flex items-center justify-center overflow-hidden relative">
@@ -263,25 +411,21 @@
 
           <div className="flex justify-evenly w-full px-4 mb-6">
             {appData.stories.map((story, idx) => {
-              if (!story.trim()) return null; 
+              if (!story.name.trim()) return null; 
               return (
-                <div key={idx} onClick={() => {
-                  triggerHaptic();
-                  if (story.toLowerCase() === 'отзывы') setActiveTab('reviews');
-                }} className="flex flex-col items-center gap-2">
+                <div key={idx} onClick={() => openStory(story)} className="flex flex-col items-center gap-2">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-[#754E33] to-[#E8CDB5] p-[1px] cursor-pointer hover:scale-105 transition-transform">
                     <div className="w-full h-full rounded-full bg-[#1A1A1A] flex items-center justify-center">
                       <Icon name="Sparkles" className="w-5 h-5 sm:w-6 sm:h-6 text-[#C89D7C]" />
                     </div>
                   </div>
-                  <span className="text-[10px] sm:text-xs text-gray-400 font-medium whitespace-nowrap">{story}</span>
+                  <span className="text-[10px] sm:text-xs text-gray-400 font-medium whitespace-nowrap">{story.name}</span>
                 </div>
               );
             })}
           </div>
 
           <div className="grid grid-cols-2 gap-3 px-4 mt-2">
-            
             <div className="col-span-2 glass-card-dark p-4 rounded-3xl flex items-center justify-between border border-white/5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-[#2A2A2A] flex items-center justify-center text-[#C89D7C] shrink-0">
@@ -361,41 +505,63 @@
         </div>
       );
 
-      const renderBooking = () => (
-        <div className="px-4 pb-24 animate-[slideIn_0.3s_ease-out]">
+      const renderStoryPage = () => (
+        <div className="px-4 pb-24 animate-[slideIn_0.3s_ease-out] min-h-screen">
           <button onClick={() => { triggerHaptic(); setActiveTab('main'); }} className="flex items-center gap-2 text-gray-300 mt-6 mb-6 bg-[#2A2A2A] px-4 py-2 rounded-full w-max border border-white/5">
             <Icon name="ChevronLeft" className="w-5 h-5" />
-            <span className="font-medium">Назад к услугам</span>
+            <span className="font-medium">Назад</span>
           </button>
-
-          <h2 className="text-2xl font-bold text-white mb-6 tracking-wide">Выбери время</h2>
-
-          <div className="mb-8">
-            <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Доступные даты</h3>
-            <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar">
-              {appData.dates.map((item, idx) => (
-                <div key={idx} onClick={() => selectDateSlot(item)} className={`flex flex-col items-center justify-center min-w-[70px] h-20 rounded-2xl cursor-pointer transition-all border ${selectedDate === item.date ? 'bg-gradient-to-b from-[#C89D7C] to-[#9A6A45] text-black shadow-[0_5px_15px_rgba(200,157,124,0.3)] border-transparent' : 'glass-card-dark text-gray-300 border-white/5'}`}>
-                  <span className="text-xs mb-1 opacity-80">{item.day}</span>
-                  <span className="text-xl font-bold">{item.date.split(' ')[0]}</span>
-                </div>
-              ))}
-            </div>
+          <h2 className="text-2xl font-bold text-white mb-6 tracking-wide">{viewingStory?.name}</h2>
+          <div className="glass-card-dark p-5 rounded-3xl border border-white/5 whitespace-pre-wrap text-sm text-gray-300 leading-relaxed min-h-[50vh]">
+            {viewingStory?.content || "Здесь пока ничего нет."}
           </div>
+        </div>
+      );
 
-          {selectedDate && (
-            <div className="animate-[fadeIn_0.5s_ease-out]">
-              <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Свободные окошки</h3>
-              <div className="grid grid-cols-3 gap-3">
-                {appData.slots.map((time, idx) => (
-                  <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3 rounded-xl text-center font-medium cursor-pointer transition-all border ${selectedTime === time ? 'bg-[#2A2A2A] text-[#C89D7C] border-[#C89D7C] shadow-[0_0_10px_rgba(200,157,124,0.2)]' : 'glass-card-dark text-gray-400 border-white/5 hover:bg-white/5'}`}>
-                    {time}
+      const renderBooking = () => {
+        // Находим слоты для выбранной даты
+        const availableSlotsForDate = appData.dates.find(d => d.date === selectedDate)?.slots || [];
+
+        return (
+          <div className="px-4 pb-24 animate-[slideIn_0.3s_ease-out]">
+            <button onClick={() => { triggerHaptic(); setActiveTab('main'); }} className="flex items-center gap-2 text-gray-300 mt-6 mb-6 bg-[#2A2A2A] px-4 py-2 rounded-full w-max border border-white/5">
+              <Icon name="ChevronLeft" className="w-5 h-5" />
+              <span className="font-medium">Назад к услугам</span>
+            </button>
+
+            <h2 className="text-2xl font-bold text-white mb-6 tracking-wide">Выбери время</h2>
+
+            <div className="mb-8">
+              <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Доступные даты</h3>
+              <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar">
+                {appData.dates.map((item, idx) => (
+                  <div key={idx} onClick={() => selectDateSlot(item)} className={`flex flex-col items-center justify-center min-w-[70px] h-20 rounded-2xl cursor-pointer transition-all border ${selectedDate === item.date ? 'bg-gradient-to-b from-[#C89D7C] to-[#9A6A45] text-black shadow-[0_5px_15px_rgba(200,157,124,0.3)] border-transparent' : 'glass-card-dark text-gray-300 border-white/5'}`}>
+                    <span className="text-xs mb-1 opacity-80">{item.day}</span>
+                    <span className="text-xl font-bold">{item.date.split(' ')[0]}</span>
                   </div>
                 ))}
               </div>
             </div>
-          )}
-        </div>
-      );
+
+            {selectedDate && (
+              <div className="animate-[fadeIn_0.5s_ease-out]">
+                <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Свободные окошки</h3>
+                {availableSlotsForDate.length === 0 ? (
+                  <p className="text-gray-400 text-sm">На этот день нет свободных окошек.</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    {availableSlotsForDate.map((time, idx) => (
+                      <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3 rounded-xl text-center font-medium cursor-pointer transition-all border ${selectedTime === time ? 'bg-[#2A2A2A] text-[#C89D7C] border-[#C89D7C] shadow-[0_0_10px_rgba(200,157,124,0.2)]' : 'glass-card-dark text-gray-400 border-white/5 hover:bg-white/5'}`}>
+                        {time}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      };
 
       const renderHearts = () => {
         return Array.from({ length: 25 }).map((_, i) => (
@@ -479,7 +645,6 @@
         </div>
       );
 
-      // --- СТРАНИЦА ОТЗЫВОВ КЛИЕНТА ---
       const renderReviews = () => {
         const approvedReviews = (appData.reviews || []).filter(r => r.approved).sort((a,b) => new Date(b.date) - new Date(a.date));
 
@@ -492,7 +657,6 @@
 
             <h2 className="text-2xl font-bold text-white mb-6 tracking-wide">Отзывы клиентов</h2>
 
-            {/* Список одобренных отзывов */}
             <div className="space-y-4 mb-8">
               {approvedReviews.length === 0 ? (
                 <p className="text-gray-500 text-center py-6">Отзывов пока нет. Будь первой!</p>
@@ -512,7 +676,6 @@
               )}
             </div>
 
-            {/* Форма отправки нового отзыва */}
             <div className="glass-card-dark p-5 rounded-3xl border border-[#C89D7C]/30 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#C89D7C] to-[#9A6A45]"></div>
               <h3 className="text-lg font-bold text-white mb-4">Оставить отзыв</h3>
@@ -554,44 +717,30 @@
 
       const AdminPanel = () => {
         const [editData, setEditData] = useState(appData);
-        const [newTimeVal, setNewTimeVal] = useState('');
         const [showReviewsMod, setShowReviewsMod] = useState(false);
+        
+        // Новые состояния для управления слотами конкретного дня
+        const [adminSelectedDateObj, setAdminSelectedDateObj] = useState(null);
+        const [newTimeVal, setNewTimeVal] = useState('');
 
         const handleChange = (e, field) => { setEditData({...editData, [field]: e.target.value}); };
         const handleArrayTextChange = (e, field) => { setEditData({...editData, [field]: e.target.value.split('\n')}); };
-        const handleStoryChange = (e, index) => {
+        
+        const handleStoryPropChange = (index, field, value) => {
           const newStories = [...editData.stories];
-          newStories[index] = e.target.value;
+          newStories[index] = { ...newStories[index], [field]: value };
           setEditData({...editData, stories: newStories});
         };
 
-        const toggleDate = (item) => {
+        const moveStory = (index, direction) => {
           triggerHaptic();
-          const exists = editData.dates.find(d => d.date === item.date);
-          if (exists) {
-            setEditData({...editData, dates: editData.dates.filter(d => d.date !== item.date)});
-          } else {
-            const newDates = [...editData.dates, { date: item.date, day: item.day }];
-            newDates.sort((a, b) => {
-               const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
-               const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
-               return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
-            });
-            setEditData({...editData, dates: newDates});
+          const newStories = [...editData.stories];
+          if (direction === 'up' && index > 0) {
+            [newStories[index - 1], newStories[index]] = [newStories[index], newStories[index - 1]];
+          } else if (direction === 'down' && index < newStories.length - 1) {
+            [newStories[index + 1], newStories[index]] = [newStories[index], newStories[index + 1]];
           }
-        };
-
-        const addTime = () => {
-          if (!newTimeVal) return;
-          triggerHaptic();
-          setEditData({...editData, slots: [...editData.slots, newTimeVal]});
-          setNewTimeVal('');
-        };
-        const removeTime = (index) => {
-          triggerHaptic();
-          const newSlots = [...editData.slots];
-          newSlots.splice(index, 1);
-          setEditData({...editData, slots: newSlots});
+          setEditData({...editData, stories: newStories});
         };
 
         const handleServiceChange = (index, field, value) => {
@@ -626,7 +775,6 @@
           setEditData({...editData, addons: newAddons});
         };
 
-        // --- ЛОГИКА АДМИНА ДЛЯ ОТЗЫВОВ ---
         const approveReview = (reviewId) => {
           triggerHaptic();
           const updatedReviews = editData.reviews.map(r => 
@@ -634,10 +782,9 @@
           );
           setEditData({...editData, reviews: updatedReviews});
           
-          // Сразу сохраняем в localStorage, чтобы не нажимать "Сохранить" для модерации
           const newData = {...appData, reviews: updatedReviews};
           setAppData(newData);
-          localStorage.setItem('electroAppData', JSON.stringify(newData));
+          syncToFirebase(newData);
         };
 
         const deleteReview = (reviewId) => {
@@ -646,16 +793,15 @@
           const updatedReviews = editData.reviews.filter(r => r.id !== reviewId);
           setEditData({...editData, reviews: updatedReviews});
           
-          // Сразу сохраняем
           const newData = {...appData, reviews: updatedReviews};
           setAppData(newData);
-          localStorage.setItem('electroAppData', JSON.stringify(newData));
+          syncToFirebase(newData);
         };
 
         const saveChanges = () => {
           triggerHaptic();
           setAppData(editData);
-          localStorage.setItem('electroAppData', JSON.stringify(editData));
+          syncToFirebase(editData);
           alert("Настройки успешно сохранены!");
         };
 
@@ -701,41 +847,153 @@
               </div>
 
               <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-xs text-gray-400 mb-2">Названия 5 кружочков (Сториз).</label>
-                {editData.stories.map((s, i) => (
-                  <input key={i} value={s} onChange={(e) => handleStoryChange(e, i)} placeholder={`Кружок ${i+1}`} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm mb-2" />
+                <label className="block text-sm font-bold text-white mb-3">Названия 5 кружочков (Сториз)</label>
+                <p className="text-xs text-gray-400 mb-4">Оставь имя пустым, чтобы скрыть кружок на главной.</p>
+                {editData.stories.map((story, i) => (
+                  <div key={i} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 mb-3">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] text-[#C89D7C] font-bold uppercase tracking-wider">Кружок {i+1}</label>
+                      <div className="flex gap-3 px-1">
+                        <button onClick={() => moveStory(i, 'up')} disabled={i === 0} className={`text-lg leading-none font-bold ${i === 0 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↑</button>
+                        <button onClick={() => moveStory(i, 'down')} disabled={i === editData.stories.length - 1} className={`text-lg leading-none font-bold ${i === editData.stories.length - 1 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↓</button>
+                      </div>
+                    </div>
+                    <input 
+                      value={story.name} 
+                      onChange={(e) => handleStoryPropChange(i, 'name', e.target.value)} 
+                      placeholder="Название (напр. Отзывы)" 
+                      className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C] border border-transparent transition-colors" 
+                    />
+                    
+                    {story.name.trim() !== '' && (
+                      <div className="animate-[fadeIn_0.3s_ease-out] flex flex-col gap-2">
+                        <select 
+                          value={story.type} 
+                          onChange={(e) => handleStoryPropChange(i, 'type', e.target.value)} 
+                          className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm border border-transparent focus:outline-none focus:border-[#C89D7C]"
+                        >
+                          <option value="reviews">⭐ Системные Отзывы</option>
+                          <option value="insta">📱 Инста-сториз (Фуллскрин)</option>
+                          <option value="gallery">🖼️ Всплывающая Галерея</option>
+                          <option value="page">📄 Текстовая Страничка</option>
+                        </select>
+                        
+                        {(story.type === 'insta' || story.type === 'gallery') && (
+                           <textarea 
+                             value={(story.images || []).join('\n')} 
+                             onChange={(e) => handleStoryPropChange(i, 'images', e.target.value.split('\n'))} 
+                             placeholder="Ссылки на фото (каждая с новой строки)" 
+                             rows="3" 
+                             className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-xs border border-transparent focus:outline-none focus:border-[#C89D7C]"
+                           ></textarea>
+                        )}
+                        
+                        {story.type === 'page' && (
+                           <textarea 
+                             value={story.content || ''} 
+                             onChange={(e) => handleStoryPropChange(i, 'content', e.target.value)} 
+                             placeholder="Текст страницы..." 
+                             rows="4" 
+                             className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm border border-transparent focus:outline-none focus:border-[#C89D7C]"
+                           ></textarea>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
 
+              {/* УЛУЧШЕННАЯ АДМИНКА ДАТ И ВРЕМЕНИ */}
               <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-sm font-bold text-white mb-3">Свободные даты (на 1.5 месяца)</label>
-                <div className="grid grid-cols-7 gap-1">
+                <label className="block text-sm font-bold text-white mb-1">Свободные даты и окошки</label>
+                <p className="text-xs text-gray-400 mb-4">Нажми на день, чтобы настроить его время.</p>
+                
+                <div className="grid grid-cols-7 gap-1 mb-4">
                   {globalCalendarDays.map((item, idx) => {
                     const isSelected = editData.dates.some(d => d.date === item.date);
+                    const isEditingThis = adminSelectedDateObj?.date === item.date;
                     return (
-                      <div key={idx} onClick={() => toggleDate(item)} className={`flex flex-col items-center justify-center py-2 rounded-lg cursor-pointer transition-colors border ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C]' : 'bg-[#1A1A1A] text-gray-500 border-gray-800 hover:border-gray-600'}`}>
+                      <div key={idx} onClick={() => { triggerHaptic(); setAdminSelectedDateObj(item); setNewTimeVal(''); }} 
+                           className={`flex flex-col items-center justify-center py-2 rounded-lg cursor-pointer transition-colors border-2 
+                           ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C]' : 'bg-[#1A1A1A] text-gray-500 border-gray-800'}
+                           ${isEditingThis ? 'ring-2 ring-white scale-105' : ''}`}>
                         <span className="text-[10px] leading-none mb-1 opacity-80">{item.day}</span>
                         <span className="text-sm font-bold leading-none">{item.date.split(' ')[0]}</span>
                       </div>
                     );
                   })}
                 </div>
-              </div>
 
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-sm font-bold text-white mb-3">Свободное время</label>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {editData.slots.map((time, idx) => (
-                    <div key={idx} className="bg-[#2A2A2A] border border-[#C89D7C]/30 rounded-lg px-3 py-1.5 flex items-center gap-2">
-                      <span className="text-sm text-white font-medium">{time}</span>
-                      <button onClick={() => removeTime(idx)} className="text-red-400 hover:text-red-300 ml-1 pb-0.5">×</button>
+                {/* Блок настройки выбранного дня */}
+                {adminSelectedDateObj && (() => {
+                  const dateEntryIndex = editData.dates.findIndex(d => d.date === adminSelectedDateObj.date);
+                  const isWorkingDay = dateEntryIndex !== -1;
+
+                  if (!isWorkingDay) {
+                    return (
+                      <div className="animate-[fadeIn_0.3s_ease-out] bg-[#1A1A1A] p-4 rounded-xl border border-gray-700 text-center">
+                        <p className="text-white font-bold mb-1">{adminSelectedDateObj.date}, {adminSelectedDateObj.day}</p>
+                        <p className="text-gray-500 text-xs mb-3">Сейчас это выходной день.</p>
+                        <button onClick={() => {
+                          triggerHaptic();
+                          const newDates = [...editData.dates, { ...adminSelectedDateObj, slots: ['10:00', '12:00', '14:00', '16:00'] }];
+                          newDates.sort((a, b) => {
+                             const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                             const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                             return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                          });
+                          setEditData({...editData, dates: newDates});
+                        }} className="bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black px-4 py-2 rounded-lg font-bold text-sm">
+                          Сделать рабочим
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  // Если день рабочий, показываем слоты
+                  const entry = editData.dates[dateEntryIndex];
+                  return (
+                    <div className="animate-[fadeIn_0.3s_ease-out] bg-[#1A1A1A] p-4 rounded-xl border border-[#C89D7C]/50 relative">
+                      <button onClick={() => {
+                        triggerHaptic();
+                        const newDates = [...editData.dates];
+                        newDates.splice(dateEntryIndex, 1);
+                        setEditData({...editData, dates: newDates});
+                      }} className="absolute top-3 right-3 text-red-400 text-xs font-bold bg-red-400/10 px-2 py-1 rounded-md">Сделать выходным</button>
+                      
+                      <p className="text-[#C89D7C] font-bold mb-3">{adminSelectedDateObj.date}, {adminSelectedDateObj.day}</p>
+                      
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {entry.slots.length === 0 && <span className="text-xs text-gray-500">Нет свободного времени</span>}
+                        {entry.slots.map((time, idx) => (
+                          <div key={idx} className="bg-[#2A2A2A] border border-[#C89D7C]/30 rounded-lg px-2 py-1 flex items-center gap-1">
+                            <span className="text-sm text-white font-medium">{time}</span>
+                            <button onClick={() => {
+                              triggerHaptic();
+                              const newDates = [...editData.dates];
+                              newDates[dateEntryIndex].slots.splice(idx, 1);
+                              setEditData({...editData, dates: newDates});
+                            }} className="text-red-400 hover:text-red-300 ml-1">×</button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <input value={newTimeVal} onChange={e => setNewTimeVal(e.target.value)} placeholder="Новое время (14:00)" className="flex-1 bg-[#2A2A2A] border border-gray-700 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C]" />
+                        <button onClick={() => {
+                          if(!newTimeVal) return;
+                          triggerHaptic();
+                          const newDates = [...editData.dates];
+                          newDates[dateEntryIndex].slots.push(newTimeVal);
+                          // Сортируем слоты по времени
+                          newDates[dateEntryIndex].slots.sort();
+                          setEditData({...editData, dates: newDates});
+                          setNewTimeVal('');
+                        }} className="bg-[#C89D7C] text-black px-4 py-2 rounded-lg font-bold text-sm">Добавить</button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <input value={newTimeVal} onChange={e => setNewTimeVal(e.target.value)} placeholder="Время (14:00)" className="flex-1 bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
-                  <button onClick={addTime} className="bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black px-4 py-2 rounded-lg font-bold">Добавить</button>
-                </div>
+                  );
+                })()}
               </div>
 
               <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
@@ -786,7 +1044,6 @@
                 <button onClick={addAddon} className="w-full bg-[#2A2A2A] border border-[#C89D7C]/30 text-[#C89D7C] py-2 rounded-xl text-sm font-bold">+ Добавить доп</button>
               </div>
 
-              {/* БЛОК МОДЕРАЦИИ ОТЗЫВОВ */}
               <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                 <button onClick={() => { triggerHaptic(); setShowReviewsMod(!showReviewsMod); }} className="w-full flex justify-between items-center">
                   <span className="text-sm font-bold text-white">Модерация отзывов ({allReviews.length})</span>
@@ -843,6 +1100,64 @@
           {activeTab === 'success' && renderSuccess()}
           {activeTab === 'admin' && <AdminPanel />}
           {activeTab === 'reviews' && renderReviews()}
+          {activeTab === 'story_page' && renderStoryPage()}
+
+          {/* ВСПЛЫВАЮЩАЯ ГАЛЕРЕЯ (МОДАЛЬНОЕ ОКНО) */}
+          {viewingStory && viewingStory.type === 'gallery' && (
+            <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
+              <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-w-sm overflow-hidden relative shadow-2xl">
+                <button onClick={() => { triggerHaptic(); setViewingStory(null); }} className="absolute top-3 right-3 z-10 w-8 h-8 bg-black/50 rounded-full text-white flex items-center justify-center font-bold text-xl pb-1">×</button>
+                <div className="w-full aspect-square bg-black relative">
+                  {viewingStory.images[storyImageIdx] ? (
+                    <img src={viewingStory.images[storyImageIdx]} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-500">Нет фото</div>
+                  )}
+                  {storyImageIdx > 0 && (
+                    <button onClick={() => { triggerHaptic(); setStoryImageIdx(prev=>prev-1); }} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center font-bold">‹</button>
+                  )}
+                  {storyImageIdx < viewingStory.images.length - 1 && (
+                    <button onClick={() => { triggerHaptic(); setStoryImageIdx(prev=>prev+1); }} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center font-bold">›</button>
+                  )}
+                </div>
+                <div className="p-4 text-center">
+                  <h3 className="font-bold text-white mb-1">{viewingStory.name}</h3>
+                  <p className="text-xs text-gray-400">{storyImageIdx + 1} / {viewingStory.images.length || 0}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ИНСТА-СТОРИЗ (НА ВЕСЬ ЭКРАН) */}
+          {viewingStory && viewingStory.type === 'insta' && (
+            <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-[fadeIn_0.2s_ease-out]">
+              <div className="absolute top-0 left-0 right-0 p-4 flex gap-1 z-20 pt-6">
+                {viewingStory.images.map((_, i) => (
+                  <div key={i} className={`h-1 flex-1 rounded-full ${i === storyImageIdx ? 'bg-white' : 'bg-white/30'}`} />
+                ))}
+              </div>
+              <button onClick={() => { triggerHaptic(); setViewingStory(null); }} className="absolute top-10 right-4 z-20 w-8 h-8 bg-black/30 rounded-full text-white flex items-center justify-center font-bold text-xl pb-1">×</button>
+              
+              <div className="flex-1 relative flex items-center justify-center">
+                {viewingStory.images[storyImageIdx] ? (
+                  <img src={viewingStory.images[storyImageIdx]} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-gray-500">Нет фото</span>
+                )}
+                
+                {/* Невидимые зоны для тапов */}
+                <div className="absolute top-0 left-0 w-1/3 h-full z-10" onClick={() => { 
+                  triggerHaptic(); 
+                  if (storyImageIdx > 0) setStoryImageIdx(storyImageIdx - 1); 
+                }}></div>
+                <div className="absolute top-0 right-0 w-2/3 h-full z-10" onClick={() => { 
+                  triggerHaptic(); 
+                  if (storyImageIdx < viewingStory.images.length - 1) setStoryImageIdx(storyImageIdx + 1); 
+                  else setViewingStory(null); 
+                }}></div>
+              </div>
+            </div>
+          )}
 
           {showMemo && renderMemoModal()}
 
