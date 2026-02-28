@@ -22,6 +22,13 @@
       background-color: #0a0a0a; 
       color: white; 
       -webkit-tap-highlight-color: transparent; 
+      overscroll-behavior: none; /* Блокирует пружинистый скролл и оттягивание экрана вниз */
+      user-select: none; /* Блокирует противное выделение текста везде... */
+      -webkit-user-select: none;
+    }
+    input, textarea, select {
+      user-select: auto; /* ...кроме полей, где нужно печатать текст! */
+      -webkit-user-select: auto;
     }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -204,6 +211,10 @@
         if (window.Telegram && window.Telegram.WebApp) {
           window.Telegram.WebApp.ready();
           window.Telegram.WebApp.expand();
+          // Блокируем сворачивание по вертикальному свайпу
+          if (window.Telegram.WebApp.disableVerticalSwipes) {
+              window.Telegram.WebApp.disableVerticalSwipes();
+          }
         }
 
         if (db) {
@@ -794,7 +805,14 @@
         const [manualService, setManualService] = useState('');
 
         const [adminCalendarDate, setAdminCalendarDate] = useState(globalCalendarDays[0].date);
+        const [calendarMonth, setCalendarMonth] = useState(new Date()); // Состояние для iOS календаря
         const hoursList = Array.from({length: 13}, (_, i) => i + 9); // 09:00 - 21:00
+        
+        // Стейты для редактирования записи
+        const [editingBooking, setEditingBooking] = useState(null);
+        const [editBDate, setEditBDate] = useState('');
+        const [editBTime, setEditBTime] = useState('');
+        const [editBDuration, setEditBDuration] = useState(60);
 
         const fetchBookings = async () => {
           if (!db) return;
@@ -852,6 +870,9 @@
           triggerHaptic();
           if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
           
+          // Оптимистичное удаление для мгновенного отклика интерфейса (запись пропадает сразу)
+          setBookingsList(prev => prev.filter(b => b.id !== booking.id));
+
           if(db) await db.collection("bookings").doc(booking.id).delete();
 
           const newDates = [...editData.dates];
@@ -883,83 +904,107 @@
           showToast("Бронь отменена, слот возвращен. 🔄");
         };
 
-        const rescheduleBooking = async (booking, newTimeStr) => {
-          triggerHaptic();
-          if(!confirm(`Перенести запись ${booking.clientName} на ${newTimeStr}?`)) return;
-          
-          if(db) await db.collection("bookings").doc(booking.id).update({ time: newTimeStr });
-
-          const newDates = [...editData.dates];
-          const dIdx = newDates.findIndex(d => d.date === booking.date);
-          if (dIdx !== -1) {
-              if(!newDates[dIdx].slots.includes(booking.time)){
-                  newDates[dIdx].slots.push(booking.time);
-              }
-              newDates[dIdx].slots = newDates[dIdx].slots.filter(t => t !== newTimeStr);
-              newDates[dIdx].slots.sort();
-          }
-
-          const newData = {...editData, dates: newDates};
-          setEditData(newData);
-          setAppData(newData);
-          syncToFirebase(newData);
-          localStorage.setItem('electroAppData', JSON.stringify(newData));
-
-          fetchBookings(); 
-          showToast("Запись успешно перенесена! ⏱️");
+        // Открытие окошка редактирования записи
+        const openEditBooking = (b) => {
+            triggerHaptic();
+            setEditBDate(b.date);
+            setEditBTime(b.time);
+            setEditBDuration(b.duration || 60);
+            setEditingBooking(b);
         };
 
-        const DraggableBooking = ({ booking, hourHeight, onReschedule, onCancel }) => {
-            const [dragY, setDragY] = useState(0);
-            const [isDragging, setIsDragging] = useState(false);
+        // Сохранение отредактированной записи
+        const confirmEditBooking = async () => {
+            if(!editBDate || !editBTime) return alert("Заполните дату и время!");
+            triggerHaptic();
+
+            // 1. Обновляем в Firebase Bookings
+            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration };
+            if(db) await db.collection("bookings").doc(updatedB.id).update({
+                date: editBDate, time: editBTime, duration: editBDuration
+            });
+
+            // 2. Управляем доступными слотами в расписании (возвращаем старый, убираем новый)
+            const newDates = [...editData.dates];
+            if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                // Возвращаем старый слот
+                const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                    newDates[oldDIdx].slots.push(editingBooking.time);
+                    newDates[oldDIdx].slots.sort();
+                }
+                // Удаляем новый слот
+                const newDIdx = newDates.findIndex(d => d.date === editBDate);
+                if (newDIdx !== -1) {
+                    newDates[newDIdx].slots = newDates[newDIdx].slots.filter(t => t !== editBTime);
+                }
+            }
+
+            const newData = {...editData, dates: newDates};
+            setEditData(newData);
+            setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
+
+            setEditingBooking(null);
+            fetchBookings(); 
+            showToast("Запись успешно обновлена! ✏️");
+        };
+
+        // Хелперы для iOS календаря
+        const getMonthGrid = (date) => {
+          const year = date.getFullYear();
+          const month = date.getMonth();
+          const firstDay = new Date(year, month, 1);
+          const lastDay = new Date(year, month + 1, 0);
+
+          let startingDayOfWeek = firstDay.getDay();
+          if (startingDayOfWeek === 0) startingDayOfWeek = 7;
+
+          const grid = [];
+          // Предыдущий месяц (серые дни)
+          for (let i = 1; i < startingDayOfWeek; i++) {
+             grid.push({ dateObj: new Date(year, month, 1 - (startingDayOfWeek - i)), isCurrentMonth: false });
+          }
+          // Текущий месяц
+          for (let i = 1; i <= lastDay.getDate(); i++) {
+             grid.push({ dateObj: new Date(year, month, i), isCurrentMonth: true });
+          }
+          // Следующий месяц (добиваем сетку)
+          let remaining = grid.length % 7;
+          if (remaining !== 0) {
+             for (let i = 1; i <= 7 - remaining; i++) {
+                 grid.push({ dateObj: new Date(year, month + 1, i), isCurrentMonth: false });
+             }
+          }
+          return grid;
+        };
+
+        // Форматировщик дат для сравнения с нашей базой ("15 Мар")
+        const formatDateStr = (dateObj) => {
+          const mNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+          return `${dateObj.getDate()} ${mNames[dateObj.getMonth()]}`;
+        };
+
+        // Простой Блок Записи без перетаскивания
+        const SimpleBookingBlock = ({ booking, hourHeight, onEdit, onCancel }) => {
             const [h, m] = booking.time.split(':').map(Number);
             const initialTop = (h - 9) * hourHeight + (m / 60) * hourHeight;
             const height = Math.max((booking.duration || 30) * (hourHeight / 60), 30);
 
-            const handleTouchStart = (e) => {
-                setIsDragging(true);
-            };
-            const handleTouchMove = (e) => {
-                if(!isDragging) return;
-                const containerY = e.currentTarget.parentElement.getBoundingClientRect().top;
-                let newY = e.touches[0].clientY - containerY;
-                setDragY(newY - initialTop); 
-            };
-            const handleTouchEnd = (e) => {
-                setIsDragging(false);
-                const finalTop = initialTop + dragY;
-                const totalMins = Math.round(finalTop / (hourHeight / 60));
-                let finalHour = 9 + Math.floor(totalMins / 60);
-                let finalMin = Math.round((totalMins % 60) / 15) * 15;
-                
-                if (finalMin === 60) { finalHour += 1; finalMin = 0; }
-                if (finalHour < 9) { finalHour = 9; finalMin = 0; }
-                if (finalHour >= 21) { finalHour = 20; finalMin = 45; }
-
-                const newTimeStr = `${String(finalHour).padStart(2, '0')}:${String(finalMin).padStart(2, '0')}`;
-                
-                setDragY(0);
-                if (newTimeStr !== booking.time && Math.abs(dragY) > 20) {
-                    onReschedule(booking, newTimeStr);
-                }
-            };
-
             return (
                 <div 
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                    className={`absolute left-12 right-2 rounded-lg p-2 overflow-hidden shadow-lg border transition-transform ${isDragging ? 'z-50 scale-[1.02] opacity-80 border-white' : 'z-10 border-[#9A6A45] hover:scale-[1.01]'}`} 
+                    onClick={() => onEdit(booking)}
+                    className="absolute left-12 right-2 rounded-lg p-2 overflow-hidden shadow-lg border border-[#9A6A45] hover:scale-[1.01] transition-transform z-10 cursor-pointer" 
                     style={{
-                        top: `${initialTop + (isDragging ? dragY : 0)}px`, 
+                        top: `${initialTop}px`, 
                         height: `${height}px`,
-                        backgroundColor: '#C89D7C',
-                        touchAction: 'none'
+                        backgroundColor: '#C89D7C'
                     }}
                 >
                     <div className="flex justify-between items-start">
                         <div className="text-black font-bold text-xs leading-tight drop-shadow-md">
-                            {isDragging ? '...' : booking.time} - {booking.clientName}
+                            {booking.time} - {booking.clientName}
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); onCancel(booking); }} className="text-red-700 bg-red-100/50 rounded px-1 text-[10px] font-bold">×</button>
                     </div>
@@ -1020,28 +1065,32 @@
           setEditData({...editData, addons: newAddons});
         };
 
-        const approveReview = (reviewId) => {
+        const approveReview = async (reviewId) => {
           triggerHaptic();
           const updatedReviews = editData.reviews.map(r => 
             r.id === reviewId ? { ...r, approved: true, admin_id: ADMIN_ID } : r
           );
-          setEditData({...editData, reviews: updatedReviews});
           
-          const newData = {...appData, reviews: updatedReviews};
-          setAppData(newData);
-          syncToFirebase(newData);
+          const newEditData = {...editData, reviews: updatedReviews};
+          setEditData(newEditData);
+          setAppData(newEditData);
+          
+          await syncToFirebase(newEditData);
+          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
           showToast("Отзыв успешно опубликован! ✅");
         };
 
-        const deleteReview = (reviewId) => {
+        const deleteReview = async (reviewId) => {
           triggerHaptic();
           if(!confirm("Удалить этот отзыв навсегда?")) return;
           const updatedReviews = editData.reviews.filter(r => r.id !== reviewId);
-          setEditData({...editData, reviews: updatedReviews});
           
-          const newData = {...appData, reviews: updatedReviews};
-          setAppData(newData);
-          syncToFirebase(newData);
+          const newEditData = {...editData, reviews: updatedReviews};
+          setEditData(newEditData);
+          setAppData(newEditData);
+          
+          await syncToFirebase(newEditData);
+          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
           showToast("Отзыв удален. 🗑️");
         };
 
@@ -1362,21 +1411,53 @@
                   )}
                 </div>
 
-                {/* TIMELINE VIEW (ЛЕНТА ВРЕМЕНИ) */}
-                <div className="glass-card-dark p-4 rounded-2xl border border-white/10 overflow-hidden">
-                  <h3 className="text-sm font-bold text-white mb-3">Расписание (Лента)</h3>
-                  
-                  {/* Скролл дат */}
-                  <div className="flex gap-2 overflow-x-auto hide-scrollbar mb-4 pb-2">
-                    {globalCalendarDays.map((d, i) => (
-                        <button key={i} onClick={() => { triggerHaptic(); setAdminCalendarDate(d.date); }} 
-                            className={`flex flex-col items-center justify-center min-w-[55px] py-2 rounded-xl border transition-colors shrink-0 
-                            ${adminCalendarDate === d.date ? 'bg-gradient-to-b from-[#C89D7C] to-[#9A6A45] text-black border-transparent shadow-[0_4px_10px_rgba(200,157,124,0.3)]' : 'bg-[#1A1A1A] text-gray-400 border-gray-700'}`}>
-                            <span className="text-[10px] mb-0.5 opacity-80 font-medium">{d.day}</span>
-                            <span className="text-sm font-bold">{d.date.split(' ')[0]}</span>
-                        </button>
-                    ))}
+                {/* iOS КВАДРАТНЫЙ КАЛЕНДАРЬ */}
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-white capitalize">
+                      {calendarMonth.toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
+                    </h3>
+                    <div className="flex gap-3">
+                      <button onClick={() => { triggerHaptic(); setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1)); }} className="text-[#C89D7C] hover:text-white px-2 py-1 text-xl leading-none transition-colors">‹</button>
+                      <button onClick={() => { triggerHaptic(); setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1)); }} className="text-[#C89D7C] hover:text-white px-2 py-1 text-xl leading-none transition-colors">›</button>
+                    </div>
                   </div>
+                  
+                  <div className="grid grid-cols-7 mb-2 text-center text-[10px] text-gray-500 font-bold uppercase">
+                    <div>П</div><div>В</div><div>С</div><div>Ч</div><div>П</div><div>С</div><div>В</div>
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-y-3 text-center">
+                    {getMonthGrid(calendarMonth).map((cell, idx) => {
+                      const dateStr = formatDateStr(cell.dateObj);
+                      const isSelected = adminCalendarDate === dateStr;
+                      const isToday = cell.dateObj.toDateString() === new Date().toDateString();
+                      const hasBookings = bookingsList.some(b => b.date === dateStr);
+
+                      return (
+                        <div key={idx}
+                             onClick={() => { triggerHaptic(); setAdminCalendarDate(dateStr); }}
+                             className="flex flex-col items-center justify-center relative h-10"
+                        >
+                          <div className={`w-8 h-8 flex items-center justify-center rounded-full cursor-pointer transition-all
+                            ${!cell.isCurrentMonth ? 'text-gray-600' : 'text-white'}
+                            ${isSelected ? 'bg-[#C89D7C] text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)]' : 'hover:bg-white/10'}
+                            ${isToday && !isSelected ? 'border border-[#C89D7C]/50 text-[#C89D7C]' : ''}`}
+                          >
+                            <span className="text-sm">{cell.dateObj.getDate()}</span>
+                          </div>
+                          {hasBookings && (
+                            <div className={`absolute bottom-0 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-[#C89D7C]'} shadow-sm`}></div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* TIMELINE VIEW (ЛЕНТА ВРЕМЕНИ) */}
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10 overflow-hidden relative">
+                  <h3 className="text-sm font-bold text-white mb-3">Расписание: <span className="text-[#C89D7C]">{adminCalendarDate}</span></h3>
 
                   {/* Сетка времени */}
                   <div className="relative bg-[#121212] rounded-xl border border-gray-800 h-[500px] overflow-y-auto hide-scrollbar">
@@ -1388,23 +1469,49 @@
                             </div>
                         ))}
 
-                        {/* Блоки с записями */}
+                        {/* Блоки с записями (Без Драг-н-Дропа) */}
                         {loadingBookings ? (
                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-[#C89D7C] text-sm">Загрузка...</div>
                         ) : (
                           bookingsList.filter(b => b.date === adminCalendarDate).map(b => (
-                              <DraggableBooking 
+                              <SimpleBookingBlock 
                                   key={b.id} 
                                   booking={b} 
                                   hourHeight={60} 
-                                  onReschedule={rescheduleBooking}
+                                  onEdit={openEditBooking}
                                   onCancel={cancelBooking}
                               />
                           ))
                         )}
                     </div>
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-3 text-center uppercase tracking-widest font-bold">💡 Удерживай и тяни блок, чтобы перенести запись</p>
+                  <p className="text-[10px] text-gray-500 mt-3 text-center uppercase tracking-widest font-bold">💡 Нажми на блок записи, чтобы отредактировать время</p>
+
+                  {/* ВСПЛЫВАЮЩЕЕ ОКНО РЕДАКТИРОВАНИЯ ЗАПИСИ */}
+                  {editingBooking && (
+                    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
+                      <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-w-sm p-6 shadow-[0_0_40px_rgba(200,157,124,0.15)]">
+                        <h3 className="text-xl font-bold text-white mb-2">Редактировать запись</h3>
+                        <p className="text-sm text-[#C89D7C] mb-6">{editingBooking.clientName} <span className="text-gray-400">({editingBooking.services})</span></p>
+
+                        <label className="block text-xs text-gray-400 mb-1">Дата</label>
+                        <select value={editBDate} onChange={e=>setEditBDate(e.target.value)} className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C] border border-transparent">
+                          {editData.dates.map(d => <option key={d.date} value={d.date}>{d.date}</option>)}
+                        </select>
+
+                        <label className="block text-xs text-gray-400 mb-1">Время (ЧЧ:ММ)</label>
+                        <input value={editBTime} onChange={e=>setEditBTime(e.target.value)} className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C] border border-transparent" placeholder="14:00" />
+
+                        <label className="block text-xs text-gray-400 mb-1">Длительность (минут)</label>
+                        <input type="number" step="15" value={editBDuration} onChange={e=>setEditBDuration(Number(e.target.value))} className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-6 focus:outline-none focus:border-[#C89D7C] border border-transparent" />
+
+                        <div className="flex gap-3">
+                          <button onClick={() => setEditingBooking(null)} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">Отмена</button>
+                          <button onClick={confirmEditBooking} className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">Сохранить</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1448,7 +1555,7 @@
             <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
               <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-w-sm overflow-hidden relative shadow-2xl">
                 <button onClick={() => { triggerHaptic(); setViewingStory(null); }} className="absolute top-3 right-3 z-10 w-8 h-8 bg-black/50 rounded-full text-white flex items-center justify-center font-bold text-xl pb-1">×</button>
-                <div className="w-full aspect-square bg-black relative">
+                <div className="w-full aspect-[3/4] max-h-[70vh] bg-black relative">
                   {viewingStory.images[storyImageIdx] ? (
                     <img src={viewingStory.images[storyImageIdx]} className="w-full h-full object-cover" />
                   ) : (
