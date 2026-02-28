@@ -336,6 +336,34 @@
             console.error("Ошибка отправки в Telegram", error);
           }
         }
+
+        // === СОХРАНЕНИЕ В CRM И УДАЛЕНИЕ СЛОТА ИЗ ДОСТУПНЫХ ===
+        const newBooking = {
+          id: 'b' + Date.now(),
+          date: selectedDate,
+          time: selectedTime,
+          clientName: clientName,
+          clientContact: clientUsername || clientId || "Нет данных",
+          services: servicesList + addonsList,
+          duration: selectedDuration,
+          price: totalPrice,
+          createdAt: new Date().toISOString()
+        };
+
+        if (db) {
+          db.collection("bookings").doc(newBooking.id).set(newBooking).catch(err => console.error("Firebase booking error:", err));
+        }
+
+        const updatedDates = [...appData.dates];
+        const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
+        if (targetDateIdx !== -1) {
+          updatedDates[targetDateIdx].slots = updatedDates[targetDateIdx].slots.filter(t => t !== selectedTime);
+          const newData = { ...appData, dates: updatedDates };
+          setAppData(newData);
+          syncToFirebase(newData);
+          localStorage.setItem('electroAppData', JSON.stringify(newData));
+        }
+        // ========================================================
       };
 
       const resetBooking = () => {
@@ -723,6 +751,100 @@
         const [adminSelectedDateObj, setAdminSelectedDateObj] = useState(null);
         const [newTimeVal, setNewTimeVal] = useState('');
 
+        // === CRM СОСТОЯНИЯ ===
+        const [adminTab, setAdminTab] = useState('settings'); 
+        const [bookingsList, setBookingsList] = useState([]);
+        const [loadingBookings, setLoadingBookings] = useState(false);
+        const [manualName, setManualName] = useState('');
+        const [manualDate, setManualDate] = useState('');
+        const [manualTime, setManualTime] = useState('');
+        const [manualService, setManualService] = useState('');
+
+        const fetchBookings = async () => {
+          if (!db) return;
+          setLoadingBookings(true);
+          try {
+            const snap = await db.collection("bookings").get();
+            let b = [];
+            snap.forEach(doc => b.push(doc.data()));
+            setBookingsList(b);
+          } catch(e) { console.error(e); }
+          setLoadingBookings(false);
+        };
+
+        useEffect(() => {
+          if (adminTab === 'calendar') fetchBookings();
+        }, [adminTab]);
+
+        const addManualBooking = async () => {
+          if(!manualName || !manualDate || !manualTime) return alert("Заполните Имя, Дату и Время!");
+          triggerHaptic();
+
+          const newB = {
+            id: 'b' + Date.now(),
+            date: manualDate,
+            time: manualTime,
+            clientName: manualName,
+            clientContact: "Ручная запись",
+            services: manualService || "Не указано",
+            duration: 0,
+            price: 0,
+            createdAt: new Date().toISOString()
+          };
+
+          if(db) await db.collection("bookings").doc(newB.id).set(newB);
+
+          const newDates = [...editData.dates];
+          const dIdx = newDates.findIndex(d => d.date === manualDate);
+          if (dIdx !== -1) {
+            newDates[dIdx].slots = newDates[dIdx].slots.filter(t => t !== manualTime);
+            const newData = {...editData, dates: newDates};
+            setEditData(newData);
+            setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
+          }
+
+          setManualName(''); setManualDate(''); setManualTime(''); setManualService('');
+          fetchBookings();
+          alert("Успешно забронировано!");
+        };
+
+        const cancelBooking = async (booking) => {
+          triggerHaptic();
+          if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?\nСлот снова станет доступен для всех.`)) return;
+          
+          if(db) await db.collection("bookings").doc(booking.id).delete();
+
+          const newDates = [...editData.dates];
+          const dIdx = newDates.findIndex(d => d.date === booking.date);
+          if (dIdx !== -1) {
+            if(!newDates[dIdx].slots.includes(booking.time)){
+                newDates[dIdx].slots.push(booking.time);
+                newDates[dIdx].slots.sort();
+            }
+          } else {
+             const gDay = globalCalendarDays.find(g => g.date === booking.date);
+             if(gDay) {
+                 newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                 newDates.sort((a, b) => {
+                   const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                   const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                   return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                 });
+             }
+          }
+          
+          const newData = {...editData, dates: newDates};
+          setEditData(newData);
+          setAppData(newData);
+          syncToFirebase(newData);
+          localStorage.setItem('electroAppData', JSON.stringify(newData));
+          
+          fetchBookings();
+        };
+        // =======================
+
         const handleChange = (e, field) => { setEditData({...editData, [field]: e.target.value}); };
         const handleArrayTextChange = (e, field) => { setEditData({...editData, [field]: e.target.value.split('\n')}); };
         
@@ -819,16 +941,23 @@
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-xs text-gray-400 mb-1">Стоимость 1 минуты (₽)</label>
-                <input type="number" value={editData.pricePerMinute} onChange={(e) => handleChange(e, 'pricePerMinute')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
-              </div>
+            {/* Вкладки Админки */}
+            <div className="flex bg-[#1A1A1A] rounded-xl p-1 mb-6 border border-gray-700">
+              <button onClick={() => {triggerHaptic(); setAdminTab('settings');}} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${adminTab === 'settings' ? 'bg-[#C89D7C] text-black' : 'text-gray-400'}`}>Настройки</button>
+              <button onClick={() => {triggerHaptic(); setAdminTab('calendar');}} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${adminTab === 'calendar' ? 'bg-[#C89D7C] text-black' : 'text-gray-400'}`}>Мой календарь</button>
+            </div>
 
-              <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                <label className="block text-xs text-gray-400 mb-1">Ссылка на фото (URL)</label>
-                <input value={editData.photoUrl} onChange={(e) => handleChange(e, 'photoUrl')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
-              </div>
+            {adminTab === 'settings' ? (
+              <div className="space-y-4">
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <label className="block text-xs text-gray-400 mb-1">Стоимость 1 минуты (₽)</label>
+                  <input type="number" value={editData.pricePerMinute} onChange={(e) => handleChange(e, 'pricePerMinute')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
+                </div>
+
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <label className="block text-xs text-gray-400 mb-1">Ссылка на фото (URL)</label>
+                  <input value={editData.photoUrl} onChange={(e) => handleChange(e, 'photoUrl')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
+                </div>
 
               <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                 <label className="block text-xs text-gray-400 mb-1">Имя</label>
@@ -1082,12 +1211,62 @@
               </div>
 
             </div>
+            ) : (
+              <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
+                {/* Ручная запись CRM */}
+                <div className="glass-card-dark p-4 rounded-2xl border border-[#C89D7C]/30 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#C89D7C] to-[#9A6A45]"></div>
+                  <h3 className="text-sm font-bold text-white mb-3">Записать вручную</h3>
+                  <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Имя клиентки (или контакт)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                  <input value={manualService} onChange={e=>setManualService(e.target.value)} placeholder="Услуга (напр. Бикини 60 мин)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                  
+                  <div className="flex gap-2 mb-3">
+                    <select value={manualDate} onChange={e=>{setManualDate(e.target.value); setManualTime('');}} className="flex-1 bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C] appearance-none">
+                      <option value="">Выберите дату...</option>
+                      {editData.dates.map(d => <option key={d.date} value={d.date}>{d.date}</option>)}
+                    </select>
+                    <select value={manualTime} onChange={e=>setManualTime(e.target.value)} className="flex-1 bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C] appearance-none" disabled={!manualDate}>
+                      <option value="">Время...</option>
+                      {(editData.dates.find(d => d.date === manualDate)?.slots || []).map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <button onClick={addManualBooking} className="w-full bg-[#2A2A2A] text-[#C89D7C] hover:bg-[#C89D7C] hover:text-black py-2 rounded-xl font-bold transition-colors border border-[#C89D7C]/30">+ Забронировать и закрыть слот</button>
+                </div>
 
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent max-w-md mx-auto z-50">
-              <button onClick={saveChanges} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-4 rounded-2xl font-bold shadow-lg">
-                Сохранить настройки
-              </button>
-            </div>
+                {/* Список записей CRM */}
+                <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                  <h3 className="text-sm font-bold text-white mb-3">Предстоящие записи ({bookingsList.length})</h3>
+                  {loadingBookings ? <p className="text-[#C89D7C] text-xs text-center py-4">Синхронизация с базой...</p> : (
+                    bookingsList.length === 0 ? <p className="text-gray-500 text-xs text-center py-4">Пока нет записей.</p> : (
+                      <div className="space-y-3">
+                        {bookingsList.sort((a,b) => {
+                          return new Date(b.createdAt) - new Date(a.createdAt);
+                        }).map(b => (
+                          <div key={b.id} className="bg-[#1A1A1A] border border-gray-700 p-3 rounded-xl relative hover:border-[#C89D7C]/50 transition-colors">
+                            <button onClick={() => cancelBooking(b)} className="absolute top-3 right-3 text-red-400 hover:text-white text-xs font-bold bg-red-400/10 hover:bg-red-500 px-2 py-1 rounded-md transition-colors">Отменить</button>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="bg-[#C89D7C]/20 text-[#C89D7C] px-2 py-1 rounded-md text-xs font-bold">{b.date}</span>
+                              <span className="bg-[#2A2A2A] text-white px-2 py-1 rounded-md text-xs font-bold">{b.time}</span>
+                            </div>
+                            <div className="text-white font-medium text-sm mb-1">👤 {b.clientName} <span className="text-xs text-gray-500 font-normal ml-1">{b.clientContact}</span></div>
+                            <div className="text-gray-400 text-xs leading-relaxed mb-1">🌸 {b.services}</div>
+                            {b.price > 0 && <div className="text-[#C89D7C] text-xs mt-1 font-bold">~ {b.price} ₽ <span className="text-gray-500 font-normal ml-1">({b.duration} мин)</span></div>}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+
+            {adminTab === 'settings' && (
+              <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent max-w-md mx-auto z-50">
+                <button onClick={saveChanges} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-4 rounded-2xl font-bold shadow-lg">
+                  Сохранить настройки
+                </button>
+              </div>
+            )}
           </div>
         );
       };
