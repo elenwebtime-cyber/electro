@@ -79,6 +79,17 @@
 
     // =========================================================================
 
+    // Глобальная функция вибрации
+    const triggerHaptic = () => {
+      try {
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.selectionChanged();
+        } else if (navigator.vibrate) {
+          navigator.vibrate(50);
+        }
+      } catch (e) { console.log(e); }
+    };
+
     const Icon = ({ name, className }) => {
       const icons = {
         MapPin: <g><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></g>,
@@ -99,6 +110,123 @@
       );
     };
 
+    // =========================================================================
+    // КАСТОМНЫЕ ПРЕМИУМ КОМПОНЕНТЫ (GLASSMORPHISM)
+    // =========================================================================
+
+    const GlassSelect = ({ value, options, onChange, placeholder, disabled }) => {
+        const [isOpen, setIsOpen] = useState(false);
+        const selectedLabel = options.find(o => o.value === value)?.label || value;
+
+        return (
+            <div className="flex-1 relative">
+                <div onClick={() => !disabled && setIsOpen(true)} className={`w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-[#C89D7C] flex justify-between items-center cursor-pointer transition-colors ${disabled ? 'opacity-50' : 'hover:border-gray-500'}`}>
+                    <span className="truncate">{selectedLabel || placeholder}</span>
+                    <Icon name="ChevronLeft" className={`w-4 h-4 transition-transform -rotate-90 text-gray-400`} />
+                </div>
+                
+                {isOpen && (
+                    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={() => setIsOpen(false)}>
+                        <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-[#C89D7C]/30 rounded-t-3xl p-2 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] max-h-[60vh] flex flex-col animate-[slideInUp_0.3s_ease-out]">
+                            <div className="flex justify-between items-center mb-2 mt-2 px-4">
+                                <span className="text-gray-400 text-sm font-bold">{placeholder}</span>
+                                <button onClick={() => setIsOpen(false)} className="w-8 h-8 bg-black/50 rounded-full text-white font-bold pb-1 flex items-center justify-center">×</button>
+                            </div>
+                            <div className="overflow-y-auto hide-scrollbar flex-1 pb-4 px-2 space-y-2 mt-2">
+                                {options.map(opt => (
+                                    <div key={opt.value} onClick={() => { onChange(opt.value); setIsOpen(false); triggerHaptic(); }} className={`p-4 rounded-xl text-center font-medium cursor-pointer transition-all ${value === opt.value ? 'bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black shadow-lg' : 'bg-[#2A2A2A] text-white hover:bg-[#333]'}`}>
+                                        {opt.label}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const GlassTimePicker = ({ value, onChange, disabled }) => {
+      const [isOpen, setIsOpen] = useState(false);
+      const [hour, setHour] = useState(value ? value.split(':')[0] : '14');
+      const [minute, setMinute] = useState(value ? value.split(':')[1] : '00');
+      
+      const hours = Array.from({length: 13}, (_, i) => String(i + 9).padStart(2, '0'));
+      const minutes = ['00', '15', '30', '45'];
+
+      const hourRef = useRef(null);
+      const minRef = useRef(null);
+
+      useEffect(() => {
+        if (isOpen) {
+            setHour(value ? value.split(':')[0] : '14');
+            setMinute(value ? value.split(':')[1] : '00');
+        }
+      }, [isOpen, value]);
+
+      useEffect(() => {
+          if (isOpen && hourRef.current && minRef.current) {
+              const hIdx = hours.indexOf(hour);
+              const mIdx = minutes.indexOf(minute);
+              setTimeout(() => {
+                  if(hourRef.current) hourRef.current.scrollTop = (hIdx !== -1 ? hIdx : 0) * 50;
+                  if(minRef.current) minRef.current.scrollTop = (mIdx !== -1 ? mIdx : 0) * 50;
+              }, 10);
+          }
+      }, [isOpen]);
+
+      const handleScroll = (ref, arr, setter) => {
+          if (!ref.current) return;
+          const idx = Math.round(ref.current.scrollTop / 50);
+          if (arr[idx]) setter(arr[idx]);
+      };
+
+      return (
+        <div className="flex-1 relative">
+          <div onClick={() => !disabled && setIsOpen(true)} className={`w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-[#C89D7C] flex justify-between items-center cursor-pointer transition-colors ${disabled ? 'opacity-50' : 'hover:border-gray-500'}`}>
+            <span className="truncate">{value || 'Время...'}</span>
+            <Icon name="Clock" className="w-4 h-4 text-gray-400" />
+          </div>
+          
+          {isOpen && (
+            <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+              <div className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-[#C89D7C]/30 rounded-t-3xl p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] animate-[slideInUp_0.3s_ease-out]">
+                <div className="flex justify-between items-center mb-6">
+                  <button onClick={() => { setIsOpen(false); triggerHaptic(); }} className="text-gray-400 font-medium px-2 py-1">Отмена</button>
+                  <h3 className="text-white font-bold text-lg">Выбор времени</h3>
+                  <button onClick={() => { onChange(`${hour}:${minute}`); setIsOpen(false); triggerHaptic(); }} className="text-[#C89D7C] font-bold px-2 py-1">Готово</button>
+                </div>
+                
+                <div className="flex justify-center gap-4 relative h-[150px] mb-4">
+                  <div className="absolute top-1/2 -translate-y-1/2 left-4 right-4 h-[50px] bg-white/5 border-y border-[#C89D7C]/30 rounded-lg pointer-events-none z-0"></div>
+                  
+                  <div className="w-24 h-full overflow-y-scroll hide-scrollbar snap-y snap-mandatory relative z-10" ref={hourRef} onScroll={() => handleScroll(hourRef, hours, setHour)}>
+                    <div className="h-[50px]"></div>
+                    {hours.map(h => (
+                      <div key={h} className={`h-[50px] flex items-center justify-center snap-center text-3xl font-bold transition-colors ${hour === h ? 'text-[#C89D7C]' : 'text-gray-600'}`}>{h}</div>
+                    ))}
+                    <div className="h-[50px]"></div>
+                  </div>
+                  
+                  <div className="flex items-center justify-center text-3xl font-bold text-white z-10 h-full pb-1">:</div>
+                  
+                  <div className="w-24 h-full overflow-y-scroll hide-scrollbar snap-y snap-mandatory relative z-10" ref={minRef} onScroll={() => handleScroll(minRef, minutes, setMinute)}>
+                    <div className="h-[50px]"></div>
+                    {minutes.map(m => (
+                      <div key={m} className={`h-[50px] flex items-center justify-center snap-center text-3xl font-bold transition-colors ${minute === m ? 'text-[#C89D7C]' : 'text-gray-600'}`}>{m}</div>
+                    ))}
+                    <div className="h-[50px]"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // =========================================================================
+
     const generateCalendarDays = () => {
       const days = [];
       const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
@@ -115,6 +243,7 @@
       return days;
     };
     const globalCalendarDays = generateCalendarDays();
+    const dateOptions = globalCalendarDays.map(d => ({ value: d.date, label: d.date }));
     const defaultSlots = ['10:00', '11:30', '14:00', '16:00', '18:30'];
 
     const initialMasterData = {
@@ -162,13 +291,11 @@
       const [appData, setAppData] = useState(() => {
         const saved = localStorage.getItem('electroAppData');
         let parsed = saved ? JSON.parse(saved) : initialMasterData;
-        
         if (parsed.stories && parsed.stories.length > 0 && typeof parsed.stories[0] === 'string') {
           parsed.stories = parsed.stories.map((name, i) => ({
             id: 'st' + i, name: name, type: name.toLowerCase() === 'отзывы' ? 'reviews' : 'page', content: '', images: []
           }));
         }
-        
         if (parsed.slots && Array.isArray(parsed.slots)) {
           parsed.dates = parsed.dates.map(d => ({ ...d, slots: d.slots ? d.slots : parsed.slots }));
           delete parsed.slots; 
@@ -176,7 +303,6 @@
         if (parsed.dates) {
           parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
         }
-
         return parsed;
       });
 
@@ -200,6 +326,35 @@
       const [viewingStory, setViewingStory] = useState(null);
       const [storyImageIdx, setStoryImageIdx] = useState(0);
 
+      // ==========================================
+      // СОСТОЯНИЯ АДМИНКИ 
+      // ==========================================
+      const [editData, setEditData] = useState(appData);
+      const [showReviewsMod, setShowReviewsMod] = useState(false);
+      const [adminSelectedDateObj, setAdminSelectedDateObj] = useState(null);
+      const [newTimeVal, setNewTimeVal] = useState('');
+      const [isSaving, setIsSaving] = useState(false);
+
+      const [adminTab, setAdminTab] = useState('settings'); 
+      const [bookingsList, setBookingsList] = useState([]);
+      const [loadingBookings, setLoadingBookings] = useState(false);
+      const [showManualBooking, setShowManualBooking] = useState(false);
+      
+      const [manualName, setManualName] = useState('');
+      const [manualDate, setManualDate] = useState('');
+      const [manualTime, setManualTime] = useState('');
+      const [manualService, setManualService] = useState('');
+
+      const [adminCalendarDate, setAdminCalendarDate] = useState(globalCalendarDays[0].date);
+      const [calendarMonth, setCalendarMonth] = useState(new Date()); 
+      const hoursList = Array.from({length: 13}, (_, i) => i + 9); 
+      
+      const [editingBooking, setEditingBooking] = useState(null);
+      const [editBDate, setEditBDate] = useState('');
+      const [editBTime, setEditBTime] = useState('');
+      const [editBDuration, setEditBDuration] = useState(60);
+      // ==========================================
+
       let tapTimeout = useRef(null);
 
       const showToast = (msg) => {
@@ -207,11 +362,26 @@
         setTimeout(() => setToastMsg(''), 3000);
       };
 
+      const fetchBookings = async () => {
+        if (!db) return;
+        setLoadingBookings(true);
+        try {
+          const snap = await db.collection("bookings").get();
+          let b = [];
+          snap.forEach(doc => b.push(doc.data()));
+          setBookingsList(b);
+        } catch(e) { console.error(e); }
+        setLoadingBookings(false);
+      };
+
+      useEffect(() => {
+        if (adminTab === 'calendar') fetchBookings();
+      }, [adminTab]);
+
       useEffect(() => {
         if (window.Telegram && window.Telegram.WebApp) {
           window.Telegram.WebApp.ready();
           window.Telegram.WebApp.expand();
-          // Блокируем сворачивание по вертикальному свайпу
           if (window.Telegram.WebApp.disableVerticalSwipes) {
               window.Telegram.WebApp.disableVerticalSwipes();
           }
@@ -235,6 +405,7 @@
                 parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
               }
               setAppData(parsed);
+              setEditData(parsed); 
             }
           }).catch(err => {
             setDbConnected(false); 
@@ -257,22 +428,13 @@
         }
       };
 
-      const triggerHaptic = () => {
-        try {
-          if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-            window.Telegram.WebApp.HapticFeedback.selectionChanged();
-          } else if (navigator.vibrate) {
-            navigator.vibrate(50);
-          }
-        } catch (e) { console.log(e); }
-      };
-
       const handleNameClick = () => {
         if (tapTimeout.current) clearTimeout(tapTimeout.current);
         setTapCount(prev => {
           if (prev + 1 >= 5) {
             const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
             if (userTgId === ADMIN_TG_ID || !window.Telegram?.WebApp?.initDataUnsafe?.user) {
+              setEditData(appData); 
               setShowAdminGear(true);
               triggerHaptic();
             } else {
@@ -298,7 +460,9 @@
 
         if (newServices.length > 0) {
           const suggestedTime = newServices.reduce((sum, s) => sum + parseInt(s.defaultTime), 0);
-          setSelectedDuration(suggestedTime > 720 ? 720 : suggestedTime); 
+          setSelectedDuration(suggestedTime > 720 ? 720 : (suggestedTime < 30 ? 30 : suggestedTime)); 
+        } else {
+          setSelectedDuration(30);
         }
       };
 
@@ -398,6 +562,7 @@
           updatedDates[targetDateIdx].slots = updatedDates[targetDateIdx].slots.filter(t => t !== selectedTime);
           const newData = { ...appData, dates: updatedDates };
           setAppData(newData);
+          setEditData(newData);
           syncToFirebase(newData);
           localStorage.setItem('electroAppData', JSON.stringify(newData));
         }
@@ -433,6 +598,7 @@
         const newData = { ...appData, reviews: [newReview, ...currentReviews] };
         
         setAppData(newData);
+        setEditData(newData);
         syncToFirebase(newData);
         
         showToast("Спасибо! Отзыв отправлен на модерацию. 💖");
@@ -522,8 +688,8 @@
             <div className="col-span-2 mt-4">
               <div className="flex items-center justify-between mb-4 px-1">
                 <h2 className="text-xl font-bold text-white tracking-wide">Выбери зоны</h2>
-                <div className="bg-[#2A2A2A] px-3 py-1 rounded-full border border-[#C89D7C]/30">
-                  <span className="text-xs font-bold text-[#C89D7C]">{appData.pricePerMinute} ₽ / мин</span>
+                <div className="bg-[#2A2A2A] px-3 h-7 rounded-full border border-[#C89D7C]/30 flex items-center justify-center">
+                  <span className="text-xs font-bold text-[#C89D7C] whitespace-nowrap">{appData.pricePerMinute} ₽ / мин</span>
                 </div>
               </div>
 
@@ -787,61 +953,19 @@
         );
       };
 
-      const AdminPanel = () => {
-        const [editData, setEditData] = useState(appData);
-        const [showReviewsMod, setShowReviewsMod] = useState(false);
-        const [adminSelectedDateObj, setAdminSelectedDateObj] = useState(null);
-        const [newTimeVal, setNewTimeVal] = useState('');
-        const [isSaving, setIsSaving] = useState(false);
-
-        const [adminTab, setAdminTab] = useState('settings'); 
-        const [bookingsList, setBookingsList] = useState([]);
-        const [loadingBookings, setLoadingBookings] = useState(false);
-        const [showManualBooking, setShowManualBooking] = useState(false);
-        
-        const [manualName, setManualName] = useState('');
-        const [manualDate, setManualDate] = useState('');
-        const [manualTime, setManualTime] = useState('');
-        const [manualService, setManualService] = useState('');
-
-        const [adminCalendarDate, setAdminCalendarDate] = useState(globalCalendarDays[0].date);
-        const [calendarMonth, setCalendarMonth] = useState(new Date()); // Состояние для iOS календаря
-        const hoursList = Array.from({length: 13}, (_, i) => i + 9); // 09:00 - 21:00
-        
-        // Стейты для редактирования записи
-        const [editingBooking, setEditingBooking] = useState(null);
-        const [editBDate, setEditBDate] = useState('');
-        const [editBTime, setEditBTime] = useState('');
-        const [editBDuration, setEditBDuration] = useState(60);
-
-        const fetchBookings = async () => {
-          if (!db) return;
-          setLoadingBookings(true);
-          try {
-            const snap = await db.collection("bookings").get();
-            let b = [];
-            snap.forEach(doc => b.push(doc.data()));
-            setBookingsList(b);
-          } catch(e) { console.error(e); }
-          setLoadingBookings(false);
-        };
-
-        useEffect(() => {
-          if (adminTab === 'calendar') fetchBookings();
-        }, [adminTab]);
-
+      const renderAdminPanel = () => {
         const addManualBooking = async () => {
-          if(!manualName || !manualDate || !manualTime) return alert("Заполните Имя, Дату и Время!");
+          if(!manualDate || !manualTime) return alert("Заполните Дату и Время!");
           triggerHaptic();
 
           const newB = {
             id: 'b' + Date.now(),
             date: manualDate,
             time: manualTime,
-            clientName: manualName,
+            clientName: manualName || "Без имени",
             clientContact: "Ручная запись",
             services: manualService || "Не указано",
-            duration: 60, // По умолчанию 1 час для ручной
+            duration: 60,
             price: 0,
             createdAt: new Date().toISOString()
           };
@@ -866,11 +990,46 @@
           showToast("Слот успешно забронирован! ✨");
         };
 
+        const addBreak = async () => {
+          if(!manualDate || !manualTime) return alert("Сначала выберите Дату и Время для перерыва!");
+          triggerHaptic();
+
+          const newB = {
+            id: 'b' + Date.now(),
+            date: manualDate,
+            time: manualTime,
+            clientName: "Перерыв",
+            clientContact: "",
+            services: "Отдых",
+            duration: 60,
+            price: 0,
+            createdAt: new Date().toISOString()
+          };
+
+          if(db) await db.collection("bookings").doc(newB.id).set(newB);
+
+          const newDates = [...editData.dates];
+          const dIdx = newDates.findIndex(d => d.date === manualDate);
+          if (dIdx !== -1) {
+            newDates[dIdx].slots = newDates[dIdx].slots.filter(t => t !== manualTime);
+            const newData = {...editData, dates: newDates};
+            setEditData(newData);
+            setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
+          }
+
+          setManualName(''); setManualDate(''); setManualTime(''); setManualService('');
+          fetchBookings();
+          setShowManualBooking(false);
+          setAdminCalendarDate(manualDate);
+          showToast("Перерыв добавлен! ☕");
+        };
+
         const cancelBooking = async (booking) => {
           triggerHaptic();
           if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
           
-          // Оптимистичное удаление для мгновенного отклика интерфейса (запись пропадает сразу)
           setBookingsList(prev => prev.filter(b => b.id !== booking.id));
 
           if(db) await db.collection("bookings").doc(booking.id).delete();
@@ -904,7 +1063,6 @@
           showToast("Бронь отменена, слот возвращен. 🔄");
         };
 
-        // Открытие окошка редактирования записи
         const openEditBooking = (b) => {
             triggerHaptic();
             setEditBDate(b.date);
@@ -913,27 +1071,22 @@
             setEditingBooking(b);
         };
 
-        // Сохранение отредактированной записи
         const confirmEditBooking = async () => {
             if(!editBDate || !editBTime) return alert("Заполните дату и время!");
             triggerHaptic();
 
-            // 1. Обновляем в Firebase Bookings
             const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration };
             if(db) await db.collection("bookings").doc(updatedB.id).update({
                 date: editBDate, time: editBTime, duration: editBDuration
             });
 
-            // 2. Управляем доступными слотами в расписании (возвращаем старый, убираем новый)
             const newDates = [...editData.dates];
             if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
-                // Возвращаем старый слот
                 const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
                 if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
                     newDates[oldDIdx].slots.push(editingBooking.time);
                     newDates[oldDIdx].slots.sort();
                 }
-                // Удаляем новый слот
                 const newDIdx = newDates.findIndex(d => d.date === editBDate);
                 if (newDIdx !== -1) {
                     newDates[newDIdx].slots = newDates[newDIdx].slots.filter(t => t !== editBTime);
@@ -951,26 +1104,20 @@
             showToast("Запись успешно обновлена! ✏️");
         };
 
-        // Хелперы для iOS календаря
         const getMonthGrid = (date) => {
           const year = date.getFullYear();
           const month = date.getMonth();
           const firstDay = new Date(year, month, 1);
           const lastDay = new Date(year, month + 1, 0);
-
           let startingDayOfWeek = firstDay.getDay();
           if (startingDayOfWeek === 0) startingDayOfWeek = 7;
-
           const grid = [];
-          // Предыдущий месяц (серые дни)
           for (let i = 1; i < startingDayOfWeek; i++) {
              grid.push({ dateObj: new Date(year, month, 1 - (startingDayOfWeek - i)), isCurrentMonth: false });
           }
-          // Текущий месяц
           for (let i = 1; i <= lastDay.getDate(); i++) {
              grid.push({ dateObj: new Date(year, month, i), isCurrentMonth: true });
           }
-          // Следующий месяц (добиваем сетку)
           let remaining = grid.length % 7;
           if (remaining !== 0) {
              for (let i = 1; i <= 7 - remaining; i++) {
@@ -980,35 +1127,30 @@
           return grid;
         };
 
-        // Форматировщик дат для сравнения с нашей базой ("15 Мар")
         const formatDateStr = (dateObj) => {
           const mNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
           return `${dateObj.getDate()} ${mNames[dateObj.getMonth()]}`;
         };
 
-        // Простой Блок Записи без перетаскивания
         const SimpleBookingBlock = ({ booking, hourHeight, onEdit, onCancel }) => {
             const [h, m] = booking.time.split(':').map(Number);
             const initialTop = (h - 9) * hourHeight + (m / 60) * hourHeight;
             const height = Math.max((booking.duration || 30) * (hourHeight / 60), 30);
+            const isBreak = booking.clientName === "Перерыв";
 
             return (
                 <div 
                     onClick={() => onEdit(booking)}
-                    className="absolute left-12 right-2 rounded-lg p-2 overflow-hidden shadow-lg border border-[#9A6A45] hover:scale-[1.01] transition-transform z-10 cursor-pointer" 
-                    style={{
-                        top: `${initialTop}px`, 
-                        height: `${height}px`,
-                        backgroundColor: '#C89D7C'
-                    }}
+                    className={`absolute left-12 right-2 rounded-lg p-2 overflow-hidden shadow-lg border hover:scale-[1.01] transition-transform z-10 cursor-pointer ${isBreak ? 'bg-gray-700 border-gray-500' : 'bg-[#C89D7C] border-[#9A6A45]'}`} 
+                    style={{ top: `${initialTop}px`, height: `${height}px` }}
                 >
                     <div className="flex justify-between items-start">
-                        <div className="text-black font-bold text-xs leading-tight drop-shadow-md">
+                        <div className={`font-bold text-xs leading-tight drop-shadow-md ${isBreak ? 'text-gray-200' : 'text-black'}`}>
                             {booking.time} - {booking.clientName}
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); onCancel(booking); }} className="text-red-700 bg-red-100/50 rounded px-1 text-[10px] font-bold">×</button>
                     </div>
-                    <div className="text-black/80 text-[10px] truncate drop-shadow-sm">{booking.services}</div>
+                    {!isBreak && <div className="text-black/80 text-[10px] truncate drop-shadow-sm">{booking.services}</div>}
                 </div>
             );
         };
@@ -1070,25 +1212,23 @@
           const updatedReviews = editData.reviews.map(r => 
             r.id === reviewId ? { ...r, approved: true, admin_id: ADMIN_ID } : r
           );
-          
           const newEditData = {...editData, reviews: updatedReviews};
+          
           setEditData(newEditData);
           setAppData(newEditData);
-          
           await syncToFirebase(newEditData);
           localStorage.setItem('electroAppData', JSON.stringify(newEditData));
           showToast("Отзыв успешно опубликован! ✅");
         };
 
-        const deleteReview = async (reviewId) => {
+        const deleteReviewAdmin = async (reviewId) => {
           triggerHaptic();
           if(!confirm("Удалить этот отзыв навсегда?")) return;
           const updatedReviews = editData.reviews.filter(r => r.id !== reviewId);
-          
           const newEditData = {...editData, reviews: updatedReviews};
+          
           setEditData(newEditData);
           setAppData(newEditData);
-          
           await syncToFirebase(newEditData);
           localStorage.setItem('electroAppData', JSON.stringify(newEditData));
           showToast("Отзыв удален. 🗑️");
@@ -1104,7 +1244,7 @@
           showToast("Настройки успешно сохранены! ✓");
         };
 
-        const allReviews = (editData.reviews || []).sort((a,b) => new Date(b.date) - new Date(a.date));
+        const allReviews = [...(editData.reviews || [])].sort((a,b) => new Date(b.date) - new Date(a.date));
 
         return (
           <div className="min-h-screen bg-[#0a0a0a] p-4 pb-24 animate-[fadeIn_0.3s_ease-in-out]">
@@ -1281,7 +1421,7 @@
                         </div>
 
                         <div className="flex gap-2">
-                          <input value={newTimeVal} onChange={e => setNewTimeVal(e.target.value)} placeholder="Новое время (14:00)" className="flex-1 bg-[#2A2A2A] border border-gray-700 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C]" />
+                          <GlassTimePicker value={newTimeVal} onChange={setNewTimeVal} />
                           <button onClick={() => {
                             if(!newTimeVal) return;
                             triggerHaptic();
@@ -1371,7 +1511,7 @@
                                   Одобрить
                                 </button>
                               )}
-                              <button onClick={() => deleteReview(rev.id)} className="bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                              <button onClick={() => deleteReviewAdmin(rev.id)} className="bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
                                 Удалить
                               </button>
                             </div>
@@ -1393,20 +1533,22 @@
                   
                   {showManualBooking && (
                     <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
-                      <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Имя клиентки (или контакт)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
-                      <input value={manualService} onChange={e=>setManualService(e.target.value)} placeholder="Услуга (напр. Бикини 60 мин)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                      <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Имя клиентки (или контакт)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                      <input value={manualService} onChange={e=>setManualService(e.target.value)} placeholder="Услуга (напр. Бикини 60 мин)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                       
                       <div className="flex gap-2 mb-3">
-                        <select value={manualDate} onChange={e=>{setManualDate(e.target.value); setManualTime('');}} className="flex-1 bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C] appearance-none">
-                          <option value="">Выберите дату...</option>
-                          {editData.dates.map(d => <option key={d.date} value={d.date}>{d.date}</option>)}
-                        </select>
-                        <select value={manualTime} onChange={e=>setManualTime(e.target.value)} className="flex-1 bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C] appearance-none" disabled={!manualDate}>
-                          <option value="">Время...</option>
-                          {(editData.dates.find(d => d.date === manualDate)?.slots || []).map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
+                        <GlassSelect value={manualDate} options={dateOptions} onChange={(val) => { setManualDate(val); setManualTime(''); }} placeholder="Дата" />
+                        <GlassTimePicker value={manualTime} onChange={setManualTime} disabled={!manualDate} />
                       </div>
-                      <button onClick={addManualBooking} className="w-full bg-[#2A2A2A] text-[#C89D7C] hover:bg-[#C89D7C] hover:text-black py-2 rounded-xl font-bold transition-colors border border-[#C89D7C]/30">+ Забронировать и закрыть слот</button>
+                      
+                      <div className="flex gap-2 mt-3">
+                        <button onClick={addManualBooking} className="flex-[2] bg-[#2A2A2A] text-[#C89D7C] hover:bg-[#C89D7C] hover:text-black py-3 rounded-xl font-bold transition-colors border border-[#C89D7C]/30 shadow-lg">
+                           + Забронировать
+                        </button>
+                        <button onClick={addBreak} className="flex-1 bg-gray-700 text-white hover:bg-gray-600 py-3 rounded-xl font-bold transition-colors border border-gray-500 shadow-lg">
+                           ☕ Перерыв
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1437,9 +1579,9 @@
                       return (
                         <div key={idx}
                              onClick={() => { triggerHaptic(); setAdminCalendarDate(dateStr); }}
-                             className="flex flex-col items-center justify-center relative h-10"
+                             className="flex flex-col items-center justify-start relative h-12 pt-1 mb-1"
                         >
-                          <div className={`w-8 h-8 flex items-center justify-center rounded-full cursor-pointer transition-all
+                          <div className={`w-8 h-8 flex items-center justify-center rounded-full cursor-pointer transition-all z-10
                             ${!cell.isCurrentMonth ? 'text-gray-600' : 'text-white'}
                             ${isSelected ? 'bg-[#C89D7C] text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)]' : 'hover:bg-white/10'}
                             ${isToday && !isSelected ? 'border border-[#C89D7C]/50 text-[#C89D7C]' : ''}`}
@@ -1447,7 +1589,7 @@
                             <span className="text-sm">{cell.dateObj.getDate()}</span>
                           </div>
                           {hasBookings && (
-                            <div className={`absolute bottom-0 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-[#C89D7C]'} shadow-sm`}></div>
+                            <div className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)] z-0"></div>
                           )}
                         </div>
                       );
@@ -1495,12 +1637,14 @@
                         <p className="text-sm text-[#C89D7C] mb-6">{editingBooking.clientName} <span className="text-gray-400">({editingBooking.services})</span></p>
 
                         <label className="block text-xs text-gray-400 mb-1">Дата</label>
-                        <select value={editBDate} onChange={e=>setEditBDate(e.target.value)} className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C] border border-transparent">
-                          {editData.dates.map(d => <option key={d.date} value={d.date}>{d.date}</option>)}
-                        </select>
+                        <div className="mb-3">
+                           <GlassSelect value={editBDate} options={dateOptions} onChange={setEditBDate} placeholder="Выберите дату" />
+                        </div>
 
-                        <label className="block text-xs text-gray-400 mb-1">Время (ЧЧ:ММ)</label>
-                        <input value={editBTime} onChange={e=>setEditBTime(e.target.value)} className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C] border border-transparent" placeholder="14:00" />
+                        <label className="block text-xs text-gray-400 mb-1">Время</label>
+                        <div className="mb-3">
+                           <GlassTimePicker value={editBTime} onChange={setEditBTime} />
+                        </div>
 
                         <label className="block text-xs text-gray-400 mb-1">Длительность (минут)</label>
                         <input type="number" step="15" value={editBDuration} onChange={e=>setEditBDuration(Number(e.target.value))} className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-6 focus:outline-none focus:border-[#C89D7C] border border-transparent" />
@@ -1516,13 +1660,12 @@
               </div>
             )}
 
-            {adminTab === 'settings' && (
-              <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent max-w-md mx-auto z-50">
-                <button onClick={saveChanges} disabled={isSaving} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-4 rounded-2xl font-bold shadow-lg transition-all disabled:opacity-50">
-                  {isSaving ? "Сохранение..." : "Сохранить настройки"}
-                </button>
-              </div>
-            )}
+            {/* Кнопка сохранить теперь всегда показывает Toast и не меняет вкладку */}
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent max-w-md mx-auto z-50 pointer-events-none">
+              <button onClick={saveChanges} disabled={isSaving} className="pointer-events-auto w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-4 rounded-2xl font-bold shadow-lg transition-all disabled:opacity-50">
+                {isSaving ? "Сохранение..." : "Сохранить настройки"}
+              </button>
+            </div>
           </div>
         );
       };
@@ -1546,7 +1689,7 @@
           {activeTab === 'main' && renderMain()}
           {activeTab === 'booking' && renderBooking()}
           {activeTab === 'success' && renderSuccess()}
-          {activeTab === 'admin' && <AdminPanel />}
+          {activeTab === 'admin' && renderAdminPanel()}
           {activeTab === 'reviews' && renderReviews()}
           {activeTab === 'story_page' && renderStoryPage()}
 
@@ -1623,12 +1766,12 @@
                     </div>
                   </div>
                   <input 
-                    type="range" min="15" max="720" step="15" 
+                    type="range" min="30" max="720" step="15" 
                     value={selectedDuration} onChange={(e) => { triggerHaptic(); setSelectedDuration(parseInt(e.target.value)); }}
                     className="w-full accent-[#C89D7C] h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer"
                   />
                   <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-medium">
-                    <span>15 мин</span><span>3 ч</span><span>6 ч</span><span>12 ч</span>
+                    <span>30 мин</span><span>3 ч</span><span>6 ч</span><span>12 ч</span>
                   </div>
                 </div>
                 <button onClick={() => { triggerHaptic(); setActiveTab('booking'); }} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black p-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 font-bold text-lg">
