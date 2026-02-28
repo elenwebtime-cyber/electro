@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <!-- Настройки для правильного отображения на мобильных и в Telegram Mini App -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Запись на Электроэпиляцию</title>
+  
+  <!-- Скрипт Telegram для интеграции Mini App -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  
+  <!-- Подключаем Tailwind CSS для крутого дизайна -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Подключаем React для браузера -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel нужен, чтобы браузер понимал синтаксис React (JSX) напрямую из файла -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    /* Базовые стили для темной темы и скрытия скроллбаров */
+    body { 
+      margin: 0; 
+      padding: 0; 
+      background-color: #0a0a0a; 
+      color: white; 
+      -webkit-tap-highlight-color: transparent; /* Убирает синее выделение при тапе на телефоне */
+    }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* Тот самый эффект темного дорогого стекла */
+    .glass-card-dark { 
+      background: rgba(30, 30, 30, 0.4); 
+      backdrop-filter: blur(12px); 
+      -webkit-backdrop-filter: blur(12px); 
+    }
+  </style>
+</head>
+<body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30">
+  
+  <!-- Здесь будет отрисовано наше React приложение -->
+  <div id="root"></div>
+
+  <!-- Весь наш код теперь находится внутри этого тега script -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // --- КОМПОНЕНТ ИКОНОК ---
+    // Так как мы в одном HTML файле, мы заменяем библиотеку Lucide на прямые SVG иконки. 
+    // Это делает файл супер-стабильным!
+    const Icon = ({ name, className }) => {
+      const icons = {
+        MapPin: <g><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></g>,
+        Info: <g><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></g>,
+        Clock: <g><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></g>,
+        CheckCircle2: <g><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></g>,
+        ChevronLeft: <g><path d="m15 18-6-6 6-6"/></g>,
+        Heart: <g><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></g>,
+        Sparkles: <g><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></g>,
+        AlertCircle: <g><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></g>
+      };
+      // Для иконки сердца заливаем цветом, если нужно
+      const style = name === 'Heart' ? { fill: 'currentColor' } : {};
+      
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+          {icons[name]}
+        </svg>
+      );
+    };
+
+    // --- БАЗА ДАННЫХ (Мок-данные) ---
+    const masterData = {
+      name: "Твое Имя",
+      profession: "Мастер электроэпиляции",
+      address: "Уютная студия в центре (м. Китай-город)",
+      addressNote: "Точный адрес пришлю за день до процедуры 🤫",
+      pricePerMinute: 40,
+      rating: "5.0",
+      reviewsCount: 128,
+      about: "Удаляю волосы навсегда. Работаю бережно, стерильно и с любовью к твоему телу. ✨",
+      services: [
+        { id: 's1', name: 'Лицо (усики, подбородок)', defaultTime: 30, icon: '✨' },
+        { id: 's2', name: 'Подмышечные впадины', defaultTime: 60, icon: '🌸' },
+        { id: 's3', name: 'Бикини классика', defaultTime: 120, icon: '👙' },
+        { id: 's4', name: 'Голени', defaultTime: 180, icon: '🦵' },
+      ],
+      addons: [
+        { id: 'a1', name: 'Иголочка-электрод', price: 200, icon: '🪡' },
+        { id: 'a2', name: 'Анестезия (крем/гель)', price: 400, icon: '🧊' }
+      ],
+      dates: [
+        { date: '15 Мар', day: 'Пт' },
+        { date: '16 Мар', day: 'Сб' },
+        { date: '17 Мар', day: 'Вс' },
+        { date: '18 Мар', day: 'Пн' },
+      ],
+      slots: ['10:00', '11:30', '14:00', '16:00', '18:30']
+    };
+
+    function App() {
+      // --- СОСТОЯНИЯ ---
+      const [activeTab, setActiveTab] = useState('main'); 
+      const [selectedServices, setSelectedServices] = useState([]);
+      const [selectedDate, setSelectedDate] = useState(null);
+      const [selectedTime, setSelectedTime] = useState(null);
+      const [showMemo, setShowMemo] = useState(false);
+      const [selectedDuration, setSelectedDuration] = useState(30); 
+      const [selectedAddons, setSelectedAddons] = useState([]); 
+
+      // --- ИНИЦИАЛИЗАЦИЯ TELEGRAM MINI APP ---
+      useEffect(() => {
+        if (window.Telegram && window.Telegram.WebApp) {
+          window.Telegram.WebApp.ready(); // Говорим Телеграму, что мы загрузились
+          window.Telegram.WebApp.expand(); // Разворачиваем аппку на весь экран
+        }
+      }, []);
+
+      // --- ЛОГИКА ---
+      const toggleService = (service) => {
+        if (navigator.vibrate) navigator.vibrate(50); 
+        
+        let newServices;
+        if (selectedServices.find(s => s.id === service.id)) {
+          newServices = selectedServices.filter(s => s.id !== service.id);
+        } else {
+          newServices = [...selectedServices, service];
+        }
+        
+        setSelectedServices(newServices);
+
+        if (newServices.length > 0) {
+          const suggestedTime = newServices.reduce((sum, s) => sum + s.defaultTime, 0);
+          setSelectedDuration(suggestedTime > 300 ? 300 : suggestedTime); 
+        }
+      };
+
+      const toggleAddon = (addon) => {
+        if (navigator.vibrate) navigator.vibrate(50); 
+        if (selectedAddons.find(a => a.id === addon.id)) {
+          setSelectedAddons(selectedAddons.filter(a => a.id !== addon.id));
+        } else {
+          setSelectedAddons([...selectedAddons, addon]);
+        }
+      };
+
+      const addonsPrice = selectedAddons.reduce((sum, addon) => sum + addon.price, 0);
+      const totalPrice = (selectedDuration * masterData.pricePerMinute) + addonsPrice;
+
+      const handlePreBooking = () => {
+        setShowMemo(true);
+      };
+
+      const handleFinalBooking = async () => {
+        setShowMemo(false); 
+        setActiveTab('success'); 
+
+        const BOT_TOKEN = 'ТВОЙ_ТОКЕН_ОТ_BOTFATHER'; 
+        const CHAT_ID = 'ТВОЙ_CHAT_ID';
+
+        const servicesList = selectedServices.map(s => s.name).join(', ');
+        const addonsList = selectedAddons.length > 0 ? `\n➕ Допы: ${selectedAddons.map(a => a.name).join(', ')}` : '';
+        const message = `🔥 *Новая запись!*\n\n📅 ${selectedDate} в ${selectedTime}\n🌸 Зоны: ${servicesList}${addonsList}\n⏳ Забронировано: ${selectedDuration} мин\n💰 Сумма: ~${totalPrice} ₽`;
+
+        try {
+          // await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+          //   method: 'POST',
+          //   headers: { 'Content-Type': 'application/json' },
+          //   body: JSON.stringify({
+          //     chat_id: CHAT_ID,
+          //     text: message,
+          //     parse_mode: 'Markdown'
+          //   })
+          // });
+          console.log("Уведомление для Telegram готово:", message);
+          
+          // Если мы в Телеграме, можем закрыть окошко после успешной записи!
+          // if (window.Telegram.WebApp) { window.Telegram.WebApp.close(); }
+        } catch (error) {
+          console.error("Ошибка отправки в Telegram", error);
+        }
+      };
+
+      const resetBooking = () => {
+        setActiveTab('main');
+        setSelectedServices([]);
+        setSelectedDate(null);
+        setSelectedTime(null);
+        setSelectedDuration(30);
+        setSelectedAddons([]);
+      };
+
+      // --- КОМПОНЕНТЫ ОТОБРАЖЕНИЯ ---
+
+      const renderMain = () => (
+        <div className="pb-24 animate-[fadeIn_0.5s_ease-in-out]">
+          
+          {/* Шапка профиля */}
+          <div className="flex flex-col items-center text-center mt-6 mb-8">
+            <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-[#C89D7C] to-[#E8CDB5] p-1 shadow-[0_0_20px_rgba(200,157,124,0.3)] mb-4">
+              <div className="w-full h-full rounded-full bg-[#121212] flex items-center justify-center overflow-hidden relative">
+                <img src="https://images.unsplash.com/photo-1616683693504-3ea7e9ad6fec?q=80&w=200&auto=format&fit=crop" alt="Master" className="object-cover w-full h-full opacity-90" />
+              </div>
+            </div>
+            <h1 className="text-2xl font-bold text-white tracking-wide">{masterData.name}</h1>
+            <p className="text-[#C89D7C] font-medium mt-1">{masterData.profession}</p>
+          </div>
+
+          {/* Сториз (Кружочки) */}
+          <div className="flex gap-4 overflow-x-auto px-4 pb-4 snap-x hide-scrollbar">
+            {['Отзывы', 'До/После', 'Прайс', 'Кабинет'].map((story, idx) => (
+              <div key={idx} className="flex flex-col items-center gap-2 snap-center shrink-0">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#754E33] to-[#E8CDB5] p-[1px] cursor-pointer hover:scale-105 transition-transform">
+                  <div className="w-full h-full rounded-full bg-[#1A1A1A] flex items-center justify-center">
+                    <Icon name="Sparkles" className="w-6 h-6 text-[#C89D7C]" />
+                  </div>
+                </div>
+                <span className="text-xs text-gray-400 font-medium">{story}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Bento Grid (Сетка виджетов) */}
+          <div className="grid grid-cols-2 gap-3 px-4 mt-2">
+            
+            {/* Виджет Адрес */}
+            <div className="col-span-2 glass-card-dark p-4 rounded-3xl flex items-center justify-between border border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#2A2A2A] flex items-center justify-center text-[#C89D7C] shrink-0">
+                  <Icon name="MapPin" className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-200">{masterData.address}</p>
+                  <p className="text-xs text-[#C89D7C] mt-0.5">{masterData.addressNote}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Виджет Обо мне */}
+            <div className="col-span-2 glass-card-dark p-5 rounded-3xl border border-white/5">
+              <div className="flex items-center gap-2 mb-2">
+                <Icon name="Info" className="w-5 h-5 text-[#C89D7C]" />
+                <h3 className="font-semibold text-gray-200">Обо мне</h3>
+              </div>
+              <p className="text-sm text-gray-400 leading-relaxed">{masterData.about}</p>
+            </div>
+
+            {/* Услуги */}
+            <div className="col-span-2 mt-4">
+              <div className="flex items-center justify-between mb-4 px-1">
+                <h2 className="text-xl font-bold text-white tracking-wide">Выбери зоны</h2>
+                <div className="bg-[#2A2A2A] px-3 py-1 rounded-full border border-[#C89D7C]/30">
+                  <span className="text-xs font-bold text-[#C89D7C]">{masterData.pricePerMinute} ₽ / мин</span>
+                </div>
+              </div>
+              
+              {/* Инфо-блок про стоимость */}
+              <div className="bg-gradient-to-r from-[#C89D7C]/10 to-transparent p-3 rounded-2xl border border-[#C89D7C]/20 flex items-start gap-3 mb-4">
+                <Icon name="Info" className="w-5 h-5 text-[#C89D7C] shrink-0 mt-0.5" />
+                <p className="text-xs text-gray-300 leading-relaxed">
+                  Оплата идет за фактическое время работы. Выбери нужные зоны, и я рассчитаю примерное время для брони окошка.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {masterData.services.map(service => {
+                  const isSelected = selectedServices.find(s => s.id === service.id);
+                  return (
+                    <div 
+                      key={service.id}
+                      onClick={() => toggleService(service)}
+                      className={`glass-card-dark p-4 rounded-3xl cursor-pointer transition-all duration-300 border ${isSelected ? 'border-[#C89D7C] bg-[#C89D7C]/10' : 'border-white/5 hover:border-white/20'}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="text-2xl">{service.icon}</div>
+                          <div>
+                            <h3 className="font-semibold text-gray-200">{service.name}</h3>
+                            <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                              <Icon name="Clock" className="w-3 h-3" /> ~ {service.defaultTime} мин
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`w-6 h-6 rounded-full border-2 ml-auto flex items-center justify-center transition-colors ${isSelected ? 'bg-[#C89D7C] border-[#C89D7C]' : 'border-gray-600'}`}>
+                            {isSelected && <Icon name="CheckCircle2" className="w-4 h-4 text-black" />}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ДОПОЛНИТЕЛЬНО */}
+              <h2 className="text-xl font-bold text-white tracking-wide mt-6 mb-4 px-1">Нужно добавить?</h2>
+              <div className="flex flex-col gap-3">
+                {masterData.addons.map(addon => {
+                  const isSelected = selectedAddons.find(a => a.id === addon.id);
+                  return (
+                    <div 
+                      key={addon.id}
+                      onClick={() => toggleAddon(addon)}
+                      className={`glass-card-dark p-4 rounded-3xl cursor-pointer transition-all duration-300 border ${isSelected ? 'border-[#C89D7C] bg-[#C89D7C]/10' : 'border-white/5 hover:border-white/20'}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="text-2xl">{addon.icon}</div>
+                          <div>
+                            <h3 className="font-semibold text-gray-200">{addon.name}</h3>
+                            <p className="text-xs text-[#C89D7C] mt-0.5">+ {addon.price} ₽</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`w-6 h-6 rounded-full border-2 ml-auto flex items-center justify-center transition-colors ${isSelected ? 'bg-[#C89D7C] border-[#C89D7C]' : 'border-gray-600'}`}>
+                            {isSelected && <Icon name="CheckCircle2" className="w-4 h-4 text-black" />}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* КАЛЬКУЛЯТОР ВРЕМЕНИ */}
+              {selectedServices.length > 0 && (
+                <div className="mt-4 glass-card-dark p-5 rounded-3xl border border-[#C89D7C]/40 relative overflow-hidden animate-[zoomIn_0.3s_ease-out]">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#C89D7C] to-[#9A6A45]"></div>
+                  <h3 className="font-bold text-white mb-1">Время процедуры</h3>
+                  <p className="text-xs text-gray-400 mb-5">
+                    Я прикинула примерное время. Если знаешь точное — поправь ползунок:
+                  </p>
+                  
+                  <div className="flex justify-between items-end mb-4">
+                    <div className="flex flex-col">
+                      <span className="text-3xl font-bold text-[#C89D7C]">{selectedDuration} <span className="text-lg text-gray-400 font-medium">мин</span></span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-xs text-gray-500 mb-1">Примерно</span>
+                      <span className="text-xl font-bold text-white">~ {totalPrice} ₽</span>
+                    </div>
+                  </div>
+                  
+                  <input 
+                    type="range" 
+                    min="15" 
+                    max="300" 
+                    step="15" 
+                    value={selectedDuration}
+                    onChange={(e) => setSelectedDuration(parseInt(e.target.value))}
+                    className="w-full accent-[#C89D7C] h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-medium">
+                    <span>15 мин</span>
+                    <span>2 ч</span>
+                    <span>3 ч</span>
+                    <span>5 ч</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+
+      const renderBooking = () => (
+        <div className="px-4 pb-24 animate-[slideIn_0.3s_ease-out]">
+          <button 
+            onClick={() => setActiveTab('main')}
+            className="flex items-center gap-2 text-gray-300 mt-6 mb-6 bg-[#2A2A2A] px-4 py-2 rounded-full w-max border border-white/5"
+          >
+            <Icon name="ChevronLeft" className="w-5 h-5" />
+            <span className="font-medium">Назад к услугам</span>
+          </button>
+
+          <h2 className="text-2xl font-bold text-white mb-6 tracking-wide">Выбери время</h2>
+
+          {/* Выбор даты */}
+          <div className="mb-8">
+            <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Март</h3>
+            <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar">
+              {masterData.dates.map((item, idx) => (
+                <div 
+                  key={idx}
+                  onClick={() => setSelectedDate(item.date)}
+                  className={`flex flex-col items-center justify-center min-w-[70px] h-20 rounded-2xl cursor-pointer transition-all border ${selectedDate === item.date ? 'bg-gradient-to-b from-[#C89D7C] to-[#9A6A45] text-black shadow-[0_5px_15px_rgba(200,157,124,0.3)] border-transparent' : 'glass-card-dark text-gray-300 border-white/5'}`}
+                >
+                  <span className="text-xs mb-1 opacity-80">{item.day}</span>
+                  <span className="text-xl font-bold">{item.date.split(' ')[0]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Выбор времени */}
+          {selectedDate && (
+            <div className="animate-[fadeIn_0.5s_ease-out]">
+              <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Свободные окошки</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {masterData.slots.map((time, idx) => (
+                  <div 
+                    key={idx}
+                    onClick={() => setSelectedTime(time)}
+                    className={`py-3 rounded-xl text-center font-medium cursor-pointer transition-all border ${selectedTime === time ? 'bg-[#2A2A2A] text-[#C89D7C] border-[#C89D7C] shadow-[0_0_10px_rgba(200,157,124,0.2)]' : 'glass-card-dark text-gray-400 border-white/5 hover:bg-white/5'}`}
+                  >
+                    {time}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
+      const renderSuccess = () => (
+        <div className="px-4 h-[80vh] flex flex-col items-center justify-center text-center animate-[zoomIn_0.5s_ease-out]">
+          <div className="w-24 h-24 bg-[#C89D7C]/20 rounded-full flex items-center justify-center mb-6 border border-[#C89D7C]/50">
+            <Icon name="Heart" className="w-12 h-12 text-[#C89D7C] animate-bounce" />
+          </div>
+          <h2 className="text-3xl font-bold text-white mb-2">Запись подтверждена</h2>
+          <p className="text-gray-400 mb-8 max-w-[250px]">
+            Жду тебя {selectedDate} в {selectedTime}. Подготовься к процедуре!
+          </p>
+          
+          <div className="glass-card-dark p-6 rounded-3xl w-full text-left mb-8 border border-white/10">
+            <h4 className="font-semibold text-gray-200 mb-3">Детали записи:</h4>
+            <ul className="space-y-2 mb-4">
+              {selectedServices.map(s => (
+                <li key={s.id} className="text-sm text-gray-400 flex justify-between">
+                  <span>{s.icon} {s.name}</span>
+                </li>
+              ))}
+              {selectedAddons.map(a => (
+                <li key={a.id} className="text-sm text-[#C89D7C] flex justify-between">
+                  <span>{a.icon} {a.name}</span>
+                  <span className="font-medium">+ {a.price} ₽</span>
+                </li>
+              ))}
+            </ul>
+            <div className="pt-3 border-t border-gray-800 flex justify-between items-center mb-2">
+              <span className="text-gray-500">Забронировано времени:</span>
+              <span className="font-medium text-gray-200">{selectedDuration} мин</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Примерная стоимость:</span>
+              <span className="text-xl font-bold text-[#C89D7C]">~ {totalPrice} ₽</span>
+            </div>
+          </div>
+
+          <button 
+            onClick={resetBooking}
+            className="w-full py-4 bg-[#2A2A2A] text-white rounded-2xl font-semibold shadow-lg border border-white/10"
+          >
+            Вернуться на главную
+          </button>
+        </div>
+      );
+
+      const renderMemoModal = () => (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]">
+          <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 p-6 rounded-3xl w-full max-w-sm shadow-[0_0_40px_rgba(200,157,124,0.15)]">
+            <div className="flex items-center gap-3 mb-4">
+              <Icon name="AlertCircle" className="w-6 h-6 text-[#C89D7C]" />
+              <h3 className="text-xl font-bold text-white">Важно перед процедурой!</h3>
+            </div>
+            
+            <ul className="text-sm text-gray-300 space-y-3 mb-8 list-disc pl-5">
+              <li>Длина волоска должна быть <span className="text-[#C89D7C] font-semibold">от 3 до 5 мм</span>.</li>
+              <li>За сутки до процедуры <span className="text-white font-medium">не наносить</span> кремы и масла на зону.</li>
+              <li>Прими душ перед сеансом.</li>
+              <li>Если используешь анестезию (крем), нанеси под пленку <span className="text-[#C89D7C] font-semibold">за 1.5 часа</span> до записи.</li>
+            </ul>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowMemo(false)} 
+                className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors"
+              >
+                Назад
+              </button>
+              <button 
+                onClick={handleFinalBooking} 
+                className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg"
+              >
+                Поняла, записаться
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+
+      return (
+        <div className="max-w-md mx-auto min-h-screen relative shadow-2xl bg-black/40 border-x border-white/5 overflow-hidden">
+          
+          {activeTab === 'main' && renderMain()}
+          {activeTab === 'booking' && renderBooking()}
+          {activeTab === 'success' && renderSuccess()}
+
+          {/* Всплывающее окно памятки */}
+          {showMemo && renderMemoModal()}
+
+          {/* Корзина */}
+          {activeTab === 'main' && selectedServices.length > 0 && (
+            <div className="fixed bottom-0 left-0 right-0 p-4 max-w-md mx-auto animate-[slideInUp_0.3s_ease-out] z-50">
+              <button 
+                onClick={() => setActiveTab('booking')}
+                className="w-full bg-[#1A1A1A] border border-[#C89D7C]/50 text-white p-4 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.8)] flex items-center justify-between group"
+              >
+                <div className="flex flex-col text-left">
+                  <span className="text-xs text-gray-400">Забронировано: {selectedDuration} мин</span>
+                  <span className="font-bold text-lg text-[#C89D7C]">~ {totalPrice} ₽</span>
+                </div>
+                <div className="flex items-center gap-2 bg-[#C89D7C] text-black px-5 py-2.5 rounded-full">
+                  <span className="font-bold">Выбрать дату</span>
+                  <Icon name="ChevronLeft" className="w-5 h-5 rotate-180 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </button>
+            </div>
+          )}
+
+          {/* Кнопка "Выбрать время" */}
+          {activeTab === 'booking' && selectedDate && selectedTime && (
+             <div className="fixed bottom-0 left-0 right-0 p-4 max-w-md mx-auto animate-[slideInUp_0.3s_ease-out] z-50">
+             <button 
+               onClick={handlePreBooking}
+               className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black p-4 rounded-3xl shadow-[0_10px_40px_rgba(200,157,124,0.2)] flex items-center justify-center gap-2 font-bold text-lg"
+             >
+               Подтвердить запись
+             </button>
+           </div>
+          )}
+
+        </div>
+      );
+    }
+
+    // Добавляем кастомные анимации Tailwind напрямую
+    tailwind.config = {
+      theme: {
+        extend: {
+          keyframes: {
+            fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            slideIn: { '0%': { transform: 'translateX(20px)', opacity: '0' }, '100%': { transform: 'translateX(0)', opacity: '1' } },
+            slideInUp: { '0%': { transform: 'translateY(20px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+            zoomIn: { '0%': { transform: 'scale(0.95)', opacity: '0' }, '100%': { transform: 'scale(1)', opacity: '1' } },
+          }
+        }
+      }
+    }
+
+    // Отрисовка приложения
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
