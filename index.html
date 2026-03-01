@@ -96,7 +96,6 @@
     }
     const db = firebase.apps.length ? firebase.firestore() : null;
 
-    // Фикс для обхода блокировок сети/VPN и устранения ошибки таймаута
     if (db) {
       try {
         db.settings({ experimentalForceLongPolling: true });
@@ -428,7 +427,7 @@
       const startMins = h * 60 + m;
       const endMins = startMins + durationMins;
       
-      return slots.filter(time => {
+      return (slots || []).filter(time => {
           const [th, tm] = time.split(':').map(Number);
           const tMins = th * 60 + tm;
           return tMins < startMins || tMins >= endMins;
@@ -436,28 +435,11 @@
     };
 
     function App() {
-      const [appData, setAppData] = useState(() => {
-        const saved = localStorage.getItem('electroAppData');
-        let parsed = saved ? JSON.parse(saved) : initialMasterData;
-        if (parsed.stories && parsed.stories.length > 0 && typeof parsed.stories[0] === 'string') {
-          parsed.stories = parsed.stories.map((name, i) => ({
-            id: 'st' + i, name: name, type: name.toLowerCase() === 'отзывы' ? 'reviews' : 'page', content: '', images: []
-          }));
-        }
-        if (parsed.slots && Array.isArray(parsed.slots)) {
-          parsed.dates = parsed.dates.map(d => ({ ...d, slots: d.slots ? d.slots : parsed.slots }));
-          delete parsed.slots; 
-        }
-        if (parsed.dates) {
-          parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
-        }
-        if (!parsed.clients) parsed.clients = [];
-        return parsed;
-      });
-
-      // Изменили логику: теперь загрузочный экран показывается всегда при старте, 
-      // чтобы скрыть любое мерцание старых данных или заглушек
-      const [isLoading, setIsLoading] = useState(true);
+      // ИЗМЕНЕНИЕ ЛОГИКИ СТАРТА: Полностью блокируем UI до подгрузки данных!
+      const [isAppReady, setIsAppReady] = useState(false);
+      
+      const [appData, setAppData] = useState(null); 
+      const [editData, setEditData] = useState(null);
 
       const [activeTab, setActiveTab] = useState('main'); 
       const [selectedServices, setSelectedServices] = useState([]);
@@ -479,10 +461,7 @@
       const [viewingStory, setViewingStory] = useState(null);
       const [storyImageIdx, setStoryImageIdx] = useState(0);
 
-      // ==========================================
       // СОСТОЯНИЯ АДМИНКИ 
-      // ==========================================
-      const [editData, setEditData] = useState(appData);
       const [adminSelectedDateObj, setAdminSelectedDateObj] = useState(null);
       const [newTimeVal, setNewTimeVal] = useState('');
       const [isSaving, setIsSaving] = useState(false);
@@ -509,7 +488,7 @@
       const [editBTime, setEditBTime] = useState('');
       const [editBDuration, setEditBDuration] = useState(60);
       const [editBName, setEditBName] = useState(''); 
-      const [editBServices, setEditBServices] = useState(''); // Новое состояние для редактирования зон
+      const [editBServices, setEditBServices] = useState(''); 
       
       const [expandedClientTgId, setExpandedClientTgId] = useState(null);
       const [showAddClient, setShowAddClient] = useState(false);
@@ -517,8 +496,7 @@
       const [newClientContact, setNewClientContact] = useState('');
       const [newClientPhone, setNewClientPhone] = useState(''); 
       const [clientSearch, setClientSearch] = useState(''); 
-      // ==========================================
-
+      
       let tapTimeout = useRef(null);
 
       const showToast = (msg) => {
@@ -542,6 +520,7 @@
         if (adminTab === 'calendar' || adminTab === 'clients') fetchBookings();
       }, [adminTab]);
 
+      // ГЛАВНЫЙ ЭФФЕКТ ЗАГРУЗКИ
       useEffect(() => {
         if (window.Telegram && window.Telegram.WebApp) {
           window.Telegram.WebApp.ready();
@@ -551,68 +530,79 @@
           }
         }
 
-        if (db) {
-          // Читаем настройки
-          db.collection("settings").doc("masterData").get().then((doc) => {
-            setDbConnected(true); 
-            if (doc.exists) {
-              let parsed = doc.data();
-              if (parsed.stories && parsed.stories.length > 0 && typeof parsed.stories[0] === 'string') {
-                parsed.stories = parsed.stories.map((name, i) => ({
-                  id: 'st' + i, name: name, type: name.toLowerCase() === 'отзывы' ? 'reviews' : 'page', content: '', images: []
-                }));
-              }
-              if (parsed.slots && Array.isArray(parsed.slots)) {
-                parsed.dates = parsed.dates.map(d => ({ ...d, slots: d.slots ? d.slots : parsed.slots }));
-                delete parsed.slots;
-              }
-              if (parsed.dates) {
-                parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
-              }
-              if (parsed.mapLink === undefined) parsed.mapLink = "";
+        const initializeApp = async () => {
+          let finalData = { ...initialMasterData };
+
+          // Шаг 1. Проверяем локальный кэш
+          const saved = localStorage.getItem('electroAppData');
+          if (saved) {
+            try {
+              finalData = { ...initialMasterData, ...JSON.parse(saved) };
+            } catch (e) {}
+          }
+
+          // Шаг 2. Идем в Firebase
+          if (db) {
+            try {
+              const doc = await db.collection("settings").doc("masterData").get();
+              setDbConnected(true);
               
-              // Читаем клиентов из новой правильной коллекции
-              db.collection("clients").get().then((snap) => {
-                 let cList = [];
-                 snap.forEach(d => cList.push(d.data()));
-                 
-                 // Если новая база клиентов пустая, берем их из старых настроек (миграция)
-                 const finalClients = cList.length > 0 ? cList : (parsed.clients || []);
-                 
-                 const finalData = { ...parsed, clients: finalClients };
-                 setAppData(finalData);
-                 setEditData(finalData);
-                 setIsLoading(false);
-                 
-                 // Если мы сделали миграцию, сохраняем их по-новому
-                 if (cList.length === 0 && parsed.clients && parsed.clients.length > 0) {
-                     parsed.clients.forEach(c => db.collection("clients").doc(String(c.tgId)).set(c).catch(console.error));
-                 }
-              }).catch(err => {
-                 const finalData = { ...parsed, clients: parsed.clients || [] };
-                 setAppData(finalData);
-                 setEditData(finalData);
-                 setIsLoading(false);
-              });
-            } else {
-              setIsLoading(false);
+              if (doc.exists) {
+                finalData = { ...initialMasterData, ...finalData, ...doc.data() };
+                
+                // Авто-исцеление массивов
+                finalData.stories = finalData.stories || initialMasterData.stories;
+                finalData.services = finalData.services || initialMasterData.services;
+                finalData.addons = finalData.addons || initialMasterData.addons;
+                finalData.dates = finalData.dates || initialMasterData.dates;
+                finalData.memo = finalData.memo || initialMasterData.memo;
+
+                if (finalData.stories.length > 0 && typeof finalData.stories[0] === 'string') {
+                  finalData.stories = finalData.stories.map((name, i) => ({
+                    id: 'st' + i, name: name, type: name.toLowerCase() === 'отзывы' ? 'reviews' : 'page', content: '', images: []
+                  }));
+                }
+                if (finalData.slots && Array.isArray(finalData.slots)) {
+                  finalData.dates = finalData.dates.map(d => ({ ...d, slots: d.slots ? d.slots : finalData.slots }));
+                  delete finalData.slots;
+                }
+                finalData.dates = finalData.dates.map(d => ({...d, slots: d.slots || []}));
+                if (finalData.mapLink === undefined) finalData.mapLink = "";
+                
+                // Подтягиваем клиентов
+                try {
+                  const snap = await db.collection("clients").get();
+                  let cList = [];
+                  snap.forEach(d => cList.push(d.data()));
+                  
+                  finalData.clients = cList.length > 0 ? cList : (finalData.clients || []);
+                  
+                  if (cList.length === 0 && finalData.clients.length > 0) {
+                      finalData.clients.forEach(c => db.collection("clients").doc(String(c.tgId)).set(c).catch(console.error));
+                  }
+                } catch(err) {
+                  finalData.clients = finalData.clients || [];
+                }
+              }
+            } catch(err) {
+              setDbConnected(false); 
+              console.error("Firebase load error:", err);
             }
-          }).catch(err => {
-            setDbConnected(false); 
-            console.error("Firebase load error:", err);
-            setIsLoading(false);
-          });
-        } else {
-          setDbConnected(false);
-          setIsLoading(false);
-        }
+          }
+
+          // Устанавливаем данные и разрешаем рендер!
+          setAppData(finalData);
+          setEditData(finalData);
+          setIsAppReady(true);
+        };
+
+        initializeApp();
       }, []);
 
       const syncToFirebase = async (newData) => {
         if (db) {
           try {
             const dataToSave = { ...newData };
-            // БОЛЬШЕ НЕ СОХРАНЯЕМ КЛИЕНТОВ В SETTINGS!
             delete dataToSave.clients; 
             await db.collection("settings").doc("masterData").set(dataToSave);
             setDbConnected(true);
@@ -653,7 +643,7 @@
       const toggleService = (service) => {
         triggerHaptic();
         let newServices;
-        if (selectedServices.find(s => s.id === service.id)) {
+        if ((selectedServices || []).find(s => s.id === service.id)) {
           newServices = selectedServices.filter(s => s.id !== service.id);
         } else {
           newServices = [...selectedServices, service];
@@ -671,7 +661,7 @@
 
       const toggleAddon = (addon) => {
         triggerHaptic();
-        if (selectedAddons.find(a => a.id === addon.id)) {
+        if ((selectedAddons || []).find(a => a.id === addon.id)) {
           setSelectedAddons(selectedAddons.filter(a => a.id !== addon.id));
         } else {
           setSelectedAddons([...selectedAddons, addon]);
@@ -689,7 +679,17 @@
           setSelectedTime(timeStr); 
       };
 
-      const addonsPrice = selectedAddons.reduce((sum, addon) => sum + parseInt(addon.price), 0);
+      // ПРОВЕРКА НА ГОТОВНОСТЬ: Если данные еще не загружены, рендерим только спиннер!
+      if (!isAppReady || !appData) {
+        return (
+          <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
+             <div className="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4"></div>
+             <p className="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
+          </div>
+        );
+      }
+
+      const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
       const totalPrice = (selectedDuration * appData.pricePerMinute) + addonsPrice;
 
       const handlePreBooking = () => setShowMemo(true);
@@ -722,8 +722,8 @@
         const clientUsername = tgUser.username ? `(@${tgUser.username})` : "";
         const clientId = tgUser.id ? `(ID: ${tgUser.id})` : "";
 
-        const servicesList = selectedServices.map(s => s.name).join(', ');
-        const addonsList = selectedAddons.length > 0 ? `\n➕ Допы: ${selectedAddons.map(a => a.name).join(', ')}` : '';
+        const servicesList = (selectedServices || []).map(s => s.name).join(', ');
+        const addonsList = (selectedAddons || []).length > 0 ? `\n➕ Допы: ${selectedAddons.map(a => a.name).join(', ')}` : '';
         
         let updatedClients = [...(appData.clients || [])];
         let finalClientName = clientName;
@@ -813,7 +813,7 @@
           db.collection("bookings").doc(newBooking.id).set(newBooking).catch(err => console.error("Firebase booking error:", err));
         }
 
-        const updatedDates = [...appData.dates];
+        const updatedDates = [...(appData.dates || [])];
         const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
         if (targetDateIdx !== -1) {
           updatedDates[targetDateIdx].slots = removeOverlappingSlots(updatedDates[targetDateIdx].slots, selectedTime, selectedDuration);
@@ -907,7 +907,7 @@
           </div>
 
           <div className="flex justify-evenly w-full px-4 mb-6">
-            {appData.stories.map((story, idx) => {
+            {(appData.stories || []).map((story, idx) => {
               if (!story.name.trim()) return null; 
               return (
                 <div key={idx} onClick={() => openStory(story)} className="flex flex-col items-center gap-2">
@@ -958,8 +958,8 @@
               </div>
 
               <div className="flex flex-col gap-3">
-                {appData.services.map(service => {
-                  const isSelected = selectedServices.find(s => s.id === service.id);
+                {(appData.services || []).map(service => {
+                  const isSelected = (selectedServices || []).find(s => s.id === service.id);
                   return (
                     <div key={service.id} onClick={() => toggleService(service)} className={`glass-card-dark p-4 rounded-3xl cursor-pointer transition-all duration-300 border ${isSelected ? 'border-[#C89D7C] bg-[#C89D7C]/10' : 'border-white/5 hover:border-white/20'}`}>
                       <div className="flex items-center justify-between">
@@ -983,8 +983,8 @@
 
               <h2 className="text-xl font-bold text-white tracking-wide mt-6 mb-4 px-1">Нужно добавить?</h2>
               <div className="flex flex-col gap-3">
-                {appData.addons.map(addon => {
-                  const isSelected = selectedAddons.find(a => a.id === addon.id);
+                {(appData.addons || []).map(addon => {
+                  const isSelected = (selectedAddons || []).find(a => a.id === addon.id);
                   return (
                     <div key={addon.id} onClick={() => toggleAddon(addon)} className={`glass-card-dark p-4 rounded-3xl cursor-pointer transition-all duration-300 border ${isSelected ? 'border-[#C89D7C] bg-[#C89D7C]/10' : 'border-white/5 hover:border-white/20'}`}>
                       <div className="flex items-center justify-between">
@@ -1037,7 +1037,7 @@
           );
         }
 
-        const availableSlotsForDate = appData.dates.find(d => d.date === selectedDate)?.slots || [];
+        const availableSlotsForDate = (appData.dates || []).find(d => d.date === selectedDate)?.slots || [];
 
         return (
           <div className="px-4 pb-24 animate-[slideIn_0.3s_ease-out]">
@@ -1058,7 +1058,7 @@
               </div>
               
               <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar">
-                {appData.dates.map((item, idx) => (
+                {(appData.dates || []).map((item, idx) => (
                   <div key={idx} onClick={() => selectDateSlot(item)} className={`flex flex-col items-center justify-center min-w-[70px] h-20 rounded-2xl cursor-pointer transition-all border shrink-0 ${selectedDate === item.date ? 'bg-gradient-to-b from-[#C89D7C] to-[#9A6A45] text-black shadow-[0_5px_15px_rgba(200,157,124,0.3)] border-transparent' : 'glass-card-dark text-gray-300 border-white/5'}`}>
                     <span className="text-xs mb-1 opacity-80">{item.day}</span>
                     <span className="text-xl font-bold">{item.date.split(' ')[0]}</span>
@@ -1116,12 +1116,12 @@
           <div className="z-10 glass-card-dark p-6 rounded-3xl w-full text-left mb-8 border border-[#C89D7C]/30 shadow-2xl">
             <h4 className="font-semibold text-gray-200 mb-3">Детали записи:</h4>
             <ul className="space-y-2 mb-4">
-              {selectedServices.map(s => (
+              {(selectedServices || []).map(s => (
                 <li key={s.id} className="text-sm text-gray-300 flex justify-between">
                   <span>{s.icon} {s.name}</span>
                 </li>
               ))}
-              {selectedAddons.map(a => (
+              {(selectedAddons || []).map(a => (
                 <li key={a.id} className="text-sm text-[#C89D7C] flex justify-between">
                   <span>{a.icon} {a.name}</span>
                   <span className="font-medium">+ {a.price} ₽</span>
@@ -1153,7 +1153,7 @@
               <h3 className="text-xl font-bold text-white">Важно перед процедурой!</h3>
             </div>
             <ul className="text-sm text-gray-300 space-y-3 mb-4 list-disc pl-5 marker:text-[#C89D7C]">
-              {appData.memo.map((item, idx) => (
+              {(appData.memo || []).map((item, idx) => (
                 <li key={idx}>{item}</li>
               ))}
             </ul>
@@ -1251,14 +1251,1133 @@
         );
       };
 
-      if (isLoading) {
+      const renderAdminPanel = () => {
+        const copyEmptySlotsToClipboard = () => {
+          triggerHaptic();
+          
+          const availableDates = (editData.dates || []).filter(d => d.slots && d.slots.length > 0);
+
+          if (availableDates.length === 0) {
+            showToast("Нет свободных окошек 😔");
+            return;
+          }
+
+          let text = "🌸 Свободные окошки:\n\n";
+          availableDates.forEach(d => {
+            text += `📅 ${d.date} (${d.day}): ${d.slots.join(', ')}\n`;
+          });
+          text += "\nЗапись по ссылке в профиле! ✨";
+
+          try {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
+            showToast("Текст для сториз скопирован! 🪄");
+          } catch (err) {
+            console.error("Ошибка при копировании", err);
+            showToast("Не удалось скопировать 😔");
+          }
+        };
+
+        const updateActualPrice = async (bookingId, val) => {
+          const numVal = val === '' ? null : (parseInt(val) || 0);
+          const updatedList = bookingsList.map(b => b.id === bookingId ? { ...b, actualPrice: numVal } : b);
+          setBookingsList(updatedList);
+          if (db) {
+            await db.collection("bookings").doc(bookingId).update({ actualPrice: numVal }).catch(e => console.error(e));
+          }
+          showToast("Оплата сохранена! 💰");
+        };
+
+        const addManualBooking = async () => {
+          if(!manualDate || !manualTime) return alert("Заполните Дату и Время!");
+          triggerHaptic();
+
+          const newB = {
+            id: 'b' + Date.now(),
+            date: manualDate,
+            time: manualTime,
+            clientName: manualName || "Без имени",
+            clientContact: "Ручная запись",
+            phone: manualPhone,
+            services: manualService || "Не указано",
+            duration: 60,
+            price: 0,
+            createdAt: new Date().toISOString()
+          };
+
+          if(db) await db.collection("bookings").doc(newB.id).set(newB);
+
+          const newDates = [...(editData.dates || [])];
+          const dIdx = newDates.findIndex(d => d.date === manualDate);
+          if (dIdx !== -1) {
+            newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
+            const newData = {...editData, dates: newDates};
+            setEditData(newData);
+            setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
+          }
+
+          setManualName(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
+          fetchBookings();
+          setShowManualBooking(false);
+          setAdminCalendarDate(manualDate);
+          showToast("Слот успешно забронирован! ✨");
+        };
+
+        const addBreak = async () => {
+          if(!manualDate || !manualTime) return alert("Сначала выберите Дату и Время для перерыва!");
+          triggerHaptic();
+
+          const newB = {
+            id: 'b' + Date.now(),
+            date: manualDate,
+            time: manualTime,
+            clientName: "Перерыв",
+            clientContact: "",
+            services: "Отдых",
+            duration: 60,
+            price: 0,
+            createdAt: new Date().toISOString()
+          };
+
+          if(db) await db.collection("bookings").doc(newB.id).set(newB);
+
+          const newDates = [...(editData.dates || [])];
+          const dIdx = newDates.findIndex(d => d.date === manualDate);
+          if (dIdx !== -1) {
+            newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
+            const newData = {...editData, dates: newDates};
+            setEditData(newData);
+            setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
+          }
+
+          setManualName(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
+          fetchBookings();
+          setShowManualBooking(false);
+          setAdminCalendarDate(manualDate);
+          showToast("Перерыв добавлен! ☕");
+        };
+
+        const sendReminder = async (booking) => {
+          triggerHaptic();
+          if (!booking.tgId) {
+            showToast("Невозможно отправить: ручная запись (нет ТГ) 😔");
+            return;
+          }
+          if (BOT_TOKEN && !BOT_TOKEN.includes("ВАШ_ТОКЕН")) {
+             const shortName = booking.clientName.split(' ')[0];
+             const text = `Привет, ${shortName}! Завтра жду тебя на электро в ${booking.time}! 🤗\n\nЕсли планы изменились, пожалуйста, предупреди меня заранее.`;
+             
+             const adminUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username || "";
+             const confirmText = encodeURIComponent(`Привет! Я буду на процедуре завтра в ${booking.time} ✅`);
+             const cancelText = encodeURIComponent(`Привет! К сожалению, мне нужно перенести запись ❌`);
+             
+             const reply_markup = adminUsername ? {
+                 inline_keyboard: [
+                     [{ text: "✅ Буду", url: `https://t.me/${adminUsername}?text=${confirmText}` }],
+                     [{ text: "❌ Не смогу / Перенос", url: `https://t.me/${adminUsername}?text=${cancelText}` }]
+                 ]
+             } : undefined;
+
+             try {
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: booking.tgId, text: text, reply_markup: reply_markup })
+                });
+                showToast("Напоминание отправлено! 💌");
+             } catch(e) {
+                console.error(e);
+                showToast("Ошибка отправки 😔");
+             }
+          } else {
+             showToast("Бот не настроен 😔");
+          }
+        };
+
+        const cancelBooking = async (booking) => {
+          triggerHaptic();
+          if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
+          
+          setBookingsList(prev => prev.filter(b => b.id !== booking.id));
+
+          if(db) await db.collection("bookings").doc(booking.id).delete();
+
+          const newDates = [...(editData.dates || [])];
+          const dIdx = newDates.findIndex(d => d.date === booking.date);
+          if (dIdx !== -1) {
+            if(!newDates[dIdx].slots.includes(booking.time)){
+                newDates[dIdx].slots.push(booking.time);
+                newDates[dIdx].slots.sort();
+            }
+          } else {
+             const gDay = globalCalendarDays.find(g => g.date === booking.date);
+             if(gDay) {
+                 newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                 newDates.sort((a, b) => {
+                   const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                   const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                   return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                 });
+             }
+          }
+          
+          const newData = {...editData, dates: newDates};
+          setEditData(newData);
+          setAppData(newData);
+          syncToFirebase(newData);
+          localStorage.setItem('electroAppData', JSON.stringify(newData));
+          
+          fetchBookings();
+          showToast("Бронь отменена, слот возвращен. 🔄");
+        };
+
+        const openEditBooking = (b) => {
+            triggerHaptic();
+            setEditBDate(b.date);
+            setEditBTime(b.time);
+            setEditBDuration(b.duration || 60);
+            setEditBName(b.clientName || ""); 
+            setEditBServices(b.services || ""); 
+            setEditingBooking(b);
+        };
+
+        const confirmEditBooking = async () => {
+            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim() || !editBServices.trim()) {
+                return alert("Заполните все поля: имя, зоны, дату, время и длительность!");
+            }
+            triggerHaptic();
+
+            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
+            
+            // ОПТИМИСТИЧНОЕ ОБНОВЛЕНИЕ - Моментально меняем список на экране!
+            setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
+
+            if(db) db.collection("bookings").doc(updatedB.id).update({
+                date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
+            });
+
+            const newDates = [...(editData.dates || [])];
+            if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                    newDates[oldDIdx].slots.push(editingBooking.time);
+                    newDates[oldDIdx].slots.sort();
+                }
+            }
+            
+            const newDIdx = newDates.findIndex(d => d.date === editBDate);
+            if (newDIdx !== -1) {
+                newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
+            }
+
+            const newData = {...editData, dates: newDates};
+            setEditData(newData);
+            setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
+
+            setEditingBooking(null);
+            showToast("Запись успешно обновлена! ✏️");
+        };
+
+        const getMonthGrid = (date) => {
+          const year = date.getFullYear();
+          const month = date.getMonth();
+          const firstDay = new Date(year, month, 1);
+          const lastDay = new Date(year, month + 1, 0);
+          let startingDayOfWeek = firstDay.getDay();
+          if (startingDayOfWeek === 0) startingDayOfWeek = 7;
+          const grid = [];
+          for (let i = 1; i < startingDayOfWeek; i++) {
+             grid.push({ dateObj: new Date(year, month, 1 - (startingDayOfWeek - i)), isCurrentMonth: false });
+          }
+          for (let i = 1; i <= lastDay.getDate(); i++) {
+             grid.push({ dateObj: new Date(year, month, i), isCurrentMonth: true });
+          }
+          let remaining = grid.length % 7;
+          if (remaining !== 0) {
+             for (let i = 1; i <= 7 - remaining; i++) {
+                 grid.push({ dateObj: new Date(year, month + 1, i), isCurrentMonth: false });
+             }
+          }
+          return grid;
+        };
+
+        const formatDateStr = (dateObj) => {
+          const mNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+          return `${dateObj.getDate()} ${mNames[dateObj.getMonth()]}`;
+        };
+
+        const SimpleBookingBlock = ({ booking, hourHeight, onEdit, onCancel, onRemind }) => {
+            const [h, m] = booking.time.split(':').map(Number);
+            const initialTop = (h - 9) * hourHeight + (m / 60) * hourHeight;
+            const height = Math.max((booking.duration || 30) * (hourHeight / 60), 30);
+            const isBreak = booking.clientName === "Перерыв";
+
+            return (
+                <div 
+                    onClick={() => onEdit(booking)}
+                    className={`absolute left-12 right-2 rounded-xl p-2 overflow-hidden shadow-lg border hover:scale-[1.01] transition-transform z-10 cursor-pointer ${isBreak ? 'bg-gray-700 border-gray-500' : 'bg-[#C89D7C] border-[#9A6A45]'}`} 
+                    style={{ top: `${initialTop}px`, height: `${height}px` }}
+                >
+                    <div className="flex justify-between items-start">
+                        <div className={`font-bold text-xs leading-tight drop-shadow-md ${isBreak ? 'text-gray-200' : 'text-black'}`}>
+                            {booking.time} - {booking.clientName}
+                        </div>
+                        <div className="flex gap-2 z-20">
+                            {!isBreak && booking.tgId && (
+                                <button onClick={(e) => { e.stopPropagation(); onRemind(booking); }} className="flex items-center justify-center w-7 h-7 bg-white/20 hover:bg-white/40 rounded-full text-sm shadow-sm backdrop-blur-md transition-all border border-white/10" title="Напомнить">
+                                    🔔
+                                </button>
+                            )}
+                            <button onClick={(e) => { e.stopPropagation(); onCancel(booking); }} className="flex items-center justify-center w-7 h-7 bg-red-500/20 hover:bg-red-500/80 text-red-200 hover:text-white rounded-full text-lg leading-none shadow-sm backdrop-blur-md transition-all border border-red-500/30" title="Отменить">
+                                ×
+                            </button>
+                        </div>
+                    </div>
+                    {!isBreak && <div className="text-black/80 text-[10px] truncate drop-shadow-sm">{booking.services}</div>}
+                </div>
+            );
+        };
+
+        const handleChange = (e, field) => { setEditData({...editData, [field]: e.target.value}); };
+        const handleArrayTextChange = (e, field) => { setEditData({...editData, [field]: e.target.value.split('\n')}); };
+        
+        const handleStoryPropChange = (index, field, value) => {
+          const newStories = [...(editData.stories || [])];
+          newStories[index] = { ...newStories[index], [field]: value };
+          setEditData({...editData, stories: newStories});
+        };
+
+        const moveStory = (index, direction) => {
+          triggerHaptic();
+          const newStories = [...(editData.stories || [])];
+          if (direction === 'up' && index > 0) {
+            [newStories[index - 1], newStories[index]] = [newStories[index], newStories[index - 1]];
+          } else if (direction === 'down' && index < newStories.length - 1) {
+            [newStories[index + 1], newStories[index]] = [newStories[index], newStories[index + 1]];
+          }
+          setEditData({...editData, stories: newStories});
+        };
+
+        const handleServiceChange = (index, field, value) => {
+          const newServices = [...(editData.services || [])];
+          newServices[index][field] = value;
+          setEditData({...editData, services: newServices});
+        };
+
+        const moveService = (index, direction) => {
+          triggerHaptic();
+          const newServices = [...(editData.services || [])];
+          if (direction === 'up' && index > 0) {
+            [newServices[index - 1], newServices[index]] = [newServices[index], newServices[index - 1]];
+          } else if (direction === 'down' && index < newServices.length - 1) {
+            [newServices[index + 1], newServices[index]] = [newServices[index], newServices[index + 1]];
+          }
+          setEditData({...editData, services: newServices});
+        };
+
+        const addService = () => {
+          triggerHaptic();
+          setEditData({...editData, services: [...(editData.services || []), { id: 's'+Date.now(), name: '', defaultTime: 30, icon: '✨' }]});
+        };
+        const removeService = (index) => {
+          triggerHaptic();
+          const newServices = [...(editData.services || [])];
+          newServices.splice(index, 1);
+          setEditData({...editData, services: newServices});
+        };
+
+        const handleAddonChange = (index, field, value) => {
+          const newAddons = [...(editData.addons || [])];
+          newAddons[index][field] = value;
+          setEditData({...editData, addons: newAddons});
+        };
+        const addAddon = () => {
+          triggerHaptic();
+          setEditData({...editData, addons: [...(editData.addons || []), { id: 'a'+Date.now(), name: '', price: 100, icon: '➕' }]});
+        };
+        const removeAddon = (index) => {
+          triggerHaptic();
+          const newAddons = [...(editData.addons || [])];
+          newAddons.splice(index, 1);
+          setEditData({...editData, addons: newAddons});
+        };
+
+        const approveReview = async (reviewId) => {
+          triggerHaptic();
+          const updatedReviews = (editData.reviews || []).map(r => 
+            r.id === reviewId ? { ...r, approved: true, admin_id: ADMIN_TG_ID } : r
+          );
+          const newEditData = {...editData, reviews: updatedReviews};
+          
+          setEditData(newEditData);
+          setAppData(newEditData);
+          await syncToFirebase(newEditData);
+          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+          showToast("Отзыв успешно опубликован! ✅");
+        };
+
+        const deleteReviewAdmin = async (reviewId) => {
+          triggerHaptic();
+          if(!confirm("Удалить этот отзыв навсегда?")) return;
+          const updatedReviews = (editData.reviews || []).filter(r => r.id !== reviewId);
+          const newEditData = {...editData, reviews: updatedReviews};
+          
+          setEditData(newEditData);
+          setAppData(newEditData);
+          await syncToFirebase(newEditData);
+          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+          showToast("Отзыв удален. 🗑️");
+        };
+
+        const handleClientChange = (tgId, field, value) => {
+           const newClients = [...(editData.clients || [])];
+           const cIdx = newClients.findIndex(c => c.tgId === tgId);
+           if(cIdx !== -1) {
+               newClients[cIdx] = { ...newClients[cIdx], [field]: value };
+               setEditData({...editData, clients: newClients});
+               saveClientToFirebase(newClients[cIdx]);
+           }
+        };
+
+        const deleteClientAdmin = async (tgId) => {
+          triggerHaptic();
+          if(!confirm("Удалить клиента из базы навсегда? Это также удалит его историю оплат.")) return;
+          
+          const clientObj = (editData.clients || []).find(c => c.tgId === tgId);
+          const clientBookings = bookingsList.filter(b => {
+             if (!clientObj) return false;
+             const matchTgId = clientObj.tgId && b.tgId === clientObj.tgId;
+             const matchUsername = clientObj.username && b.clientContact && b.clientContact.includes(clientObj.username);
+             const matchPhone = clientObj.phone && b.phone && b.phone === clientObj.phone;
+             const matchName = (b.clientName === clientObj.customName) || (b.clientName === clientObj.originalName);
+             return matchTgId || matchUsername || matchPhone || matchName;
+          });
+
+          const bookingIdsToDelete = clientBookings.map(b => b.id);
+          setBookingsList(prev => prev.filter(b => !bookingIdsToDelete.includes(b.id)));
+
+          if(db) {
+             bookingIdsToDelete.forEach(id => db.collection("bookings").doc(id).delete().catch(console.error));
+          }
+
+          const newClients = (editData.clients || []).filter(c => c.tgId !== tgId);
+          const newEditData = {...editData, clients: newClients};
+          setEditData(newEditData);
+          setAppData(newEditData);
+          
+          deleteClientFromFirebase(tgId);
+          await syncToFirebase(newEditData);
+          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+          showToast("Клиент удален! 🗑️");
+        };
+
+        const handleAddManualClient = async () => {
+           if(!newClientName) return alert("Введите имя!");
+           triggerHaptic();
+
+           const matches = bookingsList.filter(b => {
+               const matchUsername = newClientContact && b.clientContact && b.clientContact.includes(newClientContact);
+               const matchName = newClientName && b.clientName === newClientName;
+               const matchPhone = newClientPhone && b.phone === newClientPhone;
+               return matchUsername || matchName || matchPhone;
+           });
+           const calcVisits = matches.length;
+           const calcSpent = matches.reduce((sum, b) => sum + (b.actualPrice !== undefined && b.actualPrice !== null ? b.actualPrice : b.price), 0);
+
+           const client = {
+               tgId: 'manual_' + Date.now(),
+               originalName: newClientName,
+               customName: newClientName,
+               username: newClientContact,
+               phone: newClientPhone,
+               visits: calcVisits,
+               totalSpent: calcSpent,
+               isBlacklisted: false,
+               firstVisit: new Date().toISOString()
+           };
+
+           const updatedClients = [...(editData.clients || []), client];
+           const newEditData = { ...editData, clients: updatedClients };
+           setEditData(newEditData);
+           setAppData(newEditData);
+           
+           saveClientToFirebase(client);
+           await syncToFirebase(newEditData);
+           localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+
+           setNewClientName('');
+           setNewClientContact('');
+           setNewClientPhone('');
+           setShowAddClient(false);
+           showToast("Клиент успешно добавлен в базу! ✅");
+        };
+
+        const saveChanges = async () => {
+          triggerHaptic();
+          setIsSaving(true);
+          setAppData(editData);
+          await syncToFirebase(editData);
+          localStorage.setItem('electroAppData', JSON.stringify(editData));
+          setIsSaving(false);
+          showToast("Настройки успешно сохранены! ✓");
+        };
+
+        const allReviews = [...(editData.reviews || [])].sort((a,b) => new Date(b.date) - new Date(a.date));
+        const allClients = [...(editData.clients || [])].sort((a,b) => (b.totalSpent || 0) - (a.totalSpent || 0));
+        
+        const filteredClients = allClients.filter(c =>
+            (c.customName && c.customName.toLowerCase().includes(clientSearch.toLowerCase())) ||
+            (c.originalName && c.originalName.toLowerCase().includes(clientSearch.toLowerCase())) ||
+            (c.username && c.username.toLowerCase().includes(clientSearch.toLowerCase())) ||
+            (c.phone && c.phone.includes(clientSearch))
+        );
+
+        const unapprovedCount = allReviews.filter(r => !r.approved).length;
+
+        const currentMonthIdx = new Date().getMonth();
+        const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+        const currentMonthName = monthNames[currentMonthIdx];
+        const shortMonthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+        const currentShortMonthName = shortMonthNames[currentMonthIdx];
+        
+        const currentMonthRevenue = bookingsList.reduce((sum, b) => {
+            const bMonth = b.date ? b.date.split(' ')[1] : '';
+            if (bMonth === currentShortMonthName && b.actualPrice !== undefined && b.actualPrice !== null && b.actualPrice !== '') {
+                return sum + Number(b.actualPrice);
+            }
+            return sum;
+        }, 0);
+
         return (
-          <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
-             <div className="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4"></div>
-             <p className="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
+          <div className="min-h-[100dvh] w-full bg-[#0a0a0a] p-4 pb-32 animate-[fadeIn_0.3s_ease-in-out]">
+            
+            {adminSubView === 'main' ? (
+              <>
+                {/* ЗАГОЛОВОК И ВКЛАДКИ */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <Icon name="Settings" className="w-8 h-8 text-[#C89D7C]" />
+                    <h2 className="text-2xl font-bold text-white">Админ Панель</h2>
+                  </div>
+                </div>
+
+                <div className="flex bg-[#1A1A1A] rounded-xl p-1 mb-6 border border-gray-700">
+                  <button onClick={() => {triggerHaptic(); setAdminTab('settings');}} className={`flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-colors ${adminTab === 'settings' ? 'bg-[#C89D7C] text-black' : 'text-gray-400'}`}>Настройки</button>
+                  <button onClick={() => {triggerHaptic(); setAdminTab('calendar');}} className={`flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-colors ${adminTab === 'calendar' ? 'bg-[#C89D7C] text-black' : 'text-gray-400'}`}>Календарь</button>
+                  <button onClick={() => {triggerHaptic(); setAdminTab('clients');}} className={`flex-1 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-colors ${adminTab === 'clients' ? 'bg-[#C89D7C] text-black' : 'text-gray-400'}`}>Клиенты</button>
+                </div>
+
+                {adminTab === 'settings' && (
+                  <div className="space-y-4">
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-xs text-gray-400 mb-1">Стоимость 1 минуты (₽)</label>
+                      <input type="number" value={editData.pricePerMinute} onChange={(e) => handleChange(e, 'pricePerMinute')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
+                    </div>
+
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-xs text-gray-400 mb-1">Ссылка на фото (URL)</label>
+                      <input value={editData.photoUrl} onChange={(e) => handleChange(e, 'photoUrl')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
+                    </div>
+
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-xs text-gray-400 mb-1">Имя</label>
+                      <input value={editData.name} onChange={(e) => handleChange(e, 'name')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
+                      
+                      <label className="block text-xs text-gray-400 mt-3 mb-1">Подзаголовок (Мастер...)</label>
+                      <input value={editData.profession} onChange={(e) => handleChange(e, 'profession')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
+                    </div>
+
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-xs text-gray-400 mb-1">Адрес</label>
+                      <input value={editData.address} onChange={(e) => handleChange(e, 'address')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
+                      
+                      <label className="block text-xs text-gray-400 mt-3 mb-1">Обо мне</label>
+                      <textarea value={editData.about} onChange={(e) => handleChange(e, 'about')} rows="3" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm"></textarea>
+                      
+                      <label className="block text-xs text-gray-400 mt-3 mb-1">Ссылка на карту (Yandex/Google)</label>
+                      <input value={editData.mapLink || ''} onChange={(e) => handleChange(e, 'mapLink')} placeholder="https://..." className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
+                    </div>
+
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-sm font-bold text-white mb-3">Названия 5 кружочков (Сториз)</label>
+                      <p className="text-xs text-gray-400 mb-4">Оставь имя пустым, чтобы скрыть кружок на главной.</p>
+                      {(editData.stories || []).map((story, i) => (
+                        <div key={i} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 mb-3">
+                          <div className="flex justify-between items-center">
+                            <label className="text-[10px] text-[#C89D7C] font-bold uppercase tracking-wider">Кружок {i+1}</label>
+                            <div className="flex gap-3 px-1">
+                              <button onClick={() => moveStory(i, 'up')} disabled={i === 0} className={`text-lg leading-none font-bold ${i === 0 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↑</button>
+                              <button onClick={() => moveStory(i, 'down')} disabled={i === (editData.stories || []).length - 1} className={`text-lg leading-none font-bold ${i === (editData.stories || []).length - 1 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↓</button>
+                            </div>
+                          </div>
+                          <input 
+                            value={story.name} 
+                            onChange={(e) => handleStoryPropChange(i, 'name', e.target.value)} 
+                            placeholder="Название (напр. Отзывы)" 
+                            className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C] border border-transparent transition-colors" 
+                          />
+                          
+                          {story.name.trim() !== '' && (
+                            <div className="animate-[fadeIn_0.3s_ease-out] flex flex-col gap-2">
+                              <select 
+                                value={story.type} 
+                                onChange={(e) => handleStoryPropChange(i, 'type', e.target.value)} 
+                                className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm border border-transparent focus:outline-none focus:border-[#C89D7C]"
+                              >
+                                <option value="reviews">⭐ Системные Отзывы</option>
+                                <option value="insta">📱 Инста-сториз (Фуллскрин)</option>
+                                <option value="gallery">🖼️ Всплывающая Галерея</option>
+                                <option value="page">📄 Текстовая Страничка</option>
+                              </select>
+                              
+                              {(story.type === 'insta' || story.type === 'gallery') && (
+                                 <textarea 
+                                   value={(story.images || []).join('\n')} 
+                                   onChange={(e) => handleStoryPropChange(i, 'images', e.target.value.split('\n'))} 
+                                   placeholder="Ссылки на фото (каждая с новой строки)" 
+                                   rows="3" 
+                                   className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-xs border border-transparent focus:outline-none focus:border-[#C89D7C]"
+                                 ></textarea>
+                              )}
+                              
+                              {story.type === 'page' && (
+                                 <textarea 
+                                   value={story.content || ''} 
+                                   onChange={(e) => handleStoryPropChange(i, 'content', e.target.value)} 
+                                   placeholder="Текст страницы..." 
+                                   rows="4" 
+                                   className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm border border-transparent focus:outline-none focus:border-[#C89D7C]"
+                                 ></textarea>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-sm font-bold text-white mb-1">Свободные даты и окошки</label>
+                      <p className="text-xs text-gray-400 mb-4">Нажми на день, чтобы настроить его время.</p>
+                      
+                      <div className="grid grid-cols-7 gap-1 mb-4">
+                        {globalCalendarDays.map((item, idx) => {
+                          const isSelected = (editData.dates || []).some(d => d.date === item.date);
+                          const isEditingThis = adminSelectedDateObj?.date === item.date;
+                          return (
+                            <div key={idx} onClick={() => { triggerHaptic(); setAdminSelectedDateObj(item); setNewTimeVal(''); }} 
+                                 className={`flex flex-col items-center justify-center py-2 rounded-lg cursor-pointer transition-colors border-2 
+                                 ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C]' : 'bg-[#1A1A1A] text-gray-500 border-gray-800'}
+                                 ${isEditingThis ? 'ring-2 ring-white scale-105' : ''}`}>
+                              <span className="text-[10px] leading-none mb-1 opacity-80">{item.day}</span>
+                              <span className="text-sm font-bold leading-none">{item.date.split(' ')[0]}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {adminSelectedDateObj && (() => {
+                        const dateEntryIndex = (editData.dates || []).findIndex(d => d.date === adminSelectedDateObj.date);
+                        const isWorkingDay = dateEntryIndex !== -1;
+
+                        if (!isWorkingDay) {
+                          return (
+                            <div className="animate-[fadeIn_0.3s_ease-out] bg-[#1A1A1A] p-4 rounded-xl border border-gray-700 text-center">
+                              <p className="text-white font-bold mb-1">{adminSelectedDateObj.date}, {adminSelectedDateObj.day}</p>
+                              <p className="text-gray-500 text-xs mb-3">Сейчас это выходной день.</p>
+                              <button onClick={() => {
+                                triggerHaptic();
+                                const newDates = [...(editData.dates || []), { ...adminSelectedDateObj, slots: ['10:00', '12:00', '14:00', '16:00'] }];
+                                newDates.sort((a, b) => {
+                                   const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                                   const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                                   return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                                });
+                                setEditData({...editData, dates: newDates});
+                              }} className="bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black px-4 py-2 rounded-lg font-bold text-sm">
+                                Сделать рабочим
+                              </button>
+                            </div>
+                          );
+                        }
+
+                        const entry = editData.dates[dateEntryIndex];
+                        return (
+                          <div className="animate-[fadeIn_0.3s_ease-out] bg-[#1A1A1A] p-4 rounded-xl border border-[#C89D7C]/50 relative">
+                            <button onClick={() => {
+                              triggerHaptic();
+                              const newDates = [...(editData.dates || [])];
+                              newDates.splice(dateEntryIndex, 1);
+                              setEditData({...editData, dates: newDates});
+                            }} className="absolute top-3 right-3 text-red-400 text-xs font-bold bg-red-400/10 px-2 py-1 rounded-md">Сделать выходным</button>
+                            
+                            <p className="text-[#C89D7C] font-bold mb-3">{adminSelectedDateObj.date}, {adminSelectedDateObj.day}</p>
+                            
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              {(entry.slots || []).length === 0 && <span className="text-xs text-gray-500">Нет свободного времени</span>}
+                              {(entry.slots || []).map((time, idx) => (
+                                <div key={idx} className="bg-[#2A2A2A] border border-[#C89D7C]/30 rounded-lg px-2 py-1 flex items-center gap-1">
+                                  <span className="text-sm text-white font-medium">{time}</span>
+                                  <button onClick={() => {
+                                    triggerHaptic();
+                                    const newDates = [...(editData.dates || [])];
+                                    newDates[dateEntryIndex].slots.splice(idx, 1);
+                                    setEditData({...editData, dates: newDates});
+                                  }} className="text-red-400 hover:text-red-300 ml-1">×</button>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="flex gap-2">
+                              <GlassTimePicker value={newTimeVal} onChange={setNewTimeVal} />
+                              <button onClick={() => {
+                                if(!newTimeVal) return;
+                                triggerHaptic();
+                                const newDates = [...(editData.dates || [])];
+                                newDates[dateEntryIndex].slots.push(newTimeVal);
+                                newDates[dateEntryIndex].slots.sort();
+                                setEditData({...editData, dates: newDates});
+                                setNewTimeVal('');
+                              }} className="bg-[#C89D7C] text-black px-4 py-2 rounded-lg font-bold text-sm">Добавить</button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-xs text-gray-400 mb-1">Памятка (каждый пункт с новой строки)</label>
+                      <textarea 
+                        value={(editData.memo || []).join('\n')} 
+                        onChange={(e) => handleArrayTextChange(e, 'memo')} 
+                        rows="4" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm"></textarea>
+                    </div>
+
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-sm font-bold text-white mb-3">Услуги (Зоны)</label>
+                      <div className="space-y-3 mb-3">
+                        {(editData.services || []).map((svc, idx) => (
+                          <div key={idx} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 relative">
+                            <button onClick={() => removeService(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shadow-lg z-10">×</button>
+                            
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="text-[10px] text-[#C89D7C] font-bold uppercase tracking-wider">Зона {idx+1}</label>
+                              <div className="flex gap-3 px-1">
+                                <button onClick={() => moveService(idx, 'up')} disabled={idx === 0} className={`text-lg leading-none font-bold ${idx === 0 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↑</button>
+                                <button onClick={() => moveService(idx, 'down')} disabled={idx === (editData.services || []).length - 1} className={`text-lg leading-none font-bold ${idx === (editData.services || []).length - 1 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↓</button>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2 mb-2">
+                              <input value={svc.icon} onChange={e => handleServiceChange(idx, 'icon', e.target.value)} className="w-12 text-center bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="✨" />
+                              <input value={svc.name} onChange={e => handleServiceChange(idx, 'name', e.target.value)} className="flex-1 bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="Название зоны" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400">Время:</span>
+                              <GlassDurationPicker value={svc.defaultTime} onChange={val => handleServiceChange(idx, 'defaultTime', val)} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={addService} className="w-full bg-[#2A2A2A] border border-[#C89D7C]/30 text-[#C89D7C] py-2 rounded-xl text-sm font-bold">+ Добавить зону</button>
+                    </div>
+
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-sm font-bold text-white mb-3">Дополнительно (Допы)</label>
+                      <div className="space-y-3 mb-3">
+                        {(editData.addons || []).map((addon, idx) => (
+                          <div key={idx} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 relative">
+                            <button onClick={() => removeAddon(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shadow-lg">×</button>
+                            <div className="flex gap-2">
+                              <input value={addon.icon} onChange={e => handleAddonChange(idx, 'icon', e.target.value)} className="w-12 text-center bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="🧊" />
+                              <input value={addon.name} onChange={e => handleAddonChange(idx, 'name', e.target.value)} className="flex-1 bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="Название допа" />
+                            </div>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-xs text-gray-400">Цена (+₽):</span>
+                              <input type="number" value={addon.price} onChange={e => handleAddonChange(idx, 'price', parseInt(e.target.value)||0)} className="w-24 bg-[#2A2A2A] rounded-lg p-1.5 text-white text-sm" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={addAddon} className="w-full bg-[#2A2A2A] border border-[#C89D7C]/30 text-[#C89D7C] py-2 rounded-xl text-sm font-bold">+ Добавить доп</button>
+                    </div>
+                  </div>
+                )}
+                
+                {/* ВКЛАДКА КЛИЕНТЫ (МИНИ-CRM) */}
+                {adminTab === 'clients' && (
+                   <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
+                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                       <button onClick={() => { triggerHaptic(); setShowAddClient(!showAddClient); }} className="w-full flex justify-between items-center text-sm font-bold text-white">
+                          Добавить клиента вручную {showAddClient ? <span className="text-[#C89D7C] text-lg">−</span> : <span className="text-[#C89D7C] text-lg">+</span>}
+                       </button>
+                       {showAddClient && (
+                          <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
+                             <input value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Имя клиента" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                             <input value={newClientContact} onChange={e=>setNewClientContact(e.target.value)} placeholder="Контакт (Ник в ТГ)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                             <input type="tel" value={newClientPhone} onChange={e=>setNewClientPhone(e.target.value)} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]" />
+                             <button onClick={handleAddManualClient} className="w-full bg-[#2A2A2A] text-[#C89D7C] hover:bg-[#C89D7C] hover:text-black py-3 rounded-xl font-bold transition-colors border border-[#C89D7C]/30 shadow-lg">
+                                + Сохранить клиента
+                             </button>
+                          </div>
+                       )}
+                     </div>
+
+                     <div className="glass-card-dark p-3 rounded-2xl border border-green-500/30 bg-green-500/5 flex justify-between items-center shadow-inner mb-4">
+                        <span className="text-sm font-bold text-gray-300">Заработано за {currentMonthName.toLowerCase()}</span>
+                        <span className="text-lg font-bold text-green-400">{currentMonthRevenue} ₽</span>
+                     </div>
+
+                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                       <h3 className="text-lg font-bold text-white mb-2">База клиентов ({allClients.length})</h3>
+                       <p className="text-xs text-gray-400 mb-4">Измени имя, чтобы оно отображалось в календаре. Отправь в ЧС, чтобы заблокировать возможность записи.</p>
+                       
+                       <div className="relative mb-4">
+                         <input 
+                           value={clientSearch} 
+                           onChange={e => setClientSearch(e.target.value)} 
+                           placeholder="Поиск по имени, нику или телефону..." 
+                           className="w-full bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 pl-10 text-white text-sm focus:outline-none focus:border-[#C89D7C] transition-colors shadow-inner" 
+                         />
+                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                         </div>
+                       </div>
+
+                       {filteredClients.length === 0 ? (
+                          <p className="text-gray-500 text-center py-6 text-sm">Ничего не найдено.</p>
+                       ) : (
+                          <div className="space-y-3">
+                             {filteredClients.map((client, idx) => {
+                                const clientBookings = bookingsList.filter(b => {
+                                     const matchTgId = client.tgId && b.tgId === client.tgId;
+                                     const matchUsername = client.username && b.clientContact && b.clientContact.includes(client.username);
+                                     const matchPhone = client.phone && b.phone && b.phone === client.phone;
+                                     const matchName = (b.clientName === client.customName) || (b.clientName === client.originalName);
+                                     return matchTgId || matchUsername || matchPhone || matchName;
+                                });
+
+                                let realTotalSpent = 0;
+                                const bookingsByMonth = {};
+                                clientBookings.forEach(b => {
+                                   const [d, m] = b.date ? b.date.split(' ') : ['', ''];
+                                   const monthName = m || 'Другое';
+                                   if(!bookingsByMonth[monthName]) bookingsByMonth[monthName] = { total: 0, items: [] };
+                                   bookingsByMonth[monthName].items.push(b);
+                                   
+                                   if (b.actualPrice !== undefined && b.actualPrice !== null && b.actualPrice !== '') {
+                                       bookingsByMonth[monthName].total += Number(b.actualPrice);
+                                       realTotalSpent += Number(b.actualPrice);
+                                   }
+                                });
+
+                                return (
+                                  <div key={idx} className={`relative bg-[#1A1A1A] p-4 rounded-2xl border transition-colors ${client.isBlacklisted ? 'border-red-500/50 bg-red-900/10' : 'border-white/10 hover:border-[#C89D7C]/50'}`}>
+                                     <button 
+                                       onClick={(e) => { e.stopPropagation(); deleteClientAdmin(client.tgId); }} 
+                                       className="absolute top-2 right-2 text-gray-500 hover:text-white bg-white/5 hover:bg-red-500/80 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors shadow-sm"
+                                       title="Удалить клиента"
+                                     >×</button>
+
+                                     <div className="flex justify-between items-start mb-3 pt-1">
+                                        <div className="flex-1 mr-3">
+                                          <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Нормальное ФИО</label>
+                                          <input 
+                                            value={client.customName || ''} 
+                                            onChange={(e) => handleClientChange(client.tgId, 'customName', e.target.value)} 
+                                            placeholder={client.originalName} 
+                                            className="w-full bg-[#2A2A2A] rounded-lg p-2 text-white text-sm focus:outline-none focus:border-[#C89D7C] border border-transparent" 
+                                          />
+                                        </div>
+                                        <div className="text-right">
+                                           <span className="text-[10px] text-gray-500 block mb-0.5">Факт. оплата</span>
+                                           <span className="text-[#C89D7C] font-bold text-base">{realTotalSpent} ₽</span>
+                                        </div>
+                                     </div>
+
+                                     <div className="flex justify-between items-center mb-4">
+                                        <div className="flex flex-col gap-1.5">
+                                          <div className="text-xs text-gray-400">
+                                            ТГ: {client.username ? (
+                                              <a href={`https://t.me/${client.username.replace('@', '')}`} target="_blank" className="text-[#C89D7C] hover:text-white transition-colors font-medium ml-1">
+                                                {client.username}
+                                              </a>
+                                            ) : (
+                                              <span className="text-white font-medium ml-1">ID: {client.tgId}</span>
+                                            )}
+                                          </div>
+                                          <div className="text-xs text-gray-400 flex items-center">
+                                            Тел: <input value={client.phone || ''} onChange={(e) => handleClientChange(client.tgId, 'phone', e.target.value)} placeholder="Не указан" className="ml-1 bg-transparent border-b border-gray-700 focus:border-[#C89D7C] text-white w-24 focus:outline-none px-1 py-0.5 placeholder-gray-600 transition-colors" />
+                                          </div>
+                                        </div>
+                                        <div className="text-xs text-gray-400 bg-black/30 px-2 py-1 rounded-md border border-white/5">
+                                          Визитов: <span className="text-white font-bold">{clientBookings.length > 0 ? clientBookings.length : (client.visits || 1)}</span>
+                                        </div>
+                                     </div>
+
+                                     <div className="flex gap-2">
+                                         <button 
+                                           onClick={() => { triggerHaptic(); handleClientChange(client.tgId, 'isBlacklisted', !client.isBlacklisted); }} 
+                                           className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border ${client.isBlacklisted ? 'bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30' : 'bg-[#2A2A2A] text-gray-400 border-transparent hover:text-red-400'}`}
+                                         >
+                                           {client.isBlacklisted ? 'Убрать из ЧС' : 'В ЧС'}
+                                         </button>
+                                         <button 
+                                           onClick={() => { triggerHaptic(); setExpandedClientTgId(expandedClientTgId === client.tgId ? null : client.tgId); }} 
+                                           className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#C89D7C]/10 text-[#C89D7C] hover:bg-[#C89D7C]/20 border border-[#C89D7C]/30 transition-all flex items-center justify-center gap-1"
+                                         >
+                                           {expandedClientTgId === client.tgId ? 'Скрыть историю' : 'История визитов'}
+                                           <Icon name="ChevronLeft" className={`w-3 h-3 transition-transform ${expandedClientTgId === client.tgId ? 'rotate-90' : '-rotate-90'}`} />
+                                         </button>
+                                     </div>
+
+                                     {/* ИСТОРИЯ ВИЗИТОВ И ОПЛАТЫ */}
+                                     {expandedClientTgId === client.tgId && (
+                                         <div className="mt-4 space-y-3 pt-3 border-t border-gray-700 animate-[fadeIn_0.3s_ease-out]">
+                                           {Object.keys(bookingsByMonth).length === 0 ? (
+                                               <p className="text-gray-500 text-xs text-center pb-2">Записей пока нет.</p>
+                                           ) : (
+                                               Object.entries(bookingsByMonth).map(([mName, data]) => (
+                                                   <div key={mName} className="bg-black/40 rounded-xl p-3 border border-white/5">
+                                                       <div className="flex justify-between items-center mb-3">
+                                                          <span className="text-sm font-bold text-white uppercase tracking-wider">{mName}</span>
+                                                          <span className="text-xs font-bold bg-[#C89D7C] text-black px-2 py-0.5 rounded">Итог: {data.total} ₽</span>
+                                                       </div>
+                                                       <div className="space-y-3">
+                                                          {data.items.map(b => (
+                                                             <div key={b.id} className="text-xs text-gray-400 border-l-2 border-[#C89D7C] pl-2.5 py-1">
+                                                                 <div className="flex justify-between text-white mb-1">
+                                                                    <span className="font-medium">{b.date} в {b.time}</span>
+                                                                    <span className="bg-gray-800 px-1.5 rounded">{b.duration} мин</span>
+                                                                 </div>
+                                                                 <div className="truncate mb-2 text-gray-500">{b.services}</div>
+                                                                 <div className="flex items-center gap-2">
+                                                                    <span className="text-[10px] uppercase font-bold tracking-wider">Факт. оплата:</span>
+                                                                    <div className="flex items-center gap-1">
+                                                                      <input type="number" 
+                                                                         defaultValue={b.actualPrice !== undefined && b.actualPrice !== null ? b.actualPrice : ''} 
+                                                                         placeholder={b.price}
+                                                                         onBlur={(e) => updateActualPrice(b.id, e.target.value)}
+                                                                         className="bg-[#2A2A2A] border border-gray-600 rounded-md p-1 w-16 text-white text-center font-bold focus:border-[#C89D7C] focus:outline-none transition-colors placeholder-gray-500" 
+                                                                      /> <span className="text-[#C89D7C] font-bold">₽</span>
+                                                                    </div>
+                                                                 </div>
+                                                             </div>
+                                                          ))}
+                                                       </div>
+                                                   </div>
+                                               ))
+                                           )}
+                                         </div>
+                                     )}
+
+                                  </div>
+                                );
+                             })}
+                          </div>
+                       )}
+                     </div>
+                   </div>
+                )}
+
+                {adminTab === 'calendar' && (
+                  <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
+                    
+                    {/* КНОПКА КОПИРОВАНИЯ ОКОШЕК ДЛЯ СТОРИЗ */}
+                    <button 
+                      onClick={copyEmptySlotsToClipboard}
+                      className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-3 rounded-2xl font-bold shadow-[0_5px_15px_rgba(200,157,124,0.3)] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+                    >
+                      <span className="text-xl">🪄</span> Скопировать свободные окошки
+                    </button>
+
+                    {/* Аккордеон для ручной записи */}
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <button onClick={() => { triggerHaptic(); setShowManualBooking(!showManualBooking); }} className="w-full flex justify-between items-center text-sm font-bold text-white">
+                          Записать вручную {showManualBooking ? <span className="text-[#C89D7C] text-lg">−</span> : <span className="text-[#C89D7C] text-lg">+</span>}
+                      </button>
+                      
+                      {showManualBooking && (
+                        <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
+                          <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Имя клиентки (или контакт)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                          <input value={manualService} onChange={e=>setManualService(e.target.value)} placeholder="Услуга (напр. Бикини 60 мин)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                          <input type="tel" value={manualPhone} onChange={e=>setManualPhone(e.target.value)} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                          
+                          <div className="flex gap-2 mb-3">
+                            <GlassSelect value={manualDate} options={dateOptions} onChange={(val) => { setManualDate(val); setManualTime(''); }} placeholder="Дата" />
+                            <GlassTimePicker value={manualTime} onChange={setManualTime} disabled={!manualDate} />
+                          </div>
+                          
+                          <div className="flex gap-2 mt-3">
+                            <button onClick={addManualBooking} className="flex-[2] bg-[#2A2A2A] text-[#C89D7C] hover:bg-[#C89D7C] hover:text-black py-3 rounded-xl font-bold transition-colors border border-[#C89D7C]/30 shadow-lg">
+                               + Забронировать
+                            </button>
+                            <button onClick={addBreak} className="flex-1 bg-gray-700 text-white hover:bg-gray-600 py-3 rounded-xl font-bold transition-colors border border-gray-500 shadow-lg">
+                               ☕ Перерыв
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* iOS КВАДРАТНЫЙ КАЛЕНДАРЬ */}
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-white capitalize">
+                          {calendarMonth.toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
+                        </h3>
+                        <div className="flex gap-3">
+                          <button onClick={() => { triggerHaptic(); setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1)); }} className="text-[#C89D7C] hover:text-white px-2 py-1 text-xl leading-none transition-colors">‹</button>
+                          <button onClick={() => { triggerHaptic(); setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1)); }} className="text-[#C89D7C] hover:text-white px-2 py-1 text-xl leading-none transition-colors">›</button>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-7 mb-2 text-center text-[10px] text-gray-500 font-bold uppercase">
+                        <div>П</div><div>В</div><div>С</div><div>Ч</div><div>П</div><div>С</div><div>В</div>
+                      </div>
+                      
+                      <div className="grid grid-cols-7 gap-y-3 text-center">
+                        {getMonthGrid(calendarMonth).map((cell, idx) => {
+                          const dateStr = formatDateStr(cell.dateObj);
+                          const isSelected = adminCalendarDate === dateStr;
+                          const isToday = cell.dateObj.toDateString() === new Date().toDateString();
+                          const hasBookings = bookingsList.some(b => b.date === dateStr);
+
+                          return (
+                            <div key={idx}
+                                 onClick={() => { triggerHaptic(); setAdminCalendarDate(dateStr); }}
+                                 className="flex flex-col items-center justify-start relative h-12 pt-1 mb-1"
+                            >
+                              <div className={`w-8 h-8 flex items-center justify-center rounded-full cursor-pointer transition-all z-10
+                                ${!cell.isCurrentMonth ? 'text-gray-600' : 'text-white'}
+                                ${isSelected ? 'bg-[#C89D7C] text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)]' : 'hover:bg-white/10'}
+                                ${isToday && !isSelected ? 'border border-[#C89D7C]/50 text-[#C89D7C]' : ''}`}
+                              >
+                                <span className="text-sm">{cell.dateObj.getDate()}</span>
+                              </div>
+                              {hasBookings && (
+                                <div className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)] z-0"></div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* TIMELINE VIEW (ЛЕНТА ВРЕМЕНИ) */}
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10 overflow-hidden relative">
+                      <h3 className="text-sm font-bold text-white mb-3">Расписание: <span className="text-[#C89D7C]">{adminCalendarDate}</span></h3>
+
+                      {/* Сетка времени */}
+                      <div className="relative bg-[#121212] rounded-xl border border-gray-800 h-[500px] overflow-y-auto hide-scrollbar">
+                        <div className="relative" style={{height: `${13 * 60}px`}}>
+                            {/* Линии сетки */}
+                            {hoursList.map((h, i) => (
+                                <div key={h} className="absolute w-full flex items-start border-t border-gray-800/60" style={{top: `${i*60}px`, height: '60px'}}>
+                                    <span className="text-[10px] text-gray-500 w-12 pl-2 mt-1 font-medium">{h}:00</span>
+                                </div>
+                            ))}
+
+                            {/* Блоки с записями */}
+                            {loadingBookings ? (
+                               <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-[#C89D7C] text-sm">Загрузка...</div>
+                            ) : (
+                              bookingsList.filter(b => b.date === adminCalendarDate).map(b => (
+                                  <SimpleBookingBlock 
+                                      key={b.id} 
+                                      booking={b} 
+                                      hourHeight={60} 
+                                      onEdit={openEditBooking}
+                                      onCancel={cancelBooking}
+                                      onRemind={sendReminder}
+                                  />
+                              ))
+                            )}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-3 text-center uppercase tracking-widest font-bold">💡 Нажми на блок записи, чтобы отредактировать время</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* РЕЖИМ МОДЕРАЦИИ ОТЗЫВОВ */
+              <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
+                <h2 className="text-2xl font-bold text-white mb-6">Модерация отзывов</h2>
+                {allReviews.length === 0 ? (
+                  <p className="text-xs text-gray-500">Отзывов пока нет.</p>
+                ) : (
+                  allReviews.map(rev => (
+                    <div key={rev.id} className={`p-5 rounded-2xl border ${rev.approved ? 'border-green-500/30 bg-green-500/10' : 'border-[#C89D7C]/50 bg-[#C89D7C]/10'} relative glass-card-dark`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-bold text-white text-base">{rev.name} <span className="text-[#C89D7C]">({rev.rating}⭐)</span></span>
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider ${rev.approved ? 'bg-green-500/20 text-green-400' : 'bg-[#C89D7C]/20 text-[#C89D7C]'}`}>
+                          {rev.approved ? '✅ Опубликован' : '⏳ Модерация'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-300 mb-4">{rev.text}</p>
+                      <div className="flex gap-2">
+                        {!rev.approved && (
+                          <button onClick={() => approveReview(rev.id)} className="flex-1 bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded-xl text-sm font-bold transition-colors shadow-lg">
+                            Одобрить
+                          </button>
+                        )}
+                        <button onClick={() => deleteReviewAdmin(rev.id)} className="flex-1 bg-red-600/80 hover:bg-red-500 text-white px-3 py-2 rounded-xl text-sm font-bold transition-colors shadow-lg">
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* НИЖНЯЯ ПАНЕЛЬ АДМИНКИ (STICKY BAR) */}
+            <div className="fixed bottom-0 left-0 right-0 p-3 bg-[#1A1A1A]/80 backdrop-blur-xl border-t border-white/5 max-w-md mx-auto z-50 flex gap-2">
+              {adminSubView === 'main' ? (
+                <>
+                  <button onClick={() => {triggerHaptic(); setAdminSubView('mod');}} className="flex-[1] bg-[#2A2A2A] text-[#C89D7C] rounded-xl font-bold py-2 text-sm border border-white/5 relative hover:bg-[#333] transition-colors shadow-sm">
+                    Мод.
+                    {unapprovedCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold shadow-md animate-pulse">
+                        {unapprovedCount}
+                      </span>
+                    )}
+                  </button>
+                  <button onClick={saveChanges} disabled={isSaving} className="flex-[2] bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-2 text-sm rounded-xl shadow-md disabled:opacity-50 hover:opacity-90 transition-opacity">
+                    {isSaving ? "Сохранение..." : "Сохранить"}
+                  </button>
+                  <button onClick={() => {triggerHaptic(); setActiveTab('main');}} className="flex-[1] bg-red-500/10 text-red-400 font-bold py-2 text-sm rounded-xl border border-red-500/20 hover:bg-red-500/20 transition-colors shadow-sm">
+                    Закрыть
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => {triggerHaptic(); setAdminSubView('main');}} className="flex-[1] bg-[#2A2A2A] text-white rounded-xl font-bold py-2 text-sm border border-white/5 hover:bg-[#333] transition-colors shadow-sm">
+                    Назад
+                  </button>
+                  <button onClick={saveChanges} disabled={isSaving} className="flex-[2] bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-2 text-sm rounded-xl shadow-md disabled:opacity-50 hover:opacity-90 transition-opacity">
+                    {isSaving ? "Сохранение..." : "Сохранить"}
+                  </button>
+                </>
+              )}
+            </div>
+
           </div>
         );
-      }
+      };
 
       return (
         <div className="max-w-md mx-auto min-h-[100dvh] w-full relative shadow-2xl bg-black/40 border-x border-white/5 overflow-hidden">
@@ -1385,8 +2504,8 @@
                 <div className="flex gap-3">
                   <button onClick={() => setEditingBooking(null)} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">Отмена</button>
                   <button onClick={() => {
-                     if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim() || !editBServices.trim()) {
-                         return alert("Заполните все поля: имя, зоны, дату, время и длительность!");
+                     if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim()) {
+                         return alert("Заполните все поля: имя, дату, время и длительность!");
                      }
                      triggerHaptic();
 
@@ -1399,7 +2518,7 @@
                          date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
                      });
 
-                     const newDates = [...editData.dates];
+                     const newDates = [...(editData.dates || [])];
                      if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
                          const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
                          if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
