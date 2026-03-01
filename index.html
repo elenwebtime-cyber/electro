@@ -45,6 +45,20 @@
       backdrop-filter: blur(12px); 
       -webkit-backdrop-filter: blur(12px); 
     }
+
+    /* Надежная анимация для летящих сердечек */
+    @keyframes floatUpAnim {
+      0% { transform: translateY(10vh) scale(0.8); opacity: 0; }
+      10% { opacity: 1; }
+      80% { opacity: 1; }
+      100% { transform: translateY(-80vh) scale(1.5); opacity: 0; }
+    }
+    .heart-float {
+      animation-name: floatUpAnim;
+      animation-timing-function: ease-in;
+      animation-iteration-count: infinite;
+      animation-fill-mode: both;
+    }
   </style>
   <script>
     // ВРЕМЕННО ОТКЛЮЧИЛИ БРОНЮ ДЛЯ СПАСЕНИЯ АППКИ!
@@ -160,7 +174,7 @@
         CheckCircle2: <g><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></g>,
         ChevronLeft: <g><path d="m15 18-6-6 6-6"/></g>,
         Heart: <g><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></g>,
-        Sparkles: <g><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1-1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></g>,
+        Sparkles: <g><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></g>,
         AlertCircle: <g><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></g>,
         Settings: <g><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></g>
       };
@@ -210,8 +224,10 @@
 
     const GlassTimePicker = ({ value, onChange, disabled }) => {
       const [isOpen, setIsOpen] = useState(false);
-      const [hour, setHour] = useState(value ? value.split(':')[0] : '14');
-      const [minute, setMinute] = useState(value ? value.split(':')[1] : '00');
+      
+      // Надежная проверка входящего времени, чтобы не крашилось на кривых данных
+      const [hour, setHour] = useState(() => (typeof value === 'string' && value.includes(':') ? value.split(':')[0] : '14'));
+      const [minute, setMinute] = useState(() => (typeof value === 'string' && value.includes(':') ? value.split(':')[1] : '00'));
       
       const hours = Array.from({length: 13}, (_, i) => String(i + 9).padStart(2, '0'));
       const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
@@ -221,8 +237,8 @@
 
       useEffect(() => {
         if (isOpen) {
-            setHour(value ? value.split(':')[0] : '14');
-            setMinute(value ? value.split(':')[1] : '00');
+            setHour(typeof value === 'string' && value.includes(':') ? value.split(':')[0] : '14');
+            setMinute(typeof value === 'string' && value.includes(':') ? value.split(':')[1] : '00');
         }
       }, [isOpen, value]);
 
@@ -289,14 +305,14 @@
 
     const GlassDurationPicker = ({ value, onChange, disabled }) => {
       const [isOpen, setIsOpen] = useState(false);
-      const [mins, setMins] = useState(value || 30);
+      const [mins, setMins] = useState(Number(value) || 30);
       const durations = Array.from({length: 36}, (_, i) => (i + 1) * 10);
 
       const listRef = useRef(null);
 
       useEffect(() => {
         if (isOpen) {
-            setMins(value || 30);
+            setMins(Number(value) || 30);
         }
       }, [isOpen, value]);
 
@@ -421,13 +437,19 @@
     // УМНОЕ УДАЛЕНИЕ ПЕРЕКРЫВАЮЩИХСЯ СЛОТОВ
     // ==========================================
     const removeOverlappingSlots = (slots, startTime, durationMins) => {
-      const [h, m] = startTime.split(':').map(Number);
+      // Бронированная проверка на случай кривых данных
+      if (!startTime || typeof startTime !== 'string') return slots || [];
+      const parts = startTime.split(':');
+      if (parts.length !== 2) return slots || [];
+      
+      const [h, m] = parts.map(Number);
       const startMins = h * 60 + m;
       const endMins = startMins + durationMins;
       
       return (slots || []).filter(time => {
+          if (!time || typeof time !== 'string') return false;
           const [th, tm] = time.split(':').map(Number);
-          const tMins = th * 60 + tm;
+          const tMins = (th || 0) * 60 + (tm || 0);
           return tMins < startMins || tMins >= endMins;
       });
     };
@@ -1109,13 +1131,12 @@
 
       const renderHearts = () => {
         return Array.from({ length: 15 }).map((_, i) => (
-          <div key={i} className="absolute text-[#C89D7C] animate-floatUp bottom-0 pointer-events-none" 
+          <div key={i} className="absolute text-[#C89D7C] heart-float bottom-0 pointer-events-none" 
                style={{
                  left: `${Math.random() * 100}%`,
                  animationDuration: `${Math.random() * 2 + 2}s`,
                  animationDelay: `${Math.random() * 1.5}s`,
-                 fontSize: `${Math.random() * 15 + 15}px`,
-                 opacity: 0
+                 fontSize: `${Math.random() * 15 + 15}px`
                }}>
             <Icon name="Heart" className="w-full h-full" />
           </div>
@@ -1480,18 +1501,22 @@
         };
 
         const openEditBooking = (b) => {
-            triggerHaptic();
-            setEditBDate(b.date);
-            setEditBTime(b.time);
-            setEditBDuration(b.duration || 60);
-            setEditBName(b.clientName || ""); 
-            setEditBServices(b.services || ""); 
-            setEditingBooking(b);
+            try {
+              triggerHaptic();
+              setEditBDate(b.date || "");
+              setEditBTime(b.time || "14:00");
+              setEditBDuration(Number(b.duration) || 60);
+              setEditBName(b.clientName || ""); 
+              setEditBServices(b.services || ""); 
+              setEditingBooking(b);
+            } catch(err) {
+              console.error("Ошибка при открытии окна редактирования:", err);
+            }
         };
 
         const confirmEditBooking = async () => {
-            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim() || !editBServices.trim()) {
-                return alert("Заполните все поля: имя, зоны, дату, время и длительность!");
+            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim()) {
+                return alert("Заполните все поля: имя, дату, время и длительность!");
             }
             triggerHaptic();
 
@@ -1561,9 +1586,12 @@
         };
 
         const SimpleBookingBlock = ({ booking, hourHeight, onEdit, onCancel, onRemind }) => {
-            const [h, m] = booking.time.split(':').map(Number);
-            const initialTop = (h - 9) * hourHeight + (m / 60) * hourHeight;
-            const height = Math.max((booking.duration || 30) * (hourHeight / 60), 30);
+            const timeStr = typeof booking.time === 'string' ? booking.time : "09:00";
+            const timeParts = timeStr.includes(':') ? timeStr.split(':') : ["09", "00"];
+            const [h, m] = timeParts.map(Number);
+            const initialTop = ((h || 9) - 9) * hourHeight + ((m || 0) / 60) * hourHeight;
+            const duration = Number(booking.duration) || 30;
+            const height = Math.max(duration * (hourHeight / 60), 30);
             const isBreak = booking.clientName === "Перерыв";
 
             return (
