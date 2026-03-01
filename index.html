@@ -1269,10 +1269,14 @@
              const text = `Привет, ${shortName}! Завтра жду тебя на электро в ${booking.time}! 🤗\n\nЕсли планы изменились, пожалуйста, предупреди меня заранее.`;
              
              const adminUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username || "";
+             // Формируем предзаполненное сообщение для кнопки
+             const confirmText = encodeURIComponent(`Привет! Я буду на процедуре завтра в ${booking.time} ✅`);
+             const cancelText = encodeURIComponent(`Привет! К сожалению, мне нужно перенести запись ❌`);
+             
              const reply_markup = adminUsername ? {
                  inline_keyboard: [
-                     [{ text: "✅ Буду", url: `https://t.me/${adminUsername}` }],
-                     [{ text: "❌ Не смогу / Перенос", url: `https://t.me/${adminUsername}` }]
+                     [{ text: "✅ Буду", url: `https://t.me/${adminUsername}?text=${confirmText}` }],
+                     [{ text: "❌ Не смогу / Перенос", url: `https://t.me/${adminUsername}?text=${cancelText}` }]
                  ]
              } : undefined;
 
@@ -1524,7 +1528,23 @@
 
         const deleteClientAdmin = async (tgId) => {
           triggerHaptic();
-          if(!confirm("Удалить клиента из базы навсегда?")) return;
+          if(!confirm("Удалить клиента из базы навсегда? Это также удалит его историю оплат.")) return;
+          
+          // Находим все записи этого клиента, чтобы удалить их и пересчитать сумму
+          const clientBookings = bookingsList.filter(b => 
+             (b.tgId && b.tgId === tgId) || 
+             (tgId.startsWith('manual_') && b.clientContact === 'Ручная запись' && b.id) // Упрощенная логика для ручных
+          );
+
+          // Удаляем записи из состояния
+          const bookingIdsToDelete = clientBookings.map(b => b.id);
+          setBookingsList(prev => prev.filter(b => !bookingIdsToDelete.includes(b.id)));
+
+          // Удаляем записи из БД (асинхронно, не блокируя UI)
+          if(db) {
+             bookingIdsToDelete.forEach(id => db.collection("bookings").doc(id).delete().catch(console.error));
+          }
+
           const newClients = editData.clients.filter(c => c.tgId !== tgId);
           const newEditData = {...editData, clients: newClients};
           setEditData(newEditData);
@@ -1591,12 +1611,15 @@
         const unapprovedCount = allReviews.filter(r => !r.approved).length;
 
         const currentMonthIdx = new Date().getMonth();
-        const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+        const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
         const currentMonthName = monthNames[currentMonthIdx];
+        const shortMonthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+        const currentShortMonthName = shortMonthNames[currentMonthIdx];
         
         const currentMonthRevenue = bookingsList.reduce((sum, b) => {
             const bMonth = b.date ? b.date.split(' ')[1] : '';
-            if (bMonth === currentMonthName && b.actualPrice !== undefined && b.actualPrice !== null && b.actualPrice !== '') {
+            // Проверяем совпадение с коротким названием месяца из даты брони
+            if (bMonth === currentShortMonthName && b.actualPrice !== undefined && b.actualPrice !== null && b.actualPrice !== '') {
                 return sum + Number(b.actualPrice);
             }
             return sum;
