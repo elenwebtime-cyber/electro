@@ -22,12 +22,12 @@
       background-color: #0a0a0a; 
       color: white; 
       -webkit-tap-highlight-color: transparent; 
-      overscroll-behavior: none; /* Блокирует пружинистый скролл и оттягивание экрана вниз */
-      user-select: none; /* Блокирует противное выделение текста везде... */
+      overscroll-behavior: none; 
+      user-select: none; 
       -webkit-user-select: none;
     }
     input, textarea, select {
-      user-select: auto; /* ...кроме полей, где нужно печатать текст! */
+      user-select: auto; 
       -webkit-user-select: auto;
     }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -53,7 +53,6 @@
 
     const ADMIN_TG_ID = 758556732; 
     
-    // ПРЯЧЕМ ТОКЕН ОТ GITHUB - РАЗБИЛИ НА 2 ЧАСТИ
     const BOT_TOKEN_P1 = "8674902102:AAE"; 
     const BOT_TOKEN_P2 = "qbdZ8pbmFaq9Gx5UF8vXCbElTdNEIPzU"; 
     const BOT_TOKEN = BOT_TOKEN_P1 + BOT_TOKEN_P2;
@@ -79,7 +78,6 @@
 
     // =========================================================================
 
-    // Глобальная функция вибрации
     const triggerHaptic = () => {
       try {
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
@@ -109,10 +107,6 @@
         </svg>
       );
     };
-
-    // =========================================================================
-    // КАСТОМНЫЕ ПРЕМИУМ КОМПОНЕНТЫ (GLASSMORPHISM)
-    // =========================================================================
 
     const GlassSelect = ({ value, options, onChange, placeholder, disabled }) => {
         const [isOpen, setIsOpen] = useState(false);
@@ -225,8 +219,6 @@
       );
     }
 
-    // =========================================================================
-
     const generateCalendarDays = () => {
       const days = [];
       const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
@@ -252,6 +244,7 @@
       photoUrl: "https://images.unsplash.com/photo-1616683693504-3ea7e9ad6fec?q=80&w=200&auto=format&fit=crop",
       address: "Уютная студия в центре (м. Китай-город)",
       addressNote: "Точный адрес пришлю за день до процедуры 🤫",
+      mapLink: "", 
       pricePerMinute: 40,
       about: "Удаляю волосы навсегда. Работаю бережно, стерильно и с любовью к твоему телу. ✨",
       stories: [
@@ -331,15 +324,31 @@
       const [storyImageIdx, setStoryImageIdx] = useState(0);
 
       // ==========================================
+      // НОВАЯ ФУНКЦИЯ: УМНОЕ УДАЛЕНИЕ ПЕРЕКРЫВАЮЩИХСЯ СЛОТОВ
+      // ==========================================
+      const removeOverlappingSlots = (slots, startTime, durationMins) => {
+        const [h, m] = startTime.split(':').map(Number);
+        const startMins = h * 60 + m;
+        const endMins = startMins + durationMins;
+        
+        return slots.filter(time => {
+            const [th, tm] = time.split(':').map(Number);
+            const tMins = th * 60 + tm;
+            return tMins < startMins || tMins >= endMins;
+        });
+      };
+
+      // ==========================================
       // СОСТОЯНИЯ АДМИНКИ 
       // ==========================================
       const [editData, setEditData] = useState(appData);
+      const [showReviewsMod, setShowReviewsMod] = useState(false);
       const [adminSelectedDateObj, setAdminSelectedDateObj] = useState(null);
       const [newTimeVal, setNewTimeVal] = useState('');
       const [isSaving, setIsSaving] = useState(false);
 
       const [adminTab, setAdminTab] = useState('settings'); 
-      const [adminSubView, setAdminSubView] = useState('main'); // 'main' или 'mod' для модерации
+      const [adminSubView, setAdminSubView] = useState('main'); 
       
       const [bookingsList, setBookingsList] = useState([]);
       const [loadingBookings, setLoadingBookings] = useState(false);
@@ -365,7 +374,7 @@
       const [newClientName, setNewClientName] = useState('');
       const [newClientContact, setNewClientContact] = useState('');
       const [newClientPhone, setNewClientPhone] = useState(''); 
-      const [clientSearch, setClientSearch] = useState(''); // Поиск клиентов
+      const [clientSearch, setClientSearch] = useState(''); 
       // ==========================================
 
       let tapTimeout = useRef(null);
@@ -418,6 +427,7 @@
                 parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
               }
               if (!parsed.clients) parsed.clients = [];
+              if (parsed.mapLink === undefined) parsed.mapLink = "";
               setAppData(parsed);
               setEditData(parsed); 
             }
@@ -620,7 +630,7 @@
         const updatedDates = [...appData.dates];
         const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
         if (targetDateIdx !== -1) {
-          updatedDates[targetDateIdx].slots = updatedDates[targetDateIdx].slots.filter(t => t !== selectedTime);
+          updatedDates[targetDateIdx].slots = removeOverlappingSlots(updatedDates[targetDateIdx].slots, selectedTime, selectedDuration);
           const newData = { ...appData, dates: updatedDates, clients: updatedClients };
           setAppData(newData);
           setEditData(newData);
@@ -737,6 +747,12 @@
                   <p className="text-xs text-[#C89D7C] mt-0.5">{appData.addressNote}</p>
                 </div>
               </div>
+              {appData.mapLink && (
+                <a href={appData.mapLink} target="_blank" rel="noopener noreferrer" onClick={triggerHaptic} className="flex flex-col items-center justify-center bg-[#2A2A2A] rounded-xl px-3 py-2 border border-white/5 hover:border-[#C89D7C]/50 transition-colors shrink-0 ml-2">
+                   <span className="text-[10px] text-[#C89D7C] font-bold uppercase tracking-wider mb-0.5">Карта</span>
+                   <Icon name="ChevronLeft" className="w-4 h-4 rotate-180 text-gray-400" />
+                </a>
+              )}
             </div>
 
             <div className="col-span-2 glass-card-dark p-5 rounded-3xl border border-white/5">
@@ -991,16 +1007,16 @@
             <h2 className="text-2xl font-bold text-white mb-6 tracking-wide">Отзывы клиентов</h2>
 
             {/* БЛОК ОСТАВИТЬ ОТЗЫВ (ПЕРЕНЕСЕН НАВЕРХ) */}
-            <div className="glass-card-dark p-5 rounded-3xl border border-[#C89D7C]/30 relative overflow-hidden mb-8">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#C89D7C] to-[#9A6A45]"></div>
-              <h3 className="text-lg font-bold text-white mb-2 text-center">Оставить отзыв</h3>
+            <div className="glass-card-dark p-4 rounded-2xl border border-[#C89D7C]/20 relative overflow-hidden mb-8 shadow-sm">
+              <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-[#C89D7C] to-[#9A6A45]"></div>
+              <h3 className="text-base font-bold text-white mb-3 text-center tracking-wide">Оставить отзыв</h3>
               
-              <div className="flex justify-center gap-3 mb-5">
+              <div className="flex justify-center gap-2 mb-4">
                 {[1, 2, 3, 4, 5].map(star => (
                   <span 
                     key={star} 
                     onClick={() => { triggerHaptic(); setRevRating(String(star)); }}
-                    className={`text-4xl cursor-pointer transition-all ${parseInt(revRating) >= star ? 'text-[#C89D7C] drop-shadow-[0_0_8px_rgba(200,157,124,0.6)] scale-110' : 'text-gray-700 hover:text-gray-500'}`}
+                    className={`text-3xl cursor-pointer transition-all ${parseInt(revRating) >= star ? 'text-[#C89D7C] drop-shadow-[0_0_8px_rgba(200,157,124,0.4)] scale-110' : 'text-gray-700 hover:text-gray-500'}`}
                   >
                     ★
                   </span>
@@ -1010,18 +1026,18 @@
               <input 
                 type="text" value={revName} onChange={e => setRevName(e.target.value)}
                 placeholder="Твое имя" 
-                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]"
+                className="w-full bg-black/30 border border-gray-700 rounded-lg p-2.5 text-white text-sm mb-2.5 focus:outline-none focus:border-[#C89D7C] transition-colors"
               />
               
               <textarea 
                 value={revText} onChange={e => setRevText(e.target.value)}
-                placeholder="Поделись впечатлениями о процедуре..." 
-                rows="3" 
-                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 text-white text-sm mb-4 focus:outline-none focus:border-[#C89D7C]"
+                placeholder="Поделись впечатлениями..." 
+                rows="2" 
+                className="w-full bg-black/30 border border-gray-700 rounded-lg p-2.5 text-white text-sm mb-4 focus:outline-none focus:border-[#C89D7C] transition-colors resize-none"
               ></textarea>
 
-              <button onClick={submitClientReview} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-3 rounded-xl font-bold shadow-lg">
-                Отправить отзыв
+              <button onClick={submitClientReview} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-2.5 rounded-lg font-bold shadow-md hover:opacity-90 transition-opacity text-sm uppercase tracking-wide">
+                Отправить
               </button>
             </div>
 
@@ -1115,7 +1131,8 @@
           const newDates = [...editData.dates];
           const dIdx = newDates.findIndex(d => d.date === manualDate);
           if (dIdx !== -1) {
-            newDates[dIdx].slots = newDates[dIdx].slots.filter(t => t !== manualTime);
+            // Ручная запись по умолчанию занимает 60 минут, скрываем перекрывающиеся слоты
+            newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
             const newData = {...editData, dates: newDates};
             setEditData(newData);
             setAppData(newData);
@@ -1151,7 +1168,8 @@
           const newDates = [...editData.dates];
           const dIdx = newDates.findIndex(d => d.date === manualDate);
           if (dIdx !== -1) {
-            newDates[dIdx].slots = newDates[dIdx].slots.filter(t => t !== manualTime);
+            // Перерыв занимает 60 минут, скрываем перекрывающиеся слоты
+            newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
             const newData = {...editData, dates: newDates};
             setEditData(newData);
             setAppData(newData);
@@ -1234,6 +1252,43 @@
             setEditBTime(b.time);
             setEditBDuration(b.duration || 60);
             setEditingBooking(b);
+        };
+
+        const confirmEditBooking = async () => {
+            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null) return alert("Заполните дату, время и длительность!");
+            triggerHaptic();
+
+            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration };
+            if(db) await db.collection("bookings").doc(updatedB.id).update({
+                date: editBDate, time: editBTime, duration: editBDuration
+            });
+
+            const newDates = [...editData.dates];
+            // 1. Если изменили дату или время, возвращаем старое время обратно в календарь
+            if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                    newDates[oldDIdx].slots.push(editingBooking.time);
+                    newDates[oldDIdx].slots.sort();
+                }
+            }
+            
+            // 2. В любом случае (изменили время/дату или просто увеличили длительность) 
+            // убираем перекрывающиеся слоты по новому времени и длительности
+            const newDIdx = newDates.findIndex(d => d.date === editBDate);
+            if (newDIdx !== -1) {
+                newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
+            }
+
+            const newData = {...editData, dates: newDates};
+            setEditData(newData);
+            setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
+
+            setEditingBooking(null);
+            fetchBookings(); 
+            showToast("Запись успешно обновлена! ✏️");
         };
 
         const getMonthGrid = (date) => {
@@ -1485,6 +1540,9 @@
                       
                       <label className="block text-xs text-gray-400 mt-3 mb-1">Обо мне</label>
                       <textarea value={editData.about} onChange={(e) => handleChange(e, 'about')} rows="3" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm"></textarea>
+                      
+                      <label className="block text-xs text-gray-400 mt-3 mb-1">Ссылка на карту (Yandex/Google)</label>
+                      <input value={editData.mapLink || ''} onChange={(e) => handleChange(e, 'mapLink')} placeholder="https://..." className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
                     </div>
 
                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
@@ -1995,99 +2053,36 @@
             )}
 
             {/* НИЖНЯЯ ПАНЕЛЬ АДМИНКИ (STICKY BAR) */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#1A1A1A]/90 backdrop-blur-xl border-t border-white/10 max-w-md mx-auto z-50 flex gap-2">
+            <div className="fixed bottom-0 left-0 right-0 p-3 bg-[#1A1A1A]/80 backdrop-blur-xl border-t border-white/5 max-w-md mx-auto z-50 flex gap-2">
               {adminSubView === 'main' ? (
                 <>
-                  <button onClick={() => {triggerHaptic(); setAdminSubView('mod');}} className="flex-[1] bg-[#2A2A2A] text-[#C89D7C] rounded-2xl font-bold py-3 border border-white/5 relative hover:bg-[#333] transition-colors">
+                  <button onClick={() => {triggerHaptic(); setAdminSubView('mod');}} className="flex-[1] bg-[#2A2A2A] text-[#C89D7C] rounded-xl font-bold py-2 text-sm border border-white/5 relative hover:bg-[#333] transition-colors shadow-sm">
                     Мод.
                     {unapprovedCount > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold shadow-md animate-pulse">
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold shadow-md animate-pulse">
                         {unapprovedCount}
                       </span>
                     )}
                   </button>
-                  <button onClick={saveChanges} disabled={isSaving} className="flex-[2] bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-3 rounded-2xl shadow-lg disabled:opacity-50 hover:opacity-90 transition-opacity">
+                  <button onClick={saveChanges} disabled={isSaving} className="flex-[2] bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-2 text-sm rounded-xl shadow-md disabled:opacity-50 hover:opacity-90 transition-opacity">
                     {isSaving ? "Сохранение..." : "Сохранить"}
                   </button>
-                  <button onClick={() => {triggerHaptic(); setActiveTab('main');}} className="flex-[1] bg-red-500/10 text-red-400 font-bold py-3 rounded-2xl border border-red-500/30 hover:bg-red-500/20 transition-colors">
+                  <button onClick={() => {triggerHaptic(); setActiveTab('main');}} className="flex-[1] bg-red-500/10 text-red-400 font-bold py-2 text-sm rounded-xl border border-red-500/20 hover:bg-red-500/20 transition-colors shadow-sm">
                     Закрыть
                   </button>
                 </>
               ) : (
                 <>
-                  <button onClick={() => {triggerHaptic(); setAdminSubView('main');}} className="flex-[1] bg-[#2A2A2A] text-white rounded-2xl font-bold py-3 border border-white/5 hover:bg-[#333] transition-colors">
+                  <button onClick={() => {triggerHaptic(); setAdminSubView('main');}} className="flex-[1] bg-[#2A2A2A] text-white rounded-xl font-bold py-2 text-sm border border-white/5 hover:bg-[#333] transition-colors shadow-sm">
                     Назад
                   </button>
-                  <button onClick={saveChanges} disabled={isSaving} className="flex-[2] bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-3 rounded-2xl shadow-lg disabled:opacity-50 hover:opacity-90 transition-opacity">
+                  <button onClick={saveChanges} disabled={isSaving} className="flex-[2] bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-2 text-sm rounded-xl shadow-md disabled:opacity-50 hover:opacity-90 transition-opacity">
                     {isSaving ? "Сохранение..." : "Сохранить"}
                   </button>
                 </>
               )}
             </div>
 
-            {/* ВСПЛЫВАЮЩЕЕ ОКНО РЕДАКТИРОВАНИЯ ЗАПИСИ (ВЫНЕСЕНО ИЗ АДМИНКИ НА ПЕРЕДНИЙ ПЛАН) */}
-            {editingBooking && (
-              <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
-                <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-w-sm p-6 shadow-[0_0_40px_rgba(200,157,124,0.15)]">
-                  <h3 className="text-xl font-bold text-white mb-2">Редактировать запись</h3>
-                  <p className="text-sm text-[#C89D7C] mb-6">{editingBooking.clientName} <span className="text-gray-400">({editingBooking.services})</span></p>
-
-                  <label className="block text-xs text-gray-400 mb-1">Дата</label>
-                  <div className="mb-3">
-                     <GlassSelect value={editBDate} options={dateOptions} onChange={setEditBDate} placeholder="Выберите дату" />
-                  </div>
-
-                  <label className="block text-xs text-gray-400 mb-1">Время</label>
-                  <div className="mb-3">
-                     <GlassTimePicker value={editBTime} onChange={setEditBTime} />
-                  </div>
-
-                  <label className="block text-xs text-gray-400 mb-1">Длительность (минут)</label>
-                  <input 
-                     type="number" step="15" 
-                     value={editBDuration} 
-                     onChange={e => setEditBDuration(e.target.value === '' ? '' : Number(e.target.value))} 
-                     className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-6 focus:outline-none focus:border-[#C89D7C] border border-transparent" 
-                  />
-
-                  <div className="flex gap-3">
-                    <button onClick={() => setEditingBooking(null)} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">Отмена</button>
-                    <button onClick={() => {
-                       if(!editBDate || !editBTime || editBDuration === '') return alert("Заполните дату, время и длительность!");
-                       triggerHaptic();
-
-                       const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration };
-                       if(db) db.collection("bookings").doc(updatedB.id).update({
-                           date: editBDate, time: editBTime, duration: editBDuration
-                       });
-
-                       const newDates = [...editData.dates];
-                       if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
-                           const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                           if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
-                               newDates[oldDIdx].slots.push(editingBooking.time);
-                               newDates[oldDIdx].slots.sort();
-                           }
-                           const newDIdx = newDates.findIndex(d => d.date === editBDate);
-                           if (newDIdx !== -1) {
-                               newDates[newDIdx].slots = newDates[newDIdx].slots.filter(t => t !== editBTime);
-                           }
-                       }
-
-                       const newData = {...editData, dates: newDates};
-                       setEditData(newData);
-                       setAppData(newData);
-                       syncToFirebase(newData);
-                       localStorage.setItem('electroAppData', JSON.stringify(newData));
-
-                       setEditingBooking(null);
-                       fetchBookings(); 
-                       showToast("Запись успешно обновлена! ✏️");
-                    }} className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">Сохранить</button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         );
       };
@@ -2173,6 +2168,70 @@
           )}
 
           {showMemo && renderMemoModal()}
+
+          {/* ВСПЛЫВАЮЩЕЕ ОКНО РЕДАКТИРОВАНИЯ ЗАПИСИ (ВЫНЕСЕНО ИЗ АДМИНКИ НА ПЕРЕДНИЙ ПЛАН) */}
+          {editingBooking && (
+            <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
+              <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-w-sm p-6 shadow-[0_0_40px_rgba(200,157,124,0.15)]">
+                <h3 className="text-xl font-bold text-white mb-2">Редактировать запись</h3>
+                <p className="text-sm text-[#C89D7C] mb-6">{editingBooking.clientName} <span className="text-gray-400">({editingBooking.services})</span></p>
+
+                <label className="block text-xs text-gray-400 mb-1">Дата</label>
+                <div className="mb-3">
+                   <GlassSelect value={editBDate} options={dateOptions} onChange={setEditBDate} placeholder="Выберите дату" />
+                </div>
+
+                <label className="block text-xs text-gray-400 mb-1">Время</label>
+                <div className="mb-3">
+                   <GlassTimePicker value={editBTime} onChange={setEditBTime} />
+                </div>
+
+                <label className="block text-xs text-gray-400 mb-1">Длительность (минут)</label>
+                <input 
+                   type="number" step="15" 
+                   value={editBDuration} 
+                   onChange={e => setEditBDuration(e.target.value === '' ? '' : Number(e.target.value))} 
+                   className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-6 focus:outline-none focus:border-[#C89D7C] border border-transparent" 
+                />
+
+                <div className="flex gap-3">
+                  <button onClick={() => setEditingBooking(null)} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">Отмена</button>
+                  <button onClick={() => {
+                     if(!editBDate || !editBTime || editBDuration === '') return alert("Заполните дату, время и длительность!");
+                     triggerHaptic();
+
+                     const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration };
+                     if(db) db.collection("bookings").doc(updatedB.id).update({
+                         date: editBDate, time: editBTime, duration: editBDuration
+                     });
+
+                     const newDates = [...editData.dates];
+                     if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                         const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                         if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                             newDates[oldDIdx].slots.push(editingBooking.time);
+                             newDates[oldDIdx].slots.sort();
+                         }
+                         const newDIdx = newDates.findIndex(d => d.date === editBDate);
+                         if (newDIdx !== -1) {
+                             newDates[newDIdx].slots = newDates[newDIdx].slots.filter(t => t !== editBTime);
+                         }
+                     }
+
+                     const newData = {...editData, dates: newDates};
+                     setEditData(newData);
+                     setAppData(newData);
+                     syncToFirebase(newData);
+                     localStorage.setItem('electroAppData', JSON.stringify(newData));
+
+                     setEditingBooking(null);
+                     fetchBookings(); 
+                     showToast("Запись успешно обновлена! ✏️");
+                  }} className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">Сохранить</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {activeTab === 'main' && selectedServices.length > 0 && (
             <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto animate-[slideInUp_0.3s_ease-out] z-50">
