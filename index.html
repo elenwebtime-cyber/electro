@@ -76,8 +76,16 @@
     }
     const db = firebase.apps.length ? firebase.firestore() : null;
 
+    // Фикс для обхода блокировок сети/VPN и устранения ошибки таймаута
+    if (db) {
+      try {
+        db.settings({ experimentalForceLongPolling: true });
+      } catch(e) {}
+    }
+
     // =========================================================================
 
+    // Глобальная функция вибрации
     const triggerHaptic = () => {
       try {
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
@@ -107,6 +115,10 @@
         </svg>
       );
     };
+
+    // =========================================================================
+    // КАСТОМНЫЕ ПРЕМИУМ КОМПОНЕНТЫ (GLASSMORPHISM)
+    // =========================================================================
 
     const GlassSelect = ({ value, options, onChange, placeholder, disabled }) => {
         const [isOpen, setIsOpen] = useState(false);
@@ -146,7 +158,7 @@
       const [minute, setMinute] = useState(value ? value.split(':')[1] : '00');
       
       const hours = Array.from({length: 13}, (_, i) => String(i + 9).padStart(2, '0'));
-      const minutes = ['00', '15', '30', '45'];
+      const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
       const hourRef = useRef(null);
       const minRef = useRef(null);
@@ -218,6 +230,8 @@
         </div>
       );
     }
+
+    // =========================================================================
 
     const generateCalendarDays = () => {
       const days = [];
@@ -549,7 +563,6 @@
             const cIdx = updatedClients.findIndex(c => c.tgId === tgUser.id);
             if (cIdx !== -1) {
                 updatedClients[cIdx].visits = (updatedClients[cIdx].visits || 0) + 1;
-                updatedClients[cIdx].totalSpent = (updatedClients[cIdx].totalSpent || 0) + totalPrice;
                 updatedClients[cIdx].username = clientUsername || updatedClients[cIdx].username;
                 if (clientPhone) updatedClients[cIdx].phone = clientPhone;
                 finalClientName = updatedClients[cIdx].customName || updatedClients[cIdx].originalName || clientName;
@@ -561,7 +574,6 @@
                     username: clientUsername,
                     phone: clientPhone,
                     visits: 1,
-                    totalSpent: totalPrice,
                     isBlacklisted: false,
                     firstVisit: new Date().toISOString()
                 });
@@ -574,7 +586,7 @@
                         `📅 ${selectedDate} в ${selectedTime}\n` +
                         `🌸 Зоны: ${servicesList}${addonsList}\n` +
                         `⏳ Забронировано: ${selectedDuration} мин\n` +
-                        `💰 Сумма: ~${totalPrice} ₽`;
+                        `💰 Ожидаемая сумма: ~${totalPrice} ₽`;
 
         if (BOT_TOKEN && !BOT_TOKEN.includes("ВАШ_ТОКЕН")) {
           try {
@@ -748,9 +760,9 @@
                 </div>
               </div>
               {appData.mapLink && (
-                <a href={appData.mapLink} target="_blank" rel="noopener noreferrer" onClick={triggerHaptic} className="flex flex-col items-center justify-center bg-[#2A2A2A] rounded-xl px-3 py-2 border border-white/5 hover:border-[#C89D7C]/50 transition-colors shrink-0 ml-2">
-                   <span className="text-[10px] text-[#C89D7C] font-bold uppercase tracking-wider mb-0.5">Карта</span>
-                   <Icon name="ChevronLeft" className="w-4 h-4 rotate-180 text-gray-400" />
+                <a href={appData.mapLink} target="_blank" rel="noopener noreferrer" onClick={triggerHaptic} className="bg-[#2A2A2A] px-3 h-8 rounded-full border border-[#C89D7C]/30 flex items-center justify-center gap-1.5 hover:bg-[#333] transition-colors shrink-0 ml-2">
+                   <span className="text-[10px] font-bold text-[#C89D7C] whitespace-nowrap leading-none mt-[1px]">КАРТА</span>
+                   <Icon name="MapPin" className="w-3 h-3 text-[#C89D7C]" />
                 </a>
               )}
             </div>
@@ -1100,7 +1112,7 @@
         };
 
         const updateActualPrice = async (bookingId, val) => {
-          const numVal = parseInt(val) || 0;
+          const numVal = val === '' ? null : (parseInt(val) || 0);
           const updatedList = bookingsList.map(b => b.id === bookingId ? { ...b, actualPrice: numVal } : b);
           setBookingsList(updatedList);
           if (db) {
@@ -1131,7 +1143,6 @@
           const newDates = [...editData.dates];
           const dIdx = newDates.findIndex(d => d.date === manualDate);
           if (dIdx !== -1) {
-            // Ручная запись по умолчанию занимает 60 минут, скрываем перекрывающиеся слоты
             newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
             const newData = {...editData, dates: newDates};
             setEditData(newData);
@@ -1168,7 +1179,6 @@
           const newDates = [...editData.dates];
           const dIdx = newDates.findIndex(d => d.date === manualDate);
           if (dIdx !== -1) {
-            // Перерыв занимает 60 минут, скрываем перекрывающиеся слоты
             newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
             const newData = {...editData, dates: newDates};
             setEditData(newData);
@@ -1264,7 +1274,6 @@
             });
 
             const newDates = [...editData.dates];
-            // 1. Если изменили дату или время, возвращаем старое время обратно в календарь
             if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
                 const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
                 if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
@@ -1273,8 +1282,6 @@
                 }
             }
             
-            // 2. В любом случае (изменили время/дату или просто увеличили длительность) 
-            // убираем перекрывающиеся слоты по новому времени и длительности
             const newDIdx = newDates.findIndex(d => d.date === editBDate);
             if (newDIdx !== -1) {
                 newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
@@ -1439,6 +1446,18 @@
            }
         };
 
+        const deleteClientAdmin = async (tgId) => {
+          triggerHaptic();
+          if(!confirm("Удалить клиента из базы навсегда?")) return;
+          const newClients = editData.clients.filter(c => c.tgId !== tgId);
+          const newEditData = {...editData, clients: newClients};
+          setEditData(newEditData);
+          setAppData(newEditData);
+          await syncToFirebase(newEditData);
+          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+          showToast("Клиент удален! 🗑️");
+        };
+
         const handleAddManualClient = async () => {
            if(!newClientName) return alert("Введите имя!");
            triggerHaptic();
@@ -1494,6 +1513,19 @@
         );
 
         const unapprovedCount = allReviews.filter(r => !r.approved).length;
+
+        // Расчет заработка за текущий месяц (только по факту оплат)
+        const currentMonthIdx = new Date().getMonth();
+        const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+        const currentMonthName = monthNames[currentMonthIdx];
+        
+        const currentMonthRevenue = bookingsList.reduce((sum, b) => {
+            const bMonth = b.date ? b.date.split(' ')[1] : '';
+            if (bMonth === currentMonthName && b.actualPrice !== undefined && b.actualPrice !== null && b.actualPrice !== '') {
+                return sum + Number(b.actualPrice);
+            }
+            return sum;
+        }, 0);
 
         return (
           <div className="min-h-screen bg-[#0a0a0a] p-4 pb-32 animate-[fadeIn_0.3s_ease-in-out]">
@@ -1760,6 +1792,11 @@
                        )}
                      </div>
 
+                     <div className="glass-card-dark p-3 rounded-2xl border border-green-500/30 bg-green-500/5 flex justify-between items-center shadow-inner mb-4">
+                        <span className="text-sm font-bold text-gray-300">Заработано за {currentMonthName.toLowerCase()}</span>
+                        <span className="text-lg font-bold text-green-400">{currentMonthRevenue} ₽</span>
+                     </div>
+
                      <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                        <h3 className="text-lg font-bold text-white mb-2">База клиентов ({allClients.length})</h3>
                        <p className="text-xs text-gray-400 mb-4">Измени имя, чтобы оно отображалось в календаре. Отправь в ЧС, чтобы заблокировать возможность записи.</p>
@@ -1788,19 +1825,29 @@
                                     b.clientName === client.originalName
                                 );
 
+                                let realTotalSpent = 0;
                                 const bookingsByMonth = {};
                                 clientBookings.forEach(b => {
-                                   const [d, m] = b.date.split(' ');
+                                   const [d, m] = b.date ? b.date.split(' ') : ['', ''];
                                    const monthName = m || 'Другое';
                                    if(!bookingsByMonth[monthName]) bookingsByMonth[monthName] = { total: 0, items: [] };
                                    bookingsByMonth[monthName].items.push(b);
-                                   bookingsByMonth[monthName].total += (b.actualPrice !== undefined ? b.actualPrice : b.price);
+                                   
+                                   if (b.actualPrice !== undefined && b.actualPrice !== null && b.actualPrice !== '') {
+                                       bookingsByMonth[monthName].total += Number(b.actualPrice);
+                                       realTotalSpent += Number(b.actualPrice);
+                                   }
                                 });
 
                                 return (
-                                  <div key={idx} className={`bg-[#1A1A1A] p-4 rounded-2xl border transition-colors ${client.isBlacklisted ? 'border-red-500/50 bg-red-900/10' : 'border-white/10 hover:border-[#C89D7C]/50'}`}>
-                                     
-                                     <div className="flex justify-between items-start mb-3">
+                                  <div key={idx} className={`relative bg-[#1A1A1A] p-4 rounded-2xl border transition-colors ${client.isBlacklisted ? 'border-red-500/50 bg-red-900/10' : 'border-white/10 hover:border-[#C89D7C]/50'}`}>
+                                     <button 
+                                       onClick={(e) => { e.stopPropagation(); deleteClientAdmin(client.tgId); }} 
+                                       className="absolute top-2 right-2 text-gray-500 hover:text-white bg-white/5 hover:bg-red-500/80 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors shadow-sm"
+                                       title="Удалить клиента"
+                                     >×</button>
+
+                                     <div className="flex justify-between items-start mb-3 pt-1">
                                         <div className="flex-1 mr-3">
                                           <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Нормальное ФИО</label>
                                           <input 
@@ -1811,8 +1858,8 @@
                                           />
                                         </div>
                                         <div className="text-right">
-                                           <span className="text-[10px] text-gray-500 block mb-0.5">Сумма (расчет)</span>
-                                           <span className="text-[#C89D7C] font-bold text-base">{client.totalSpent || 0} ₽</span>
+                                           <span className="text-[10px] text-gray-500 block mb-0.5">Факт. оплата</span>
+                                           <span className="text-[#C89D7C] font-bold text-base">{realTotalSpent} ₽</span>
                                         </div>
                                      </div>
 
@@ -1876,9 +1923,10 @@
                                                                     <span className="text-[10px] uppercase font-bold tracking-wider">Факт. оплата:</span>
                                                                     <div className="flex items-center gap-1">
                                                                       <input type="number" 
-                                                                         defaultValue={b.actualPrice !== undefined ? b.actualPrice : b.price} 
+                                                                         defaultValue={b.actualPrice !== undefined && b.actualPrice !== null ? b.actualPrice : ''} 
+                                                                         placeholder={b.price}
                                                                          onBlur={(e) => updateActualPrice(b.id, e.target.value)}
-                                                                         className="bg-[#2A2A2A] border border-gray-600 rounded-md p-1 w-16 text-white text-center font-bold focus:border-[#C89D7C] focus:outline-none transition-colors" 
+                                                                         className="bg-[#2A2A2A] border border-gray-600 rounded-md p-1 w-16 text-white text-center font-bold focus:border-[#C89D7C] focus:outline-none transition-colors placeholder-gray-500" 
                                                                       /> <span className="text-[#C89D7C] font-bold">₽</span>
                                                                     </div>
                                                                  </div>
@@ -2249,9 +2297,8 @@
                   <input 
                     type="range" min="30" max="720" step="15" 
                     value={selectedDuration} 
-                    onInput={(e) => setSelectedDuration(parseInt(e.target.value))}
                     onChange={(e) => setSelectedDuration(parseInt(e.target.value))}
-                    className="w-full accent-[#C89D7C] h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer"
+                    className="w-full accent-[#C89D7C] h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer touch-none"
                   />
                   <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-medium">
                     <span>30 мин</span><span>3 ч</span><span>6 ч</span><span>12 ч</span>
