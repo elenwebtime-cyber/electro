@@ -96,7 +96,12 @@
     }
     const db = firebase.apps.length ? firebase.firestore() : null;
 
-    // Убрали принудительный Long Polling, чтобы вернуть максимальную скорость загрузки аппки!
+    // Фикс для обхода блокировок сети/VPN и устранения ошибки таймаута
+    if (db) {
+      try {
+        db.settings({ experimentalForceLongPolling: true });
+      } catch(e) {}
+    }
 
     // =========================================================================
     // ПОДУШКА БЕЗОПАСНОСТИ (ERROR BOUNDARY)
@@ -458,9 +463,7 @@
       const [selectedDuration, setSelectedDuration] = useState(30); 
       const [selectedAddons, setSelectedAddons] = useState([]); 
       const [tapCount, setTapCount] = useState(0);
-
       const [clientPhone, setClientPhone] = useState(''); 
-
       const [dbConnected, setDbConnected] = useState(false);
       const [showAdminGear, setShowAdminGear] = useState(false);
       const [toastMsg, setToastMsg] = useState('');
@@ -502,6 +505,7 @@
       const [editBTime, setEditBTime] = useState('');
       const [editBDuration, setEditBDuration] = useState(60);
       const [editBName, setEditBName] = useState(''); 
+      const [editBServices, setEditBServices] = useState(''); // Новое состояние для редактирования зон
       
       const [expandedClientTgId, setExpandedClientTgId] = useState(null);
       const [showAddClient, setShowAddClient] = useState(false);
@@ -544,6 +548,7 @@
         }
 
         if (db) {
+          // Читаем настройки
           db.collection("settings").doc("masterData").get().then((doc) => {
             setDbConnected(true); 
             if (doc.exists) {
@@ -560,10 +565,29 @@
               if (parsed.dates) {
                 parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
               }
-              if (!parsed.clients) parsed.clients = [];
               if (parsed.mapLink === undefined) parsed.mapLink = "";
-              setAppData(parsed);
-              setEditData(parsed); 
+              
+              // Читаем клиентов из новой правильной коллекции
+              db.collection("clients").get().then((snap) => {
+                 let cList = [];
+                 snap.forEach(d => cList.push(d.data()));
+                 
+                 // Если новая база клиентов пустая, берем их из старых настроек (миграция)
+                 const finalClients = cList.length > 0 ? cList : (parsed.clients || []);
+                 
+                 const finalData = { ...parsed, clients: finalClients };
+                 setAppData(finalData);
+                 setEditData(finalData);
+                 
+                 // Если мы сделали миграцию, сохраняем их по-новому
+                 if (cList.length === 0 && parsed.clients && parsed.clients.length > 0) {
+                     parsed.clients.forEach(c => db.collection("clients").doc(String(c.tgId)).set(c).catch(console.error));
+                 }
+              }).catch(err => {
+                 const finalData = { ...parsed, clients: parsed.clients || [] };
+                 setAppData(finalData);
+                 setEditData(finalData);
+              });
             }
           }).catch(err => {
             setDbConnected(false); 
@@ -577,13 +601,24 @@
       const syncToFirebase = async (newData) => {
         if (db) {
           try {
-            await db.collection("settings").doc("masterData").set(newData);
+            const dataToSave = { ...newData };
+            // БОЛЬШЕ НЕ СОХРАНЯЕМ КЛИЕНТОВ В SETTINGS!
+            delete dataToSave.clients; 
+            await db.collection("settings").doc("masterData").set(dataToSave);
             setDbConnected(true);
           } catch (error) {
             console.error("Firebase sync error:", error);
             setDbConnected(false);
           }
         }
+      };
+
+      const saveClientToFirebase = (clientObj) => {
+          if (db) db.collection("clients").doc(String(clientObj.tgId)).set(clientObj).catch(console.error);
+      };
+
+      const deleteClientFromFirebase = (tgId) => {
+          if (db) db.collection("clients").doc(String(tgId)).delete().catch(console.error);
       };
 
       const handleNameClick = () => {
@@ -685,13 +720,15 @@
         
         if (tgUser.id) {
             const cIdx = updatedClients.findIndex(c => c.tgId === tgUser.id);
+            let finalClientObj;
             if (cIdx !== -1) {
                 updatedClients[cIdx].visits = (updatedClients[cIdx].visits || 0) + 1;
                 updatedClients[cIdx].username = clientUsername || updatedClients[cIdx].username;
                 if (clientPhone) updatedClients[cIdx].phone = clientPhone;
                 finalClientName = updatedClients[cIdx].customName || updatedClients[cIdx].originalName || clientName;
+                finalClientObj = updatedClients[cIdx];
             } else {
-                updatedClients.push({
+                finalClientObj = {
                     tgId: tgUser.id,
                     originalName: clientName,
                     customName: '',
@@ -701,8 +738,10 @@
                     totalSpent: totalPrice,
                     isBlacklisted: false,
                     firstVisit: new Date().toISOString()
-                });
+                };
+                updatedClients.push(finalClientObj);
             }
+            saveClientToFirebase(finalClientObj);
         }
         
         const messageToAdmin = `🔥 *Новая запись!*\n\n` +
@@ -851,7 +890,7 @@
                 <img src={appData.photoUrl} alt="Master" className="object-cover w-full h-full opacity-90" />
               </div>
             </div>
-            <h1 onClick={handleNameClick} className="text-2xl font-bold text-white tracking-wide cursor-pointer select-none">
+            <h1 onClick={handleNameClick} className="text-xl font-medium text-gray-100 tracking-[0.15em] uppercase cursor-pointer select-none drop-shadow-sm mt-2">
               {appData.name}
             </h1>
             <p className="text-[#C89D7C] font-medium mt-1">{appData.profession}</p>
@@ -1399,18 +1438,23 @@
             setEditBTime(b.time);
             setEditBDuration(b.duration || 60);
             setEditBName(b.clientName || ""); 
+            setEditBServices(b.services || ""); // Подтягиваем зоны для редактирования
             setEditingBooking(b);
         };
 
         const confirmEditBooking = async () => {
-            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim()) {
-                return alert("Заполните все поля: имя, дату, время и длительность!");
+            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim() || !editBServices.trim()) {
+                return alert("Заполните все поля: имя, зоны, дату, время и длительность!");
             }
             triggerHaptic();
 
-            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName };
+            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
+            
+            // ОПТИМИСТИЧНОЕ ОБНОВЛЕНИЕ - Моментально меняем список на экране!
+            setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
+
             if(db) await db.collection("bookings").doc(updatedB.id).update({
-                date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName
+                date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
             });
 
             const newDates = [...editData.dates];
@@ -1434,7 +1478,6 @@
             localStorage.setItem('electroAppData', JSON.stringify(newData));
 
             setEditingBooking(null);
-            fetchBookings(); 
             showToast("Запись успешно обновлена! ✏️");
         };
 
@@ -1595,6 +1638,7 @@
            if(cIdx !== -1) {
                newClients[cIdx] = { ...newClients[cIdx], [field]: value };
                setEditData({...editData, clients: newClients});
+               saveClientToFirebase(newClients[cIdx]);
            }
         };
 
@@ -1623,6 +1667,8 @@
           const newEditData = {...editData, clients: newClients};
           setEditData(newEditData);
           setAppData(newEditData);
+          
+          deleteClientFromFirebase(tgId);
           await syncToFirebase(newEditData);
           localStorage.setItem('electroAppData', JSON.stringify(newEditData));
           showToast("Клиент удален! 🗑️");
@@ -1657,6 +1703,8 @@
            const newEditData = { ...editData, clients: updatedClients };
            setEditData(newEditData);
            setAppData(newEditData);
+           
+           saveClientToFirebase(client);
            await syncToFirebase(newEditData);
            localStorage.setItem('electroAppData', JSON.stringify(newEditData));
 
@@ -2417,6 +2465,14 @@
                    className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-4 focus:outline-none focus:border-[#C89D7C] border border-transparent" 
                 />
 
+                <label className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Зоны (Услуги)</label>
+                <input 
+                   type="text" 
+                   value={editBServices} 
+                   onChange={e => setEditBServices(e.target.value)} 
+                   className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-4 focus:outline-none focus:border-[#C89D7C] border border-transparent" 
+                />
+
                 <label className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Дата</label>
                 <div className="mb-4">
                    <GlassSelect value={editBDate} options={dateOptions} onChange={setEditBDate} placeholder="Выберите дату" />
@@ -2438,12 +2494,18 @@
                 <div className="flex gap-3">
                   <button onClick={() => setEditingBooking(null)} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">Отмена</button>
                   <button onClick={() => {
-                     if(!editBDate || !editBTime || editBDuration === '' || !editBName.trim()) return alert("Заполните имя, дату, время и длительность!");
+                     if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim() || !editBServices.trim()) {
+                         return alert("Заполните все поля: имя, зоны, дату, время и длительность!");
+                     }
                      triggerHaptic();
 
-                     const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName };
+                     const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
+                     
+                     // ОПТИМИСТИЧНОЕ ОБНОВЛЕНИЕ - Моментально меняем список на экране!
+                     setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
+
                      if(db) db.collection("bookings").doc(updatedB.id).update({
-                         date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName
+                         date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
                      });
 
                      const newDates = [...editData.dates];
@@ -2467,7 +2529,6 @@
                      localStorage.setItem('electroAppData', JSON.stringify(newData));
 
                      setEditingBooking(null);
-                     fetchBookings(); 
                      showToast("Запись успешно обновлена! ✏️");
                   }} className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">Сохранить</button>
                 </div>
