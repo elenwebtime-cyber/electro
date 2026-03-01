@@ -374,7 +374,7 @@
     };
     const globalCalendarDays = generateCalendarDays();
     const dateOptions = globalCalendarDays.map(d => ({ value: d.date, label: d.date }));
-    const defaultSlots = ['10:00', '11:30', '14:00', '16:00', '18:30'];
+    const defaultSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
 
     const initialMasterData = {
       name: "Твое Имя",
@@ -408,6 +408,7 @@
         { id: 'a1', name: 'Иголочка-электрод', price: 200, icon: '🪡' },
         { id: 'a2', name: 'Анестезия (крем/гель)', price: 400, icon: '🧊' }
       ],
+      defaultSlots: [...defaultSlots],
       dates: [
         { date: globalCalendarDays[1].date, day: globalCalendarDays[1].day, slots: [...defaultSlots] },
         { date: globalCalendarDays[2].date, day: globalCalendarDays[2].day, slots: [...defaultSlots] },
@@ -435,7 +436,6 @@
     };
 
     function App() {
-      // ИЗМЕНЕНИЕ ЛОГИКИ СТАРТА: Полностью блокируем UI до подгрузки данных!
       const [isAppReady, setIsAppReady] = useState(false);
       
       const [appData, setAppData] = useState(null); 
@@ -464,6 +464,7 @@
       // СОСТОЯНИЯ АДМИНКИ 
       const [adminSelectedDateObj, setAdminSelectedDateObj] = useState(null);
       const [newTimeVal, setNewTimeVal] = useState('');
+      const [newDefaultTimeVal, setNewDefaultTimeVal] = useState('');
       const [isSaving, setIsSaving] = useState(false);
 
       const [adminTab, setAdminTab] = useState('settings'); 
@@ -533,7 +534,6 @@
         const initializeApp = async () => {
           let finalData = { ...initialMasterData };
 
-          // Шаг 1. Проверяем локальный кэш
           const saved = localStorage.getItem('electroAppData');
           if (saved) {
             try {
@@ -541,7 +541,6 @@
             } catch (e) {}
           }
 
-          // Шаг 2. Идем в Firebase
           if (db) {
             try {
               const doc = await db.collection("settings").doc("masterData").get();
@@ -556,6 +555,7 @@
                 finalData.addons = finalData.addons || initialMasterData.addons;
                 finalData.dates = finalData.dates || initialMasterData.dates;
                 finalData.memo = finalData.memo || initialMasterData.memo;
+                finalData.defaultSlots = finalData.defaultSlots || initialMasterData.defaultSlots;
 
                 if (finalData.stories.length > 0 && typeof finalData.stories[0] === 'string') {
                   finalData.stories = finalData.stories.map((name, i) => ({
@@ -590,7 +590,6 @@
             }
           }
 
-          // Устанавливаем данные и разрешаем рендер!
           setAppData(finalData);
           setEditData(finalData);
           setIsAppReady(true);
@@ -1868,6 +1867,42 @@
                       ))}
                     </div>
 
+                    {/* ШАБЛОН РАБОЧЕГО ДНЯ */}
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-sm font-bold text-white mb-1">Шаблон рабочего дня</label>
+                      <p className="text-xs text-gray-400 mb-4">Эти часы будут автоматически добавляться при создании нового рабочего дня. Удалите ненужные или добавьте новые.</p>
+                      
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {(editData.defaultSlots || []).length === 0 && <span className="text-xs text-gray-500">Нет шаблона времени</span>}
+                        {(editData.defaultSlots || []).map((time, idx) => (
+                          <div key={idx} className="bg-[#2A2A2A] border border-[#C89D7C]/30 rounded-lg px-2 py-1 flex items-center gap-1">
+                            <span className="text-sm text-white font-medium">{time}</span>
+                            <button onClick={() => {
+                              triggerHaptic();
+                              const newDefSlots = [...(editData.defaultSlots || [])];
+                              newDefSlots.splice(idx, 1);
+                              setEditData({...editData, defaultSlots: newDefSlots});
+                            }} className="text-red-400 hover:text-red-300 ml-1">×</button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <GlassTimePicker value={newDefaultTimeVal} onChange={setNewDefaultTimeVal} />
+                        <button onClick={() => {
+                          if(!newDefaultTimeVal) return;
+                          triggerHaptic();
+                          const newDefSlots = [...(editData.defaultSlots || [])];
+                          if (!newDefSlots.includes(newDefaultTimeVal)) {
+                             newDefSlots.push(newDefaultTimeVal);
+                             newDefSlots.sort();
+                          }
+                          setEditData({...editData, defaultSlots: newDefSlots});
+                          setNewDefaultTimeVal('');
+                        }} className="bg-[#C89D7C] text-black px-4 py-2 rounded-lg font-bold text-sm">Добавить</button>
+                      </div>
+                    </div>
+
                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                       <label className="block text-sm font-bold text-white mb-1">Свободные даты и окошки</label>
                       <p className="text-xs text-gray-400 mb-4">Нажми на день, чтобы настроить его время.</p>
@@ -1899,7 +1934,7 @@
                               <p className="text-gray-500 text-xs mb-3">Сейчас это выходной день.</p>
                               <button onClick={() => {
                                 triggerHaptic();
-                                const newDates = [...(editData.dates || []), { ...adminSelectedDateObj, slots: ['10:00', '12:00', '14:00', '16:00'] }];
+                                const newDates = [...(editData.dates || []), { ...adminSelectedDateObj, slots: [...(editData.defaultSlots || [])] }];
                                 newDates.sort((a, b) => {
                                    const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
                                    const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
