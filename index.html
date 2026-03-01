@@ -120,19 +120,19 @@
 
         return (
             <div className="flex-1 relative">
-                <div onClick={() => !disabled && setIsOpen(true)} className={`w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-[#C89D7C] flex justify-between items-center cursor-pointer transition-colors ${disabled ? 'opacity-50' : 'hover:border-gray-500'}`}>
+                <div onClick={(e) => { if(!disabled) { e.stopPropagation(); setIsOpen(true); } }} className={`w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-[#C89D7C] flex justify-between items-center cursor-pointer transition-colors ${disabled ? 'opacity-50' : 'hover:border-gray-500'}`}>
                     <span className="truncate">{selectedLabel || placeholder}</span>
                     <Icon name="ChevronLeft" className={`w-4 h-4 transition-transform -rotate-90 text-gray-400`} />
                 </div>
                 
                 {isOpen && (
-                    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={() => setIsOpen(false)}>
+                    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
                         <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-[#C89D7C]/30 rounded-t-3xl p-2 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] max-h-[60vh] flex flex-col animate-[slideInUp_0.3s_ease-out]">
                             <div className="flex justify-between items-center mb-2 mt-2 px-4">
                                 <span className="text-gray-400 text-sm font-bold">{placeholder}</span>
                                 <button onClick={() => setIsOpen(false)} className="w-8 h-8 bg-black/50 rounded-full text-white font-bold pb-1 flex items-center justify-center">×</button>
                             </div>
-                            <div className="overflow-y-auto hide-scrollbar flex-1 pb-4 px-2 space-y-2 mt-2">
+                            <div className="overflow-y-auto hide-scrollbar flex-1 pb-4 px-2 space-y-2 mt-2" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
                                 {options.map(opt => (
                                     <div key={opt.value} onClick={() => { onChange(opt.value); setIsOpen(false); triggerHaptic(); }} className={`p-4 rounded-xl text-center font-medium cursor-pointer transition-all ${value === opt.value ? 'bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black shadow-lg' : 'bg-[#2A2A2A] text-white hover:bg-[#333]'}`}>
                                         {opt.label}
@@ -183,14 +183,14 @@
 
       return (
         <div className="flex-1 relative">
-          <div onClick={() => !disabled && setIsOpen(true)} className={`w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-[#C89D7C] flex justify-between items-center cursor-pointer transition-colors ${disabled ? 'opacity-50' : 'hover:border-gray-500'}`}>
+          <div onClick={(e) => { if(!disabled) { e.stopPropagation(); setIsOpen(true); } }} className={`w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-[#C89D7C] flex justify-between items-center cursor-pointer transition-colors ${disabled ? 'opacity-50' : 'hover:border-gray-500'}`}>
             <span className="truncate">{value || 'Время...'}</span>
             <Icon name="Clock" className="w-4 h-4 text-gray-400" />
           </div>
           
           {isOpen && (
-            <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-              <div className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-[#C89D7C]/30 rounded-t-3xl p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] animate-[slideInUp_0.3s_ease-out]">
+            <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
+              <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-[#C89D7C]/30 rounded-t-3xl p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] animate-[slideInUp_0.3s_ease-out]">
                 <div className="flex justify-between items-center mb-6">
                   <button onClick={() => { setIsOpen(false); triggerHaptic(); }} className="text-gray-400 font-medium px-2 py-1">Отмена</button>
                   <h3 className="text-white font-bold text-lg">Выбор времени</h3>
@@ -200,7 +200,7 @@
                 <div className="flex justify-center gap-4 relative h-[150px] mb-4">
                   <div className="absolute top-1/2 -translate-y-1/2 left-4 right-4 h-[50px] bg-white/5 border-y border-[#C89D7C]/30 rounded-lg pointer-events-none z-0"></div>
                   
-                  <div className="w-24 h-full overflow-y-scroll hide-scrollbar snap-y snap-mandatory relative z-10" ref={hourRef} onScroll={() => handleScroll(hourRef, hours, setHour)}>
+                  <div className="w-24 h-full overflow-y-auto hide-scrollbar snap-y snap-mandatory relative z-10" ref={hourRef} onScroll={() => handleScroll(hourRef, hours, setHour)} style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
                     <div className="h-[50px]"></div>
                     {hours.map(h => (
                       <div key={h} className={`h-[50px] flex items-center justify-center snap-center text-3xl font-bold transition-colors ${hour === h ? 'text-[#C89D7C]' : 'text-gray-600'}`}>{h}</div>
@@ -210,7 +210,7 @@
                   
                   <div className="flex items-center justify-center text-3xl font-bold text-white z-10 h-full pb-1">:</div>
                   
-                  <div className="w-24 h-full overflow-y-scroll hide-scrollbar snap-y snap-mandatory relative z-10" ref={minRef} onScroll={() => handleScroll(minRef, minutes, setMinute)}>
+                  <div className="w-24 h-full overflow-y-auto hide-scrollbar snap-y snap-mandatory relative z-10" ref={minRef} onScroll={() => handleScroll(minRef, minutes, setMinute)} style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
                     <div className="h-[50px]"></div>
                     {minutes.map(m => (
                       <div key={m} className={`h-[50px] flex items-center justify-center snap-center text-3xl font-bold transition-colors ${minute === m ? 'text-[#C89D7C]' : 'text-gray-600'}`}>{m}</div>
@@ -317,6 +317,8 @@
       const [selectedAddons, setSelectedAddons] = useState([]); 
       const [tapCount, setTapCount] = useState(0);
 
+      const [clientPhone, setClientPhone] = useState(''); // Новое состояние для телефона клиента при брони
+
       const [dbConnected, setDbConnected] = useState(false);
       const [showAdminGear, setShowAdminGear] = useState(false);
       const [toastMsg, setToastMsg] = useState('');
@@ -346,6 +348,7 @@
       const [manualDate, setManualDate] = useState('');
       const [manualTime, setManualTime] = useState('');
       const [manualService, setManualService] = useState('');
+      const [manualPhone, setManualPhone] = useState(''); // Новое: телефон для ручной записи
 
       const [adminCalendarDate, setAdminCalendarDate] = useState(globalCalendarDays[0].date);
       const [calendarMonth, setCalendarMonth] = useState(new Date()); 
@@ -357,6 +360,10 @@
       const [editBDuration, setEditBDuration] = useState(60);
       
       const [expandedClientTgId, setExpandedClientTgId] = useState(null);
+      const [showAddClient, setShowAddClient] = useState(false);
+      const [newClientName, setNewClientName] = useState('');
+      const [newClientContact, setNewClientContact] = useState('');
+      const [newClientPhone, setNewClientPhone] = useState(''); // Новое: телефон при добавлении клиента
       // ==========================================
 
       let tapTimeout = useRef(null);
@@ -499,6 +506,13 @@
         return client?.isBlacklisted || false;
       };
 
+      // Проверка на то, есть ли уже клиент в нашей CRM-базе
+      const isExistingClient = () => {
+        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
+        if (!tgUser.id) return false;
+        return (appData.clients || []).some(c => c.tgId === tgUser.id);
+      };
+
       const handleFinalBooking = async () => {
         triggerHaptic();
         setShowMemo(false); 
@@ -521,6 +535,7 @@
                 updatedClients[cIdx].visits = (updatedClients[cIdx].visits || 0) + 1;
                 updatedClients[cIdx].totalSpent = (updatedClients[cIdx].totalSpent || 0) + totalPrice;
                 updatedClients[cIdx].username = clientUsername || updatedClients[cIdx].username;
+                if (clientPhone) updatedClients[cIdx].phone = clientPhone; // Сохраняем телефон, если ввели
                 finalClientName = updatedClients[cIdx].customName || updatedClients[cIdx].originalName || clientName;
             } else {
                 updatedClients.push({
@@ -528,6 +543,7 @@
                     originalName: clientName,
                     customName: '',
                     username: clientUsername,
+                    phone: clientPhone, // Сохраняем телефон для нового клиента
                     visits: 1,
                     totalSpent: totalPrice,
                     isBlacklisted: false,
@@ -538,6 +554,7 @@
         
         const messageToAdmin = `🔥 *Новая запись!*\n\n` +
                         `👤 Клиент: ${finalClientName} ${clientUsername} ${clientId}\n` +
+                        (clientPhone ? `📞 Телефон: ${clientPhone}\n` : ``) +
                         `📅 ${selectedDate} в ${selectedTime}\n` +
                         `🌸 Зоны: ${servicesList}${addonsList}\n` +
                         `⏳ Забронировано: ${selectedDuration} мин\n` +
@@ -582,6 +599,7 @@
           time: selectedTime,
           clientName: finalClientName,
           clientContact: clientUsername || clientId || "Нет данных",
+          phone: clientPhone, // Сохраняем телефон в самой брони
           services: servicesList + addonsList,
           duration: selectedDuration,
           price: totalPrice,
@@ -613,6 +631,7 @@
         setSelectedTime(null);
         setSelectedDuration(30);
         setSelectedAddons([]);
+        setClientPhone(''); // Очищаем поле телефона после сброса
       };
 
       const submitClientReview = () => {
@@ -925,11 +944,22 @@
               <Icon name="AlertCircle" className="w-6 h-6 text-[#C89D7C]" />
               <h3 className="text-xl font-bold text-white">Важно перед процедурой!</h3>
             </div>
-            <ul className="text-sm text-gray-300 space-y-3 mb-8 list-disc pl-5 marker:text-[#C89D7C]">
+            <ul className="text-sm text-gray-300 space-y-3 mb-4 list-disc pl-5 marker:text-[#C89D7C]">
               {appData.memo.map((item, idx) => (
                 <li key={idx}>{item}</li>
               ))}
             </ul>
+            
+            {!isExistingClient() && (
+              <input 
+                type="tel" 
+                value={clientPhone} 
+                onChange={e => setClientPhone(e.target.value)}
+                placeholder="Ваш телефон (необязательно)" 
+                className="w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm mb-6 focus:outline-none focus:border-[#C89D7C]"
+              />
+            )}
+            
             <div className="flex gap-3">
               <button onClick={() => { triggerHaptic(); setShowMemo(false); }} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">
                 Назад
@@ -1064,6 +1094,7 @@
             time: manualTime,
             clientName: manualName || "Без имени",
             clientContact: "Ручная запись",
+            phone: manualPhone,
             services: manualService || "Не указано",
             duration: 60,
             price: 0,
@@ -1083,7 +1114,7 @@
             localStorage.setItem('electroAppData', JSON.stringify(newData));
           }
 
-          setManualName(''); setManualDate(''); setManualTime(''); setManualService('');
+          setManualName(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
           fetchBookings();
           setShowManualBooking(false);
           setAdminCalendarDate(manualDate);
@@ -1119,11 +1150,36 @@
             localStorage.setItem('electroAppData', JSON.stringify(newData));
           }
 
-          setManualName(''); setManualDate(''); setManualTime(''); setManualService('');
+          setManualName(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
           fetchBookings();
           setShowManualBooking(false);
           setAdminCalendarDate(manualDate);
           showToast("Перерыв добавлен! ☕");
+        };
+
+        const sendReminder = async (booking) => {
+          triggerHaptic();
+          if (!booking.tgId) {
+            showToast("Невозможно отправить: ручная запись (нет ТГ) 😔");
+            return;
+          }
+          if (BOT_TOKEN && !BOT_TOKEN.includes("ВАШ_ТОКЕН")) {
+             const shortName = booking.clientName.split(' ')[0];
+             const text = `Привет, ${shortName}! Завтра жду тебя на электро в ${booking.time}! 🤗`;
+             try {
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: booking.tgId, text: text })
+                });
+                showToast("Напоминание отправлено! 💌");
+             } catch(e) {
+                console.error(e);
+                showToast("Ошибка отправки 😔");
+             }
+          } else {
+             showToast("Бот не настроен 😔");
+          }
         };
 
         const cancelBooking = async (booking) => {
@@ -1232,7 +1288,7 @@
           return `${dateObj.getDate()} ${mNames[dateObj.getMonth()]}`;
         };
 
-        const SimpleBookingBlock = ({ booking, hourHeight, onEdit, onCancel }) => {
+        const SimpleBookingBlock = ({ booking, hourHeight, onEdit, onCancel, onRemind }) => {
             const [h, m] = booking.time.split(':').map(Number);
             const initialTop = (h - 9) * hourHeight + (m / 60) * hourHeight;
             const height = Math.max((booking.duration || 30) * (hourHeight / 60), 30);
@@ -1248,7 +1304,16 @@
                         <div className={`font-bold text-xs leading-tight drop-shadow-md ${isBreak ? 'text-gray-200' : 'text-black'}`}>
                             {booking.time} - {booking.clientName}
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); onCancel(booking); }} className="text-red-700 bg-red-100/50 rounded px-1 text-[10px] font-bold">×</button>
+                        <div className="flex gap-1">
+                            {!isBreak && booking.tgId && (
+                                <button onClick={(e) => { e.stopPropagation(); onRemind(booking); }} className="text-black bg-white/30 hover:bg-white/50 rounded px-1.5 py-0.5 text-[10px] font-bold transition-colors">
+                                    🔔
+                                </button>
+                            )}
+                            <button onClick={(e) => { e.stopPropagation(); onCancel(booking); }} className="text-red-700 bg-red-100/50 hover:bg-red-500 hover:text-white rounded px-1.5 py-0.5 text-[10px] font-bold transition-colors">
+                                ×
+                            </button>
+                        </div>
                     </div>
                     {!isBreak && <div className="text-black/80 text-[10px] truncate drop-shadow-sm">{booking.services}</div>}
                 </div>
@@ -1338,6 +1403,40 @@
            const newClients = [...(editData.clients || [])];
            newClients[index] = { ...newClients[index], [field]: value };
            setEditData({...editData, clients: newClients});
+        };
+
+        const handleAddManualClient = async () => {
+           if(!newClientName) return alert("Введите имя!");
+           triggerHaptic();
+
+           const matches = bookingsList.filter(b => b.clientName === newClientName || (newClientContact && b.clientContact.includes(newClientContact)));
+           const calcVisits = matches.length;
+           const calcSpent = matches.reduce((sum, b) => sum + (b.actualPrice !== undefined ? b.actualPrice : b.price), 0);
+
+           const client = {
+               tgId: 'manual_' + Date.now(),
+               originalName: newClientName,
+               customName: newClientName,
+               username: newClientContact,
+               phone: newClientPhone,
+               visits: calcVisits,
+               totalSpent: calcSpent,
+               isBlacklisted: false,
+               firstVisit: new Date().toISOString()
+           };
+
+           const updatedClients = [...(editData.clients || []), client];
+           const newEditData = { ...editData, clients: updatedClients };
+           setEditData(newEditData);
+           setAppData(newEditData);
+           await syncToFirebase(newEditData);
+           localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+
+           setNewClientName('');
+           setNewClientContact('');
+           setNewClientPhone('');
+           setShowAddClient(false);
+           showToast("Клиент успешно добавлен в базу! ✅");
         };
 
         const saveChanges = async () => {
@@ -1636,6 +1735,22 @@
             {adminTab === 'clients' && (
                <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
                  <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                   <button onClick={() => { triggerHaptic(); setShowAddClient(!showAddClient); }} className="w-full flex justify-between items-center text-sm font-bold text-white">
+                      Добавить клиента вручную {showAddClient ? <span className="text-[#C89D7C] text-lg">−</span> : <span className="text-[#C89D7C] text-lg">+</span>}
+                   </button>
+                   {showAddClient && (
+                      <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
+                         <input value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Имя клиента" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                         <input value={newClientContact} onChange={e=>setNewClientContact(e.target.value)} placeholder="Контакт (Ник в ТГ)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                         <input type="tel" value={newClientPhone} onChange={e=>setNewClientPhone(e.target.value)} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]" />
+                         <button onClick={handleAddManualClient} className="w-full bg-[#2A2A2A] text-[#C89D7C] hover:bg-[#C89D7C] hover:text-black py-3 rounded-xl font-bold transition-colors border border-[#C89D7C]/30 shadow-lg">
+                            + Сохранить клиента
+                         </button>
+                      </div>
+                   )}
+                 </div>
+
+                 <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                    <h3 className="text-lg font-bold text-white mb-2">База клиентов ({allClients.length})</h3>
                    <p className="text-xs text-gray-400 mb-6">Измени имя, чтобы оно отображалось в календаре. Отправь в ЧС, чтобы заблокировать возможность записи.</p>
                    
@@ -1644,7 +1759,6 @@
                    ) : (
                       <div className="space-y-3">
                          {allClients.map((client, idx) => {
-                            // Собираем историю визитов этого клиента и группируем по месяцам
                             const clientBookings = bookingsList.filter(b => 
                                 b.clientContact.includes(client.username) || 
                                 (client.tgId && b.clientContact.includes(client.tgId)) || 
@@ -1681,14 +1795,19 @@
                                  </div>
 
                                  <div className="flex justify-between items-center mb-4">
-                                    <div className="text-xs text-gray-400">
-                                      ТГ: {client.username ? (
-                                        <a href={`https://t.me/${client.username.replace('@', '')}`} target="_blank" className="text-[#C89D7C] hover:text-white transition-colors font-medium ml-1">
-                                          {client.username}
-                                        </a>
-                                      ) : (
-                                        <span className="text-white font-medium ml-1">ID: {client.tgId}</span>
-                                      )}
+                                    <div className="flex flex-col gap-1.5">
+                                      <div className="text-xs text-gray-400">
+                                        ТГ: {client.username ? (
+                                          <a href={`https://t.me/${client.username.replace('@', '')}`} target="_blank" className="text-[#C89D7C] hover:text-white transition-colors font-medium ml-1">
+                                            {client.username}
+                                          </a>
+                                        ) : (
+                                          <span className="text-white font-medium ml-1">ID: {client.tgId}</span>
+                                        )}
+                                      </div>
+                                      <div className="text-xs text-gray-400 flex items-center">
+                                        Тел: <input value={client.phone || ''} onChange={(e) => handleClientChange(idx, 'phone', e.target.value)} placeholder="Не указан" className="ml-1 bg-transparent border-b border-gray-700 focus:border-[#C89D7C] text-white w-24 focus:outline-none px-1 py-0.5 placeholder-gray-600 transition-colors" />
+                                      </div>
                                     </div>
                                     <div className="text-xs text-gray-400 bg-black/30 px-2 py-1 rounded-md border border-white/5">
                                       Визитов: <span className="text-white font-bold">{clientBookings.length > 0 ? clientBookings.length : (client.visits || 1)}</span>
@@ -1706,7 +1825,9 @@
                                        onClick={() => { triggerHaptic(); setExpandedClientTgId(expandedClientTgId === client.tgId ? null : client.tgId); }} 
                                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#C89D7C]/10 text-[#C89D7C] hover:bg-[#C89D7C]/20 border border-[#C89D7C]/30 transition-all"
                                      >
-                                       {expandedClientTgId === client.tgId ? 'Скрыть историю' : 'История визитов ⬇'}
+                                       {expandedClientTgId === client.tgId ? 'Скрыть историю' : (
+                                         <span className="flex items-center justify-center gap-1">История визитов <Icon name="ChevronLeft" className="w-3 h-3 -rotate-90" /></span>
+                                       )}
                                      </button>
                                  </div>
 
@@ -1779,6 +1900,7 @@
                     <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
                       <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Имя клиентки (или контакт)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                       <input value={manualService} onChange={e=>setManualService(e.target.value)} placeholder="Услуга (напр. Бикини 60 мин)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                      <input type="tel" value={manualPhone} onChange={e=>setManualPhone(e.target.value)} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                       
                       <div className="flex gap-2 mb-3">
                         <GlassSelect value={manualDate} options={dateOptions} onChange={(val) => { setManualDate(val); setManualTime(''); }} placeholder="Дата" />
@@ -1855,7 +1977,7 @@
                             </div>
                         ))}
 
-                        {/* Блоки с записями (Без Драг-н-Дропа) */}
+                        {/* Блоки с записями */}
                         {loadingBookings ? (
                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-[#C89D7C] text-sm">Загрузка...</div>
                         ) : (
@@ -1866,40 +1988,13 @@
                                   hourHeight={60} 
                                   onEdit={openEditBooking}
                                   onCancel={cancelBooking}
+                                  onRemind={sendReminder}
                               />
                           ))
                         )}
                     </div>
                   </div>
                   <p className="text-[10px] text-gray-500 mt-3 text-center uppercase tracking-widest font-bold">💡 Нажми на блок записи, чтобы отредактировать время</p>
-
-                  {/* ВСПЛЫВАЮЩЕЕ ОКНО РЕДАКТИРОВАНИЯ ЗАПИСИ */}
-                  {editingBooking && (
-                    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
-                      <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-w-sm p-6 shadow-[0_0_40px_rgba(200,157,124,0.15)]">
-                        <h3 className="text-xl font-bold text-white mb-2">Редактировать запись</h3>
-                        <p className="text-sm text-[#C89D7C] mb-6">{editingBooking.clientName} <span className="text-gray-400">({editingBooking.services})</span></p>
-
-                        <label className="block text-xs text-gray-400 mb-1">Дата</label>
-                        <div className="mb-3">
-                           <GlassSelect value={editBDate} options={dateOptions} onChange={setEditBDate} placeholder="Выберите дату" />
-                        </div>
-
-                        <label className="block text-xs text-gray-400 mb-1">Время</label>
-                        <div className="mb-3">
-                           <GlassTimePicker value={editBTime} onChange={setEditBTime} />
-                        </div>
-
-                        <label className="block text-xs text-gray-400 mb-1">Длительность (минут)</label>
-                        <input type="number" step="15" value={editBDuration} onChange={e=>setEditBDuration(Number(e.target.value))} className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-6 focus:outline-none focus:border-[#C89D7C] border border-transparent" />
-
-                        <div className="flex gap-3">
-                          <button onClick={() => setEditingBooking(null)} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">Отмена</button>
-                          <button onClick={confirmEditBooking} className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">Сохранить</button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -1910,6 +2005,34 @@
                 <button onClick={saveChanges} disabled={isSaving} className="pointer-events-auto w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-4 rounded-2xl font-bold shadow-lg transition-all disabled:opacity-50">
                   {isSaving ? "Сохранение..." : "Сохранить изменения"}
                 </button>
+              </div>
+            )}
+            
+            {/* ВСПЛЫВАЮЩЕЕ ОКНО РЕДАКТИРОВАНИЯ ЗАПИСИ (ВЫНЕСЕНО В КОРЕНЬ АДМИНКИ) */}
+            {editingBooking && (
+              <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
+                <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-w-sm p-6 shadow-[0_0_40px_rgba(200,157,124,0.15)]">
+                  <h3 className="text-xl font-bold text-white mb-2">Редактировать запись</h3>
+                  <p className="text-sm text-[#C89D7C] mb-6">{editingBooking.clientName} <span className="text-gray-400">({editingBooking.services})</span></p>
+
+                  <label className="block text-xs text-gray-400 mb-1">Дата</label>
+                  <div className="mb-3">
+                     <GlassSelect value={editBDate} options={dateOptions} onChange={setEditBDate} placeholder="Выберите дату" />
+                  </div>
+
+                  <label className="block text-xs text-gray-400 mb-1">Время</label>
+                  <div className="mb-3">
+                     <GlassTimePicker value={editBTime} onChange={setEditBTime} />
+                  </div>
+
+                  <label className="block text-xs text-gray-400 mb-1">Длительность (минут)</label>
+                  <input type="number" step="15" value={editBDuration} onChange={e=>setEditBDuration(Number(e.target.value))} className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-6 focus:outline-none focus:border-[#C89D7C] border border-transparent" />
+
+                  <div className="flex gap-3">
+                    <button onClick={() => setEditingBooking(null)} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">Отмена</button>
+                    <button onClick={confirmEditBooking} className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">Сохранить</button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -2012,12 +2135,12 @@
                     </div>
                   </div>
                   <input 
-                    type="range" min="30" max="360" step="15" 
+                    type="range" min="30" max="720" step="15" 
                     value={selectedDuration} onChange={(e) => { triggerHaptic(); setSelectedDuration(parseInt(e.target.value)); }}
                     className="w-full accent-[#C89D7C] h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer"
                   />
                   <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-medium">
-                    <span>30 мин</span><span>2 ч</span><span>4 ч</span><span>6 ч</span>
+                    <span>30 мин</span><span>3 ч</span><span>6 ч</span><span>12 ч</span>
                   </div>
                 </div>
                 <button onClick={() => { triggerHaptic(); setActiveTab('booking'); }} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black p-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 font-bold text-lg">
