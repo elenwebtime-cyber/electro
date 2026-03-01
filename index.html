@@ -285,7 +285,7 @@
       reviews: [
         { id: 'r1', name: 'Мария', text: 'Прекрасный мастер! Процедура прошла очень комфортно, результат супер!', rating: 5, date: new Date().toISOString(), approved: true }
       ],
-      clients: [] // Новая база для CRM
+      clients: [] 
     };
 
     function App() {
@@ -490,7 +490,6 @@
 
       const handlePreBooking = () => setShowMemo(true);
 
-      // Проверка на ЧС
       const isUserBlacklisted = () => {
         const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
         if (!tgUser.id) return false;
@@ -511,7 +510,6 @@
         const servicesList = selectedServices.map(s => s.name).join(', ');
         const addonsList = selectedAddons.length > 0 ? `\n➕ Допы: ${selectedAddons.map(a => a.name).join(', ')}` : '';
         
-        // --- ЛОГИКА CRM: СОХРАНЯЕМ ИЛИ ОБНОВЛЯЕМ КЛИЕНТА ---
         let updatedClients = [...(appData.clients || [])];
         let finalClientName = clientName;
         
@@ -1005,6 +1003,39 @@
       };
 
       const renderAdminPanel = () => {
+        const copyEmptySlotsToClipboard = () => {
+          triggerHaptic();
+          
+          const availableDates = editData.dates.filter(d => d.slots && d.slots.length > 0);
+
+          if (availableDates.length === 0) {
+            showToast("Нет свободных окошек 😔");
+            return;
+          }
+
+          let text = "🌸 Свободные окошки:\n\n";
+          availableDates.forEach(d => {
+            text += `📅 ${d.date} (${d.day}): ${d.slots.join(', ')}\n`;
+          });
+          text += "\nЗапись по ссылке в профиле! ✨";
+
+          try {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
+            showToast("Текст для сториз скопирован! 🪄");
+          } catch (err) {
+            console.error("Ошибка при копировании", err);
+            showToast("Не удалось скопировать 😔");
+          }
+        };
+
         const addManualBooking = async () => {
           if(!manualDate || !manualTime) return alert("Заполните Дату и Время!");
           triggerHaptic();
@@ -1285,7 +1316,6 @@
           showToast("Отзыв удален. 🗑️");
         };
 
-        // --- ФУНКЦИИ ДЛЯ КЛИЕНТОВ (CRM) ---
         const handleClientChange = (index, field, value) => {
            const newClients = [...(editData.clients || [])];
            newClients[index] = { ...newClients[index], [field]: value };
@@ -1640,6 +1670,15 @@
 
             {adminTab === 'calendar' && (
               <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
+                
+                {/* КНОПКА КОПИРОВАНИЯ ОКОШЕК ДЛЯ СТОРИЗ */}
+                <button 
+                  onClick={copyEmptySlotsToClipboard}
+                  className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-3 rounded-2xl font-bold shadow-[0_5px_15px_rgba(200,157,124,0.3)] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+                >
+                  <span className="text-xl">🪄</span> Скопировать свободные окошки
+                </button>
+
                 {/* Аккордеон для ручной записи */}
                 <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                   <button onClick={() => { triggerHaptic(); setShowManualBooking(!showManualBooking); }} className="w-full flex justify-between items-center text-sm font-bold text-white">
