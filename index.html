@@ -455,7 +455,9 @@
         return parsed;
       });
 
-      const [isLoading, setIsLoading] = useState(!localStorage.getItem('electroAppData'));
+      // Изменили логику: теперь загрузочный экран показывается всегда при старте, 
+      // чтобы скрыть любое мерцание старых данных или заглушек
+      const [isLoading, setIsLoading] = useState(true);
 
       const [activeTab, setActiveTab] = useState('main'); 
       const [selectedServices, setSelectedServices] = useState([]);
