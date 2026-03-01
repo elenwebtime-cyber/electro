@@ -463,7 +463,7 @@
 
         if (newServices.length > 0) {
           const suggestedTime = newServices.reduce((sum, s) => sum + parseInt(s.defaultTime), 0);
-          setSelectedDuration(suggestedTime > 720 ? 720 : (suggestedTime < 30 ? 30 : suggestedTime)); 
+          setSelectedDuration(suggestedTime > 360 ? 360 : (suggestedTime < 30 ? 30 : suggestedTime)); 
         } else {
           setSelectedDuration(30);
         }
@@ -965,8 +965,20 @@
 
             <div className="glass-card-dark p-5 rounded-3xl border border-[#C89D7C]/30 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#C89D7C] to-[#9A6A45]"></div>
-              <h3 className="text-lg font-bold text-white mb-4">Оставить отзыв</h3>
+              <h3 className="text-lg font-bold text-white mb-2 text-center">Оставить отзыв</h3>
               
+              <div className="flex justify-center gap-3 mb-5">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <span 
+                    key={star} 
+                    onClick={() => { triggerHaptic(); setRevRating(String(star)); }}
+                    className={`text-4xl cursor-pointer transition-all ${parseInt(revRating) >= star ? 'text-[#C89D7C] drop-shadow-[0_0_8px_rgba(200,157,124,0.6)] scale-110' : 'text-gray-700 hover:text-gray-500'}`}
+                  >
+                    ★
+                  </span>
+                ))}
+              </div>
+
               <input 
                 type="text" value={revName} onChange={e => setRevName(e.target.value)}
                 placeholder="Твое имя" 
@@ -977,22 +989,8 @@
                 value={revText} onChange={e => setRevText(e.target.value)}
                 placeholder="Поделись впечатлениями о процедуре..." 
                 rows="3" 
-                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]"
+                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 text-white text-sm mb-4 focus:outline-none focus:border-[#C89D7C]"
               ></textarea>
-              
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-sm text-gray-400">Оценка:</span>
-                <select 
-                  value={revRating} onChange={e => setRevRating(e.target.value)}
-                  className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-2 text-[#C89D7C] text-sm focus:outline-none"
-                >
-                  <option value="5">⭐⭐⭐⭐⭐</option>
-                  <option value="4">⭐⭐⭐⭐</option>
-                  <option value="3">⭐⭐⭐</option>
-                  <option value="2">⭐⭐</option>
-                  <option value="1">⭐</option>
-                </select>
-              </div>
 
               <button onClick={submitClientReview} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black py-3 rounded-xl font-bold shadow-lg">
                 Отправить отзыв
@@ -1292,7 +1290,7 @@
         const approveReview = async (reviewId) => {
           triggerHaptic();
           const updatedReviews = editData.reviews.map(r => 
-            r.id === reviewId ? { ...r, approved: true, admin_id: ADMIN_ID } : r
+            r.id === reviewId ? { ...r, approved: true, admin_id: ADMIN_TG_ID } : r
           );
           const newEditData = {...editData, reviews: updatedReviews};
           
@@ -1922,12 +1920,12 @@
                     </div>
                   </div>
                   <input 
-                    type="range" min="30" max="720" step="15" 
+                    type="range" min="30" max="360" step="15" 
                     value={selectedDuration} onChange={(e) => { triggerHaptic(); setSelectedDuration(parseInt(e.target.value)); }}
                     className="w-full accent-[#C89D7C] h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer"
                   />
                   <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-medium">
-                    <span>30 мин</span><span>3 ч</span><span>6 ч</span><span>12 ч</span>
+                    <span>30 мин</span><span>2 ч</span><span>4 ч</span><span>6 ч</span>
                   </div>
                 </div>
                 <button onClick={() => { triggerHaptic(); setActiveTab('booking'); }} className="w-full bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black p-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 font-bold text-lg">
