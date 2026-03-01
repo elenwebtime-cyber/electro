@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Запись на Электроэпиляцию</title>
   
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -25,6 +25,12 @@
       overscroll-behavior: none; 
       user-select: none; 
       -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
     }
     input, textarea, select {
       user-select: auto; 
@@ -39,8 +45,21 @@
       -webkit-backdrop-filter: blur(12px); 
     }
   </style>
+  <script>
+    // Запрет контекстного меню (правой кнопки мыши/долгого тапа) и горячих клавиш разработчика
+    document.addEventListener('contextmenu', event => event.preventDefault());
+    document.addEventListener('keydown', event => {
+      if (event.keyCode === 123 || // F12
+         (event.ctrlKey && event.shiftKey && (event.keyCode === 73 || event.keyCode === 74)) || // Ctrl+Shift+I/J
+         (event.ctrlKey && event.keyCode === 85) || // Ctrl+U
+         (event.ctrlKey && event.keyCode === 67) || // Ctrl+C
+         (event.metaKey && event.altKey && event.keyCode === 73)) { // Cmd+Option+I (Mac)
+          event.preventDefault();
+      }
+    });
+  </script>
 </head>
-<body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30">
+<body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30" oncontextmenu="return false;">
   
   <div id="root"></div>
 
@@ -105,7 +124,7 @@
         Heart: <g><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></g>,
         Sparkles: <g><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></g>,
         AlertCircle: <g><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></g>,
-        Settings: <g><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></g>
+        Settings: <g><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></g>
       };
       const style = name === 'Heart' ? { fill: 'currentColor' } : {};
       return (
@@ -116,7 +135,7 @@
     };
 
     // =========================================================================
-    // КАСТОМНЫЕ ПРЕМИУМ КОМПОНЕНТЫ (GLASSMORPHISM)
+    // КАСТОМНЫЕ ПРЕМИУМ КОМПОНЕНТЫ
     // =========================================================================
 
     const GlassSelect = ({ value, options, onChange, placeholder, disabled }) => {
@@ -359,6 +378,21 @@
       clients: [] 
     };
 
+    // ==========================================
+    // УМНОЕ УДАЛЕНИЕ ПЕРЕКРЫВАЮЩИХСЯ СЛОТОВ
+    // ==========================================
+    const removeOverlappingSlots = (slots, startTime, durationMins) => {
+      const [h, m] = startTime.split(':').map(Number);
+      const startMins = h * 60 + m;
+      const endMins = startMins + durationMins;
+      
+      return slots.filter(time => {
+          const [th, tm] = time.split(':').map(Number);
+          const tMins = th * 60 + tm;
+          return tMins < startMins || tMins >= endMins;
+      });
+    };
+
     function App() {
       const [appData, setAppData] = useState(() => {
         const saved = localStorage.getItem('electroAppData');
@@ -387,9 +421,7 @@
       const [selectedDuration, setSelectedDuration] = useState(30); 
       const [selectedAddons, setSelectedAddons] = useState([]); 
       const [tapCount, setTapCount] = useState(0);
-
       const [clientPhone, setClientPhone] = useState(''); 
-
       const [dbConnected, setDbConnected] = useState(false);
       const [showAdminGear, setShowAdminGear] = useState(false);
       const [toastMsg, setToastMsg] = useState('');
@@ -400,21 +432,6 @@
 
       const [viewingStory, setViewingStory] = useState(null);
       const [storyImageIdx, setStoryImageIdx] = useState(0);
-
-      // ==========================================
-      // НОВАЯ ФУНКЦИЯ: УМНОЕ УДАЛЕНИЕ ПЕРЕКРЫВАЮЩИХСЯ СЛОТОВ
-      // ==========================================
-      const removeOverlappingSlots = (slots, startTime, durationMins) => {
-        const [h, m] = startTime.split(':').map(Number);
-        const startMins = h * 60 + m;
-        const endMins = startMins + durationMins;
-        
-        return slots.filter(time => {
-            const [th, tm] = time.split(':').map(Number);
-            const tMins = th * 60 + tm;
-            return tMins < startMins || tMins >= endMins;
-        });
-      };
 
       // ==========================================
       // СОСТОЯНИЯ АДМИНКИ 
@@ -445,7 +462,7 @@
       const [editBDate, setEditBDate] = useState('');
       const [editBTime, setEditBTime] = useState('');
       const [editBDuration, setEditBDuration] = useState(60);
-      const [editBName, setEditBName] = useState(''); // ФИО в редактировании записи
+      const [editBName, setEditBName] = useState(''); 
       
       const [expandedClientTgId, setExpandedClientTgId] = useState(null);
       const [showAddClient, setShowAddClient] = useState(false);
@@ -582,7 +599,11 @@
         setSelectedDate(dateObj.date); 
         setSelectedTime(null); 
       };
-      const selectTimeSlot = (timeStr) => { triggerHaptic(); setSelectedTime(timeStr); };
+      
+      const selectTimeSlot = (timeStr) => { 
+          triggerHaptic(); 
+          setSelectedTime(timeStr); 
+      };
 
       const addonsPrice = selectedAddons.reduce((sum, addon) => sum + parseInt(addon.price), 0);
       const totalPrice = (selectedDuration * appData.pricePerMinute) + addonsPrice;
@@ -899,7 +920,7 @@
       );
 
       const renderStoryPage = () => (
-        <div className="px-4 pb-24 animate-[slideIn_0.3s_ease-out] min-h-screen">
+        <div className="px-4 pb-24 animate-[slideIn_0.3s_ease-out] min-h-[100dvh] w-full">
           <button onClick={() => { triggerHaptic(); setActiveTab('main'); }} className="flex items-center gap-2 text-gray-300 mt-6 mb-6 bg-[#2A2A2A] px-4 py-2 rounded-full w-max border border-white/5">
             <Icon name="ChevronLeft" className="w-5 h-5" />
             <span className="font-medium">Назад</span>
@@ -1074,7 +1095,7 @@
         const approvedReviews = (appData.reviews || []).filter(r => r.approved).sort((a,b) => new Date(b.date) - new Date(a.date));
 
         return (
-          <div className="px-4 pb-24 animate-[slideIn_0.3s_ease-out]">
+          <div className="px-4 pb-24 animate-[slideIn_0.3s_ease-out] min-h-[100dvh] w-full">
             <button onClick={() => { triggerHaptic(); setActiveTab('main'); }} className="flex items-center gap-2 text-gray-300 mt-6 mb-6 bg-[#2A2A2A] px-4 py-2 rounded-full w-max border border-white/5">
               <Icon name="ChevronLeft" className="w-5 h-5" />
               <span className="font-medium">На главную</span>
@@ -1082,7 +1103,6 @@
 
             <h2 className="text-2xl font-bold text-white mb-6 tracking-wide">Отзывы клиентов</h2>
 
-            {/* БЛОК ОСТАВИТЬ ОТЗЫВ (ПЕРЕНЕСЕН НАВЕРХ) */}
             <div className="glass-card-dark p-4 rounded-2xl border border-[#C89D7C]/20 relative overflow-hidden mb-8 shadow-sm">
               <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-[#C89D7C] to-[#9A6A45]"></div>
               <h3 className="text-base font-bold text-white mb-3 text-center tracking-wide">Оставить отзыв</h3>
@@ -1117,7 +1137,6 @@
               </button>
             </div>
 
-            {/* СПИСОК ОТЗЫВОВ */}
             <div className="space-y-4 mb-8">
               {approvedReviews.length === 0 ? (
                 <p className="text-gray-500 text-center py-6">Отзывов пока нет. Будь первой!</p>
@@ -1269,7 +1288,6 @@
              const text = `Привет, ${shortName}! Завтра жду тебя на электро в ${booking.time}! 🤗\n\nЕсли планы изменились, пожалуйста, предупреди меня заранее.`;
              
              const adminUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username || "";
-             // Формируем предзаполненное сообщение для кнопки
              const confirmText = encodeURIComponent(`Привет! Я буду на процедуре завтра в ${booking.time} ✅`);
              const cancelText = encodeURIComponent(`Привет! К сожалению, мне нужно перенести запись ❌`);
              
@@ -1530,17 +1548,14 @@
           triggerHaptic();
           if(!confirm("Удалить клиента из базы навсегда? Это также удалит его историю оплат.")) return;
           
-          // Находим все записи этого клиента, чтобы удалить их и пересчитать сумму
           const clientBookings = bookingsList.filter(b => 
              (b.tgId && b.tgId === tgId) || 
-             (tgId.startsWith('manual_') && b.clientContact === 'Ручная запись' && b.id) // Упрощенная логика для ручных
+             (tgId.startsWith('manual_') && b.clientContact === 'Ручная запись' && b.id) 
           );
 
-          // Удаляем записи из состояния
           const bookingIdsToDelete = clientBookings.map(b => b.id);
           setBookingsList(prev => prev.filter(b => !bookingIdsToDelete.includes(b.id)));
 
-          // Удаляем записи из БД (асинхронно, не блокируя UI)
           if(db) {
              bookingIdsToDelete.forEach(id => db.collection("bookings").doc(id).delete().catch(console.error));
           }
@@ -1618,7 +1633,6 @@
         
         const currentMonthRevenue = bookingsList.reduce((sum, b) => {
             const bMonth = b.date ? b.date.split(' ')[1] : '';
-            // Проверяем совпадение с коротким названием месяца из даты брони
             if (bMonth === currentShortMonthName && b.actualPrice !== undefined && b.actualPrice !== null && b.actualPrice !== '') {
                 return sum + Number(b.actualPrice);
             }
@@ -1626,11 +1640,10 @@
         }, 0);
 
         return (
-          <div className="min-h-screen bg-[#0a0a0a] p-4 pb-32 animate-[fadeIn_0.3s_ease-in-out]">
+          <div className="min-h-[100dvh] w-full bg-[#0a0a0a] p-4 pb-32 animate-[fadeIn_0.3s_ease-in-out]">
             
             {adminSubView === 'main' ? (
               <>
-                {/* ЗАГОЛОВОК И ВКЛАДКИ */}
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <Icon name="Settings" className="w-8 h-8 text-[#C89D7C]" />
@@ -2234,7 +2247,7 @@
       };
 
       return (
-        <div className="max-w-md mx-auto min-h-screen relative shadow-2xl bg-black/40 border-x border-white/5 overflow-hidden">
+        <div className="max-w-md mx-auto min-h-[100dvh] w-full relative shadow-2xl bg-black/40 border-x border-white/5 overflow-hidden">
           
           {/* ТОЧКА СТАТУСА FIREBASE (СВЕТОФОР) */}
           <div 
@@ -2315,7 +2328,7 @@
 
           {showMemo && renderMemoModal()}
 
-          {/* ВСПЛЫВАЮЩЕЕ ОКНО РЕДАКТИРОВАНИЯ ЗАПИСИ (ВЫНЕСЕНО ИЗ АДМИНКИ НА ПЕРЕДНИЙ ПЛАН) */}
+          {/* ВСПЛЫВАЮЩЕЕ ОКНО РЕДАКТИРОВАНИЯ ЗАПИСИ */}
           {editingBooking && (
             <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
               <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-w-sm p-6 shadow-[0_0_40px_rgba(200,157,124,0.15)]">
