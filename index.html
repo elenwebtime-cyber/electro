@@ -73,9 +73,8 @@
 
     const ADMIN_TG_ID = 758556732; 
     
-    const BOT_TOKEN_P1 = "8674902102:AAE"; 
-    const BOT_TOKEN_P2 = "qbdZ8pbmFaq9Gx5UF8vXCbElTdNEIPzU"; 
-    const BOT_TOKEN = BOT_TOKEN_P1 + BOT_TOKEN_P2;
+    // 🔥 ВОТ ОНА НАША БРОНЯ! Ссылка на сервер Гугла, никаких токенов!
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxNGMR366TWwfE1iO7VvF8uGsCXRsDeHY9rt03EI_-OowgLxQ08omNQXJOi4stkRsFK/exec";
     
     const CHAT_ID = "758556732"; 
 
@@ -761,15 +760,13 @@
                         `⏳ Забронировано: ${selectedDuration} мин\n` +
                         `💰 Ожидаемая сумма: ~${totalPrice} ₽`;
 
-        if (BOT_TOKEN && !BOT_TOKEN.includes("ВАШ_ТОКЕН")) {
+        if (GOOGLE_SCRIPT_URL) {
           try {
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+            await fetch(GOOGLE_SCRIPT_URL, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: CHAT_ID,
-                text: messageToAdmin,
-                parse_mode: 'Markdown'
+                text: messageToAdmin
               })
             });
           } catch (error) {
@@ -779,13 +776,11 @@
           if (tgUser.id) {
             const messageToClient = `✨ *${finalClientName}, ваша запись подтверждена!*\n\n📅 Дата: ${selectedDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${servicesList}${addonsList}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${appData.address}\n_${appData.addressNote}_\n\nЖду вас! ❤️`;
             try {
-              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+              await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   chat_id: tgUser.id,
-                  text: messageToClient,
-                  parse_mode: 'Markdown'
+                  text: messageToClient
                 })
               });
             } catch (error) {
@@ -1373,7 +1368,7 @@
             showToast("Невозможно отправить: ручная запись (нет ТГ) 😔");
             return;
           }
-          if (BOT_TOKEN && !BOT_TOKEN.includes("ВАШ_ТОКЕН")) {
+          if (GOOGLE_SCRIPT_URL) {
              const shortName = booking.clientName.split(' ')[0];
              const text = `Привет, ${shortName}! Завтра жду тебя на электро в ${booking.time}! 🤗\n\nЕсли планы изменились, пожалуйста, предупреди меня заранее.`;
              
@@ -1389,9 +1384,8 @@
              } : undefined;
 
              try {
-                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                await fetch(GOOGLE_SCRIPT_URL, {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ chat_id: booking.tgId, text: text, reply_markup: reply_markup })
                 });
                 showToast("Напоминание отправлено! 💌");
