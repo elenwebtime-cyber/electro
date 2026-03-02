@@ -77,14 +77,10 @@
 <body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30">
   
   <div id="root">
-      <!-- Нативный экран загрузки для мгновенного ощущения скорости -->
-      <div style="height: 100dvh; width: 100vw; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #0a0a0a;">
-         <div style="width: 48px; height: 48px; border: 4px solid rgba(200,157,124,0.1); border-top-color: #C89D7C; border-radius: 50%; animation: initialSpin 1s linear infinite; margin-bottom: 16px;"></div>
-         <p style="color: #C89D7C; font-size: 12px; font-weight: bold; letter-spacing: 0.2em; font-family: sans-serif; animation: initialPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">ЗАГРУЗКА...</p>
-         <style>
-            @keyframes initialSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            @keyframes initialPulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-         </style>
+      <!-- Нативный кружок загрузки - мгновенное появление -->
+      <div class="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
+         <div class="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4"></div>
+         <p class="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
       </div>
   </div>
 
@@ -809,7 +805,7 @@
       };
 
       if (!isAppReady || !appData) {
-        return null; // Родной HTML лоадер покажет анимацию
+        return null; // Родной HTML лоадер покажет красивую анимацию
       }
 
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
@@ -1340,7 +1336,7 @@
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
                     {availableSlotsForDate.map((time, idx) => (
-                      <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3.5 rounded-2xl text-center font-semibold cursor-pointer transition-all duration-300 border ${selectedTime === time ? 'bg-gradient-to-br from-[#C89D7C]/20 to-transparent text-[#C89D7C] border-[#C89D7C] shadow-[0_0_15px_rgba(200,157,124,0.3)] scale-[1.02]' : 'glass-card-dark text-gray-300 border-white/5 hover:border-white/20'}`}>
+                      <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3.5 rounded-xl text-center font-medium cursor-pointer transition-all duration-200 border ${selectedTime === time ? 'bg-[#2A2A2A] text-[#C89D7C] border-[#C89D7C] shadow-[0_0_10px_rgba(200,157,124,0.2)] scale-105' : 'glass-card-dark text-gray-400 border-white/5 hover:bg-white/5'}`}>
                         {time}
                       </div>
                     ))}
@@ -2363,9 +2359,10 @@
                        )}
                      </div>
 
-                     {/* ФИНАНСОВАЯ СТАТИСТИКА (ИСТОРИЯ ДОХОДОВ) */}
+                     {/* ФИНАНСОВАЯ СТАТИСТИКА (ИСТОРИЯ ДОХОДОВ) - КОМПАКТНАЯ ЛЕНТА */}
                      {(() => {
                          const revenueByMonth = {};
+                         let totalRevenueAllTime = 0;
                          bookingsList.forEach(b => {
                              if (b.actualPrice !== undefined && b.actualPrice !== null && b.actualPrice !== '') {
                                  const m = b.date ? b.date.split(' ')[1] : '';
@@ -2373,6 +2370,7 @@
                                      if (!revenueByMonth[m]) revenueByMonth[m] = 0;
                                      revenueByMonth[m] += Number(b.actualPrice);
                                  }
+                                 totalRevenueAllTime += Number(b.actualPrice);
                              }
                          });
                          
@@ -2383,17 +2381,23 @@
                          })).filter(item => item.total > 0 || item.full.toLowerCase() === currentMonthName.toLowerCase());
 
                          return (
-                             <div className="glass-card-dark p-4 rounded-2xl border border-white/10 mb-4 overflow-hidden relative shadow-sm">
-                                <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                                   <span className="text-lg">📊</span> Финансовая статистика
+                             <div className="glass-card-dark p-3 rounded-2xl border border-white/10 mb-4 shadow-sm">
+                                <h3 className="text-xs font-bold text-white mb-2 flex items-center gap-1.5">
+                                   <span className="text-sm">📊</span> Доходы
                                 </h3>
-                                <div className="flex gap-3 overflow-x-auto hide-scrollbar snap-x snap-mandatory pb-1">
+                                <div className="flex gap-2 overflow-x-auto hide-scrollbar snap-x snap-mandatory pb-1">
+                                   {/* ИТОГОВЫЙ БЛОК (СТАТИЧНЫЙ СЛЕВА) */}
+                                   <div className="snap-start min-w-[90px] py-1.5 px-2.5 rounded-lg border border-[#C89D7C]/40 bg-gradient-to-r from-[#C89D7C]/10 to-transparent flex flex-col justify-center shrink-0">
+                                       <span className="text-[9px] uppercase font-bold text-[#C89D7C] tracking-wider mb-0.5">Всего</span>
+                                       <span className="text-sm font-bold text-white drop-shadow-sm">{totalRevenueAllTime.toLocaleString('ru-RU')} ₽</span>
+                                   </div>
+                                   {/* МЕСЯЦА */}
                                    {sortedRev.map((item, idx) => {
                                       const isCurrent = item.full.toLowerCase() === currentMonthName.toLowerCase();
                                       return (
-                                          <div key={idx} className={`snap-center min-w-[110px] p-3 rounded-2xl border flex flex-col justify-center items-center shrink-0 transition-all ${isCurrent ? 'bg-gradient-to-br from-green-500/20 to-transparent border-green-500/40 shadow-[0_0_15px_rgba(34,197,94,0.15)] scale-[1.02]' : 'bg-[#1A1A1A] border-white/5 hover:border-white/20'}`}>
-                                              <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider mb-1">{item.full}</span>
-                                              <span className={`text-base font-bold drop-shadow-sm ${isCurrent ? 'text-green-400' : 'text-[#C89D7C]'}`}>{item.total.toLocaleString('ru-RU')} ₽</span>
+                                          <div key={idx} className={`snap-start min-w-[80px] py-1.5 px-2.5 rounded-lg border flex flex-col justify-center shrink-0 transition-all ${isCurrent ? 'bg-green-500/10 border-green-500/30' : 'bg-[#1A1A1A] border-white/5'}`}>
+                                              <span className={`text-[9px] uppercase font-bold tracking-wider mb-0.5 ${isCurrent ? 'text-green-500' : 'text-gray-500'}`}>{item.full}</span>
+                                              <span className={`text-sm font-bold drop-shadow-sm ${isCurrent ? 'text-green-400' : 'text-gray-300'}`}>{item.total.toLocaleString('ru-RU')} ₽</span>
                                           </div>
                                       );
                                    })}
