@@ -1368,27 +1368,37 @@
             setEditingBooking(b);
         };
 
-        // ИСПРАВЛЕНИЕ: БЕЗОПАСНАЯ ФУНКЦИЯ СОХРАНЕНИЯ С ГЛУБОКИМ КОПИРОВАНИЕМ
+        // ИСПРАВЛЕНИЕ: БЕЗОПАСНАЯ И МГНОВЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ
         const confirmEditBooking = async () => {
-            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim()) {
+            const nameStr = String(editBName || '');
+            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !nameStr.trim()) {
                 return alert("Заполните все поля: имя, дату, время и длительность!");
             }
             triggerHaptic();
 
             const safeDuration = Number(editBDuration) || 60;
-            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName };
+            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: nameStr };
             
+            // 1. МГНОВЕННО ОБНОВЛЯЕМ ЛОКАЛЬНО! (Интерфейс сразу покажет изменения, не дожидаясь базы)
+            setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
+
             try {
+                // 2. Отправляем в Firebase (даже если будет секундный сбой сети, локально всё уже работает)
                 if(db && updatedB.id) {
                     await db.collection("bookings").doc(String(updatedB.id)).update({
-                        date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName
+                        date: editBDate, time: editBTime, duration: safeDuration, clientName: nameStr
                     });
                 }
+            } catch (err) {
+                console.error("Ошибка Firebase при сохранении: ", err);
+            }
 
-                // Глубокая копия массива для защиты от мутации и падения
+            try {
+                // 3. Безопасно пересчитываем сетку свободных окон
                 let newDates = JSON.parse(JSON.stringify(editData.dates || []));
                 
                 if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                    // Возвращаем старый слот
                     const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
                     if (oldDIdx !== -1) {
                         if (!newDates[oldDIdx].slots) newDates[oldDIdx].slots = [];
@@ -1396,26 +1406,33 @@
                             newDates[oldDIdx].slots.push(editingBooking.time);
                             newDates[oldDIdx].slots.sort();
                         }
+                    } else {
+                        const gDay = globalCalendarDays.find(g => g.date === editingBooking.date);
+                        if (gDay) {
+                            newDates.push({ date: editingBooking.date, day: gDay.day, slots: [editingBooking.time] });
+                        }
                     }
                 }
                 
+                // Забираем новый слот
                 const newDIdx = newDates.findIndex(d => d.date === editBDate);
                 if (newDIdx !== -1) {
                     if (!newDates[newDIdx].slots) newDates[newDIdx].slots = [];
                     newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
                 }
 
+                // 4. Сохраняем все данные
                 const newData = {...editData, dates: newDates};
                 setEditData(newData);
                 setAppData(newData);
-                syncToFirebase(newData);
+                try { syncToFirebase(newData); } catch(e) {}
                 localStorage.setItem('electroAppData', JSON.stringify(newData));
 
+                // 5. Закрываем окно
                 setEditingBooking(null);
-                fetchBookings(); 
                 showToast("Запись успешно обновлена! ✏️");
             } catch (err) {
-                console.error("Ошибка при сохранении: ", err);
+                console.error("Ошибка при локальном пересчете: ", err);
                 showToast("Ошибка сохранения ❌");
             }
         };
