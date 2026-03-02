@@ -1305,8 +1305,9 @@
             {!isExistingClient() && (
               <input 
                 type="tel" 
+                inputMode="tel"
                 value={clientPhone} 
-                onChange={e => setClientPhone(e.target.value)}
+                onChange={e => setClientPhone(e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))}
                 placeholder="Ваш телефон (обязательно)" 
                 className="w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm mb-6 focus:outline-none focus:border-[#C89D7C]"
               />
@@ -1694,10 +1695,9 @@
             const [h, m] = timeParts.map(Number);
             const initialTop = ((h || 9) - 9) * hourHeight + ((m || 0) / 60) * hourHeight;
             const duration = Number(booking.duration) || 30;
-            const height = Math.max(duration * (hourHeight / 60), 38); // Увеличен минимальный размер для вмещения кнопок
+            const height = Math.max(duration * (hourHeight / 60), 38); 
             const isBreak = booking.clientName === "Перерыв";
 
-            // Блок больше не кликабельный целиком, чтобы избежать мискликов. Кликабельны только кнопки!
             return (
                 <div 
                     className={`absolute left-12 right-2 rounded-xl p-2 overflow-hidden shadow-lg border hover:scale-[1.01] transition-transform z-10 ${isBreak ? 'bg-gray-700 border-gray-500' : 'bg-[#C89D7C] border-[#9A6A45]'}`} 
@@ -1958,7 +1958,7 @@
                 </div>
 
                 {adminTab === 'settings' && (
-                  <div className="space-y-4">
+                  <div className="space-y-4 pb-28">
                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                       <label className="block text-xs text-gray-400 mb-1">Стоимость 1 минуты (₽)</label>
                       <input type="number" value={editData.pricePerMinute} onChange={(e) => handleChange(e, 'pricePerMinute')} className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm" />
@@ -2231,7 +2231,7 @@
                 
                 {/* ВКЛАДКА КЛИЕНТЫ (МИНИ-CRM) */}
                 {adminTab === 'clients' && (
-                   <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
+                   <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out] pb-28">
                      <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                        <button onClick={() => { triggerHaptic(); setShowAddClient(!showAddClient); }} className="w-full flex justify-between items-center text-sm font-bold text-white">
                           Добавить клиента вручную {showAddClient ? <span className="text-[#C89D7C] text-lg">−</span> : <span className="text-[#C89D7C] text-lg">+</span>}
@@ -2240,7 +2240,7 @@
                           <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
                              <input value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Имя клиента" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                              <input value={newClientContact} onChange={e=>setNewClientContact(e.target.value)} placeholder="Контакт (Ник в ТГ)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
-                             <input type="tel" value={newClientPhone} onChange={e=>setNewClientPhone(e.target.value)} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]" />
+                             <input type="tel" inputMode="tel" value={newClientPhone} onChange={e=>setNewClientPhone(e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]" />
                              <button onClick={handleAddManualClient} className="w-full bg-[#2A2A2A] text-[#C89D7C] hover:bg-[#C89D7C] hover:text-black py-3 rounded-xl font-bold transition-colors border border-[#C89D7C]/30 shadow-lg">
                                 + Сохранить клиента
                              </button>
@@ -2332,7 +2332,7 @@
                                             )}
                                           </div>
                                           <div className="text-xs text-gray-400 flex items-center">
-                                            Тел: <input value={client.phone || ''} onChange={(e) => handleClientChange(client.tgId, 'phone', e.target.value)} placeholder="Не указан" className="ml-1 bg-transparent border-b border-gray-700 focus:border-[#C89D7C] text-white w-24 focus:outline-none px-1 py-0.5 placeholder-gray-600 transition-colors" />
+                                            Тел: <input type="tel" inputMode="tel" value={client.phone || ''} onChange={(e) => handleClientChange(client.tgId, 'phone', e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Не указан" className="ml-1 bg-transparent border-b border-gray-700 focus:border-[#C89D7C] text-white w-24 focus:outline-none px-1 py-0.5 placeholder-gray-600 transition-colors" />
                                           </div>
                                         </div>
                                         <div className="text-xs text-gray-400 bg-black/30 px-2 py-1 rounded-md border border-white/5">
@@ -2406,7 +2406,7 @@
                 )}
 
                 {adminTab === 'calendar' && (
-                  <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
+                  <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out] pb-28">
                     
                     {/* КНОПКА КОПИРОВАНИЯ ОКОШЕК ДЛЯ СТОРИЗ */}
                     <button 
@@ -2426,7 +2426,7 @@
                         <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
                           <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Имя клиентки (или контакт)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                           <input value={manualService} onChange={e=>setManualService(e.target.value)} placeholder="Услуга (напр. Бикини 60 мин)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
-                          <input type="tel" value={manualPhone} onChange={e=>setManualPhone(e.target.value)} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                          <input type="tel" inputMode="tel" value={manualPhone} onChange={e=>setManualPhone(e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                           
                           <div className="flex gap-2 mb-3">
                             <GlassSelect value={manualDate} options={dateOptions} onChange={(val) => { setManualDate(val); setManualTime(''); }} placeholder="Дата" />
@@ -2494,7 +2494,7 @@
                       <h3 className="text-sm font-bold text-white mb-3">Расписание: <span className="text-[#C89D7C]">{adminCalendarDate}</span></h3>
 
                       {/* Сетка времени */}
-                      <div className="relative bg-[#121212] rounded-xl border border-gray-800 h-[500px] overflow-y-auto hide-scrollbar">
+                      <div className="relative bg-[#121212] rounded-xl border border-gray-800 h-[60vh] min-h-[350px] max-h-[500px] overflow-y-auto hide-scrollbar">
                         <div className="relative" style={{height: `${13 * 60}px`}}>
                             {/* Линии сетки */}
                             {hoursList.map((h, i) => (
@@ -2527,7 +2527,7 @@
               </React.Fragment>
             ) : (
               /* РЕЖИМ МОДЕРАЦИИ ОТЗЫВОВ */
-              <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
+              <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out] pb-28">
                 <h2 className="text-2xl font-bold text-white mb-6">Модерация отзывов</h2>
                 {allReviews.length === 0 ? (
                   <p className="text-xs text-gray-500">Отзывов пока нет.</p>
@@ -2593,7 +2593,7 @@
       };
 
       return (
-        <div className="max-w-md mx-auto min-h-[100dvh] w-full relative shadow-2xl bg-black/40 border-x border-white/5 overflow-hidden">
+        <div className="max-w-md mx-auto min-h-[100dvh] w-full relative shadow-2xl bg-black/40 border-x border-white/5 overflow-x-hidden">
           
           {/* ТОЧКА СТАТУСА FIREBASE (СВЕТОФОР) */}
           <div 
