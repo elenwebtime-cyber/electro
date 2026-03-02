@@ -77,10 +77,22 @@
 <body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30">
   
   <div id="root">
-      <!-- Нативный кружок загрузки - мгновенное появление -->
-      <div class="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
-         <div class="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4"></div>
-         <p class="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
+      <style>
+        .loader-wrapper {
+          display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #0a0a0a;
+        }
+        .loader-circle {
+          width: 48px; height: 48px; border: 4px solid rgba(200, 157, 124, 0.2); border-top-color: #C89D7C; border-radius: 50%; animation: spin-anim 1s linear infinite; margin-bottom: 16px; box-sizing: border-box; display: block;
+        }
+        .loader-text {
+          color: #C89D7C; font-size: 12px; font-weight: bold; letter-spacing: 0.2em; font-family: sans-serif; animation: pulse-anim 2s infinite; margin: 0;
+        }
+        @keyframes spin-anim { 100% { transform: rotate(360deg); } }
+        @keyframes pulse-anim { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+      </style>
+      <div class="loader-wrapper">
+        <div class="loader-circle"></div>
+        <p class="loader-text">ЗАГРУЗКА...</p>
       </div>
   </div>
 
@@ -805,7 +817,12 @@
       };
 
       if (!isAppReady || !appData) {
-        return null; // Родной HTML лоадер покажет красивую анимацию
+        return (
+          <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
+             <div className="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4 box-border"></div>
+             <p className="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
+          </div>
+        );
       }
 
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
