@@ -456,6 +456,7 @@
     };
 
     function App() {
+      const [isTgValid, setIsTgValid] = useState(true);
       const [isAppReady, setIsAppReady] = useState(false);
       
       const [appData, setAppData] = useState(null); 
@@ -531,6 +532,11 @@
       useEffect(() => { showMemoRef.current = showMemo; }, [showMemo]);
       useEffect(() => { viewingStoryRef.current = viewingStory; }, [viewingStory]);
 
+      // Фикс для скролла дат (вынесено на верхний уровень)
+      const selectedDateRefLocal = useRef(selectedDate);
+      useEffect(() => { selectedDateRefLocal.current = selectedDate; }, [selectedDate]);
+      const scrollTimeout = useRef(null);
+
       // Глобальный слушатель свайпа назад (от левого края экрана)
       useEffect(() => {
           let startX = 0;
@@ -593,6 +599,7 @@
 
       useEffect(() => {
         if (window.Telegram && window.Telegram.WebApp) {
+           const platform = window.Telegram.WebApp.platform;
            window.Telegram.WebApp.ready();
            window.Telegram.WebApp.expand();
            if (window.Telegram.WebApp.disableVerticalSwipes) {
@@ -788,6 +795,20 @@
           triggerHaptic(); 
           setSelectedTime(timeStr); 
       };
+
+      if (!isTgValid) {
+          return (
+             <div className="min-h-[100dvh] bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-center animate-[fadeIn_0.3s_ease-out]">
+                <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/30">
+                   <span className="text-4xl">⛔</span>
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Доступ закрыт</h2>
+                <p className="text-sm text-gray-400 mb-8 max-w-[280px]">
+                   Это приложение работает только внутри Telegram.
+                </p>
+             </div>
+          );
+      }
 
       if (!isAppReady || !appData) {
         return (
@@ -1251,10 +1272,6 @@
             });
         }
 
-        const selectedDateRefLocal = useRef(selectedDate);
-        useEffect(() => { selectedDateRefLocal.current = selectedDate; }, [selectedDate]);
-
-        const scrollTimeout = useRef(null);
         const handleDateScroll = (e) => {
             const container = e.target;
             if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
