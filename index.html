@@ -626,18 +626,35 @@
           const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
 
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
-            if (user) {
-              loadDatabase();
-            } else {
-              try {
-                if (userTgId === ADMIN_TG_ID) {
+            if (userTgId === ADMIN_TG_ID) {
+              // Если зашел Босс (по Telegram ID)
+              if (!user || user.email !== 'admin@electro.app') {
+                // Если нет пользователя ИЛИ у него старый/анонимный пропуск
+                try {
                   await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), atob("U3VwZXJBZG1pbjEyMyE="));
-                } else {
-                  await auth.signInAnonymously();
+                  return; // Прерываем, так как после входа слушатель сработает снова
+                } catch (e) {
+                  console.error("Auth admin error:", e);
+                  loadDatabase(); 
                 }
-              } catch (e) {
-                console.error("Auth init error:", e);
-                loadDatabase(); 
+              } else {
+                // Если пропуск правильный (админский)
+                loadDatabase();
+              }
+            } else {
+              // Если зашел Клиент
+              if (!user) {
+                // Если пропуска нет вообще, даем анонимный
+                try {
+                  await auth.signInAnonymously();
+                  return; // Прерываем, ждем повторного срабатывания
+                } catch (e) {
+                  console.error("Auth client error:", e);
+                  loadDatabase(); 
+                }
+              } else {
+                // Если у клиента уже есть какой-то пропуск (анонимный), пускаем
+                loadDatabase();
               }
             }
           });
@@ -926,6 +943,71 @@
         }
       };
 
+      // БРОНЕБОЙНАЯ ФУНКЦИЯ ОТКРЫТИЯ РЕДАКТИРОВАНИЯ (с защитой от сломанных данных)
+      const openEditBooking = (b) => {
+          try {
+            triggerHaptic();
+            setEditBDate(b.date ? String(b.date) : "");
+            
+            // Если время сломано, подставляем стандартное
+            const safeTime = (typeof b.time === 'string' && b.time.includes(':')) ? b.time : "14:00";
+            setEditBTime(safeTime);
+            
+            const parsedDur = Number(b.duration);
+            setEditBDuration(isNaN(parsedDur) ? 60 : parsedDur);
+            
+            setEditBName(b.clientName ? String(b.clientName) : ""); 
+            setEditBServices(b.services ? String(b.services) : ""); 
+            
+            setEditingBooking(b);
+          } catch(err) {
+            console.error("Ошибка при открытии окна редактирования:", err);
+          }
+      };
+
+      const confirmEditBooking = async () => {
+          if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !String(editBName).trim()) {
+              return alert("Заполните все поля: имя, дату, время и длительность!");
+          }
+          triggerHaptic();
+
+          const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
+          
+          setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
+
+          try {
+            if(db) await db.collection("bookings").doc(updatedB.id).update({
+                date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
+            });
+
+            const newDates = [...(editData.dates || [])];
+            if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                if (oldDIdx !== -1 && newDates[oldDIdx].slots && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                    newDates[oldDIdx].slots.push(editingBooking.time);
+                    newDates[oldDIdx].slots.sort();
+                }
+            }
+            
+            const newDIdx = newDates.findIndex(d => d.date === editBDate);
+            if (newDIdx !== -1) {
+                newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
+            }
+
+            const newData = {...editData, dates: newDates};
+            setEditData(newData);
+            setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
+
+            setEditingBooking(null);
+            showToast("Запись успешно обновлена! ✏️");
+          } catch(e) {
+            showToast("Ошибка сохранения ❌");
+            console.error(e);
+          }
+      };
+
       const renderMain = () => (
         <div className="pb-64 animate-[fadeIn_0.5s_ease-in-out]">
           <div className="flex flex-col items-center text-center mt-6 mb-8 relative">
@@ -1130,11 +1212,11 @@
       };
 
       const renderHearts = () => {
-        return Array.from({ length: 15 }).map((_, i) => (
+        return Array.from({ length: 20 }).map((_, i) => (
           <div key={i} className="absolute text-[#C89D7C] heart-float bottom-0 pointer-events-none" 
                style={{
                  left: `${Math.random() * 100}%`,
-                 animationDuration: `${Math.random() * 2 + 2}s`,
+                 animationDuration: `${Math.random() * 2 + 3}s`,
                  animationDelay: `${Math.random() * 1.5}s`,
                  fontSize: `${Math.random() * 15 + 15}px`
                }}>
@@ -1831,10 +1913,10 @@
         }, 0);
 
         return (
-          <div className="min-h-[100dvh] w-full bg-[#0a0a0a] p-4 pb-32 animate-[fadeIn_0.3s_ease-in-out]">
+          <React.Fragment>
             
             {adminSubView === 'main' ? (
-              <>
+              <React.Fragment>
                 {/* ЗАГОЛОВОК И ВКЛАДКИ */}
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
@@ -2416,7 +2498,7 @@
                     </div>
                   </div>
                 )}
-              </>
+              </React.Fragment>
             ) : (
               /* РЕЖИМ МОДЕРАЦИИ ОТЗЫВОВ */
               <div className="space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
@@ -2452,7 +2534,7 @@
             {/* НИЖНЯЯ ПАНЕЛЬ АДМИНКИ (STICKY BAR) */}
             <div className="fixed bottom-0 left-0 right-0 p-3 bg-[#1A1A1A]/80 backdrop-blur-xl border-t border-white/5 max-w-md mx-auto z-50 flex gap-2">
               {adminSubView === 'main' ? (
-                <>
+                <React.Fragment>
                   <button onClick={() => {triggerHaptic(); setAdminSubView('mod');}} className="flex-[1] bg-[#2A2A2A] text-[#C89D7C] rounded-xl font-bold py-2 text-sm border border-white/5 relative hover:bg-[#333] transition-colors shadow-sm">
                     Мод.
                     {unapprovedCount > 0 && (
@@ -2467,20 +2549,20 @@
                   <button onClick={() => {triggerHaptic(); setActiveTab('main');}} className="flex-[1] bg-red-500/10 text-red-400 font-bold py-2 text-sm rounded-xl border border-red-500/20 hover:bg-red-500/20 transition-colors shadow-sm">
                     Закрыть
                   </button>
-                </>
+                </React.Fragment>
               ) : (
-                <>
+                <React.Fragment>
                   <button onClick={() => {triggerHaptic(); setAdminSubView('main');}} className="flex-[1] bg-[#2A2A2A] text-white rounded-xl font-bold py-2 text-sm border border-white/5 hover:bg-[#333] transition-colors shadow-sm">
                     Назад
                   </button>
                   <button onClick={saveChanges} disabled={isSaving} className="flex-[2] bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-2 text-sm rounded-xl shadow-md disabled:opacity-50 hover:opacity-90 transition-opacity">
                     {isSaving ? "Сохранение..." : "Сохранить"}
                   </button>
-                </>
+                </React.Fragment>
               )}
             </div>
 
-          </div>
+          </React.Fragment>
         );
       };
 
