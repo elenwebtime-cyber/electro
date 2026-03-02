@@ -46,20 +46,21 @@
     }
   </style>
   <script>
-    // Запрет контекстного меню (правой кнопки мыши/долгого тапа) и горячих клавиш разработчика
-    document.addEventListener('contextmenu', event => event.preventDefault());
-    document.addEventListener('keydown', event => {
-      if (event.keyCode === 123 || // F12
-         (event.ctrlKey && event.shiftKey && (event.keyCode === 73 || event.keyCode === 74)) || // Ctrl+Shift+I/J
-         (event.ctrlKey && event.keyCode === 85) || // Ctrl+U
-         (event.ctrlKey && event.keyCode === 67) || // Ctrl+C
-         (event.metaKey && event.altKey && event.keyCode === 73)) { // Cmd+Option+I (Mac)
-          event.preventDefault();
-      }
-    });
+    // ВРЕМЕННО ОТКЛЮЧИЛИ БРОНЮ ДЛЯ СПАСЕНИЯ АППКИ!
+    // Потом раскомментируем обратно.
+    // document.addEventListener('contextmenu', event => event.preventDefault());
+    // document.addEventListener('keydown', event => {
+    //   if (event.keyCode === 123 || 
+    //      (event.ctrlKey && event.shiftKey && (event.keyCode === 73 || event.keyCode === 74)) || 
+    //      (event.ctrlKey && event.keyCode === 85) || 
+    //      (event.ctrlKey && event.keyCode === 67) || 
+    //      (event.metaKey && event.altKey && event.keyCode === 73)) { 
+    //       event.preventDefault();
+    //   }
+    // });
   </script>
 </head>
-<body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30" oncontextmenu="return false;">
+<body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30">
   
   <div id="root"></div>
 
@@ -95,11 +96,51 @@
     }
     const db = firebase.apps.length ? firebase.firestore() : null;
 
-    // Фикс для обхода блокировок сети/VPN и устранения ошибки таймаута
     if (db) {
       try {
         db.settings({ experimentalForceLongPolling: true });
       } catch(e) {}
+    }
+
+    // =========================================================================
+    // ПОДУШКА БЕЗОПАСНОСТИ (ERROR BOUNDARY)
+    // =========================================================================
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+      }
+      static getDerivedStateFromError(error) {
+        return { hasError: true };
+      }
+      componentDidCatch(error, errorInfo) {
+        console.error("Критическая ошибка:", error, errorInfo);
+      }
+      render() {
+        if (this.state.hasError) {
+          return (
+            <div className="min-h-[100dvh] bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-center animate-[fadeIn_0.3s_ease-out]">
+               <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/30">
+                  <span className="text-4xl">⚠️</span>
+               </div>
+               <h2 className="text-2xl font-bold text-white mb-2">Ой! Системная ошибка</h2>
+               <p className="text-sm text-gray-400 mb-8 max-w-[280px]">
+                  Скорее всего, в настройки попал невидимый спецсимвол (например, при копировании) или кривая ссылка. 
+               </p>
+               <button onClick={() => {
+                  localStorage.removeItem('electroAppData');
+                  window.location.reload();
+               }} className="bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-4 px-8 rounded-2xl shadow-[0_5px_15px_rgba(200,157,124,0.3)] hover:opacity-90 transition-opacity">
+                 Сбросить кэш и починить
+               </button>
+               <p className="text-[10px] text-gray-600 mt-6 max-w-[250px]">
+                  После сброса удалите сломанные данные в Firebase (настройки masterData) и заполните профиль заново, печатая текст вручную.
+               </p>
+            </div>
+          );
+        }
+        return this.props.children; 
+      }
     }
 
     // =========================================================================
@@ -333,7 +374,7 @@
     };
     const globalCalendarDays = generateCalendarDays();
     const dateOptions = globalCalendarDays.map(d => ({ value: d.date, label: d.date }));
-    const defaultSlots = ['10:00', '11:30', '14:00', '16:00', '18:30'];
+    const defaultSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
 
     const initialMasterData = {
       name: "Твое Имя",
@@ -367,6 +408,7 @@
         { id: 'a1', name: 'Иголочка-электрод', price: 200, icon: '🪡' },
         { id: 'a2', name: 'Анестезия (крем/гель)', price: 400, icon: '🧊' }
       ],
+      defaultSlots: [...defaultSlots],
       dates: [
         { date: globalCalendarDays[1].date, day: globalCalendarDays[1].day, slots: [...defaultSlots] },
         { date: globalCalendarDays[2].date, day: globalCalendarDays[2].day, slots: [...defaultSlots] },
@@ -386,7 +428,7 @@
       const startMins = h * 60 + m;
       const endMins = startMins + durationMins;
       
-      return slots.filter(time => {
+      return (slots || []).filter(time => {
           const [th, tm] = time.split(':').map(Number);
           const tMins = th * 60 + tm;
           return tMins < startMins || tMins >= endMins;
@@ -394,24 +436,10 @@
     };
 
     function App() {
-      const [appData, setAppData] = useState(() => {
-        const saved = localStorage.getItem('electroAppData');
-        let parsed = saved ? JSON.parse(saved) : initialMasterData;
-        if (parsed.stories && parsed.stories.length > 0 && typeof parsed.stories[0] === 'string') {
-          parsed.stories = parsed.stories.map((name, i) => ({
-            id: 'st' + i, name: name, type: name.toLowerCase() === 'отзывы' ? 'reviews' : 'page', content: '', images: []
-          }));
-        }
-        if (parsed.slots && Array.isArray(parsed.slots)) {
-          parsed.dates = parsed.dates.map(d => ({ ...d, slots: d.slots ? d.slots : parsed.slots }));
-          delete parsed.slots; 
-        }
-        if (parsed.dates) {
-          parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
-        }
-        if (!parsed.clients) parsed.clients = [];
-        return parsed;
-      });
+      const [isAppReady, setIsAppReady] = useState(false);
+      
+      const [appData, setAppData] = useState(null); 
+      const [editData, setEditData] = useState(null);
 
       const [activeTab, setActiveTab] = useState('main'); 
       const [selectedServices, setSelectedServices] = useState([]);
@@ -433,12 +461,10 @@
       const [viewingStory, setViewingStory] = useState(null);
       const [storyImageIdx, setStoryImageIdx] = useState(0);
 
-      // ==========================================
       // СОСТОЯНИЯ АДМИНКИ 
-      // ==========================================
-      const [editData, setEditData] = useState(appData);
       const [adminSelectedDateObj, setAdminSelectedDateObj] = useState(null);
       const [newTimeVal, setNewTimeVal] = useState('');
+      const [newDefaultTimeVal, setNewDefaultTimeVal] = useState('');
       const [isSaving, setIsSaving] = useState(false);
 
       const [adminTab, setAdminTab] = useState('settings'); 
@@ -463,6 +489,7 @@
       const [editBTime, setEditBTime] = useState('');
       const [editBDuration, setEditBDuration] = useState(60);
       const [editBName, setEditBName] = useState(''); 
+      const [editBServices, setEditBServices] = useState(''); 
       
       const [expandedClientTgId, setExpandedClientTgId] = useState(null);
       const [showAddClient, setShowAddClient] = useState(false);
@@ -470,8 +497,7 @@
       const [newClientContact, setNewClientContact] = useState('');
       const [newClientPhone, setNewClientPhone] = useState(''); 
       const [clientSearch, setClientSearch] = useState(''); 
-      // ==========================================
-
+      
       let tapTimeout = useRef(null);
 
       const showToast = (msg) => {
@@ -495,6 +521,7 @@
         if (adminTab === 'calendar' || adminTab === 'clients') fetchBookings();
       }, [adminTab]);
 
+      // ГЛАВНЫЙ ЭФФЕКТ ЗАГРУЗКИ
       useEffect(() => {
         if (window.Telegram && window.Telegram.WebApp) {
           window.Telegram.WebApp.ready();
@@ -504,47 +531,93 @@
           }
         }
 
-        if (db) {
-          db.collection("settings").doc("masterData").get().then((doc) => {
-            setDbConnected(true); 
-            if (doc.exists) {
-              let parsed = doc.data();
-              if (parsed.stories && parsed.stories.length > 0 && typeof parsed.stories[0] === 'string') {
-                parsed.stories = parsed.stories.map((name, i) => ({
-                  id: 'st' + i, name: name, type: name.toLowerCase() === 'отзывы' ? 'reviews' : 'page', content: '', images: []
-                }));
+        const initializeApp = async () => {
+          let finalData = { ...initialMasterData };
+
+          const saved = localStorage.getItem('electroAppData');
+          if (saved) {
+            try {
+              finalData = { ...initialMasterData, ...JSON.parse(saved) };
+            } catch (e) {}
+          }
+
+          if (db) {
+            try {
+              const doc = await db.collection("settings").doc("masterData").get();
+              setDbConnected(true);
+              
+              if (doc.exists) {
+                finalData = { ...initialMasterData, ...finalData, ...doc.data() };
+                
+                // Авто-исцеление массивов
+                finalData.stories = finalData.stories || initialMasterData.stories;
+                finalData.services = finalData.services || initialMasterData.services;
+                finalData.addons = finalData.addons || initialMasterData.addons;
+                finalData.dates = finalData.dates || initialMasterData.dates;
+                finalData.memo = finalData.memo || initialMasterData.memo;
+                finalData.defaultSlots = finalData.defaultSlots || initialMasterData.defaultSlots;
+
+                if (finalData.stories.length > 0 && typeof finalData.stories[0] === 'string') {
+                  finalData.stories = finalData.stories.map((name, i) => ({
+                    id: 'st' + i, name: name, type: name.toLowerCase() === 'отзывы' ? 'reviews' : 'page', content: '', images: []
+                  }));
+                }
+                if (finalData.slots && Array.isArray(finalData.slots)) {
+                  finalData.dates = finalData.dates.map(d => ({ ...d, slots: d.slots ? d.slots : finalData.slots }));
+                  delete finalData.slots;
+                }
+                finalData.dates = finalData.dates.map(d => ({...d, slots: d.slots || []}));
+                if (finalData.mapLink === undefined) finalData.mapLink = "";
+                
+                // Подтягиваем клиентов
+                try {
+                  const snap = await db.collection("clients").get();
+                  let cList = [];
+                  snap.forEach(d => cList.push(d.data()));
+                  
+                  finalData.clients = cList.length > 0 ? cList : (finalData.clients || []);
+                  
+                  if (cList.length === 0 && finalData.clients.length > 0) {
+                      finalData.clients.forEach(c => db.collection("clients").doc(String(c.tgId)).set(c).catch(console.error));
+                  }
+                } catch(err) {
+                  finalData.clients = finalData.clients || [];
+                }
               }
-              if (parsed.slots && Array.isArray(parsed.slots)) {
-                parsed.dates = parsed.dates.map(d => ({ ...d, slots: d.slots ? d.slots : parsed.slots }));
-                delete parsed.slots;
-              }
-              if (parsed.dates) {
-                parsed.dates = parsed.dates.map(d => ({...d, slots: d.slots || []}));
-              }
-              if (!parsed.clients) parsed.clients = [];
-              if (parsed.mapLink === undefined) parsed.mapLink = "";
-              setAppData(parsed);
-              setEditData(parsed); 
+            } catch(err) {
+              setDbConnected(false); 
+              console.error("Firebase load error:", err);
             }
-          }).catch(err => {
-            setDbConnected(false); 
-            console.error("Firebase load error:", err);
-          });
-        } else {
-          setDbConnected(false);
-        }
+          }
+
+          setAppData(finalData);
+          setEditData(finalData);
+          setIsAppReady(true);
+        };
+
+        initializeApp();
       }, []);
 
       const syncToFirebase = async (newData) => {
         if (db) {
           try {
-            await db.collection("settings").doc("masterData").set(newData);
+            const dataToSave = { ...newData };
+            delete dataToSave.clients; 
+            await db.collection("settings").doc("masterData").set(dataToSave);
             setDbConnected(true);
           } catch (error) {
             console.error("Firebase sync error:", error);
             setDbConnected(false);
           }
         }
+      };
+
+      const saveClientToFirebase = (clientObj) => {
+          if (db) db.collection("clients").doc(String(clientObj.tgId)).set(clientObj).catch(console.error);
+      };
+
+      const deleteClientFromFirebase = (tgId) => {
+          if (db) db.collection("clients").doc(String(tgId)).delete().catch(console.error);
       };
 
       const handleNameClick = () => {
@@ -569,7 +642,7 @@
       const toggleService = (service) => {
         triggerHaptic();
         let newServices;
-        if (selectedServices.find(s => s.id === service.id)) {
+        if ((selectedServices || []).find(s => s.id === service.id)) {
           newServices = selectedServices.filter(s => s.id !== service.id);
         } else {
           newServices = [...selectedServices, service];
@@ -587,7 +660,7 @@
 
       const toggleAddon = (addon) => {
         triggerHaptic();
-        if (selectedAddons.find(a => a.id === addon.id)) {
+        if ((selectedAddons || []).find(a => a.id === addon.id)) {
           setSelectedAddons(selectedAddons.filter(a => a.id !== addon.id));
         } else {
           setSelectedAddons([...selectedAddons, addon]);
@@ -605,7 +678,17 @@
           setSelectedTime(timeStr); 
       };
 
-      const addonsPrice = selectedAddons.reduce((sum, addon) => sum + parseInt(addon.price), 0);
+      // ПРОВЕРКА НА ГОТОВНОСТЬ: Если данные еще не загружены, рендерим только спиннер!
+      if (!isAppReady || !appData) {
+        return (
+          <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
+             <div className="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4"></div>
+             <p className="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
+          </div>
+        );
+      }
+
+      const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
       const totalPrice = (selectedDuration * appData.pricePerMinute) + addonsPrice;
 
       const handlePreBooking = () => setShowMemo(true);
@@ -638,31 +721,36 @@
         const clientUsername = tgUser.username ? `(@${tgUser.username})` : "";
         const clientId = tgUser.id ? `(ID: ${tgUser.id})` : "";
 
-        const servicesList = selectedServices.map(s => s.name).join(', ');
-        const addonsList = selectedAddons.length > 0 ? `\n➕ Допы: ${selectedAddons.map(a => a.name).join(', ')}` : '';
+        const servicesList = (selectedServices || []).map(s => s.name).join(', ');
+        const addonsList = (selectedAddons || []).length > 0 ? `\n➕ Допы: ${selectedAddons.map(a => a.name).join(', ')}` : '';
         
         let updatedClients = [...(appData.clients || [])];
         let finalClientName = clientName;
         
         if (tgUser.id) {
             const cIdx = updatedClients.findIndex(c => c.tgId === tgUser.id);
+            let finalClientObj;
             if (cIdx !== -1) {
                 updatedClients[cIdx].visits = (updatedClients[cIdx].visits || 0) + 1;
                 updatedClients[cIdx].username = clientUsername || updatedClients[cIdx].username;
                 if (clientPhone) updatedClients[cIdx].phone = clientPhone;
                 finalClientName = updatedClients[cIdx].customName || updatedClients[cIdx].originalName || clientName;
+                finalClientObj = updatedClients[cIdx];
             } else {
-                updatedClients.push({
+                finalClientObj = {
                     tgId: tgUser.id,
                     originalName: clientName,
                     customName: '',
                     username: clientUsername,
                     phone: clientPhone,
                     visits: 1,
+                    totalSpent: totalPrice,
                     isBlacklisted: false,
                     firstVisit: new Date().toISOString()
-                });
+                };
+                updatedClients.push(finalClientObj);
             }
+            saveClientToFirebase(finalClientObj);
         }
         
         const messageToAdmin = `🔥 *Новая запись!*\n\n` +
@@ -724,7 +812,7 @@
           db.collection("bookings").doc(newBooking.id).set(newBooking).catch(err => console.error("Firebase booking error:", err));
         }
 
-        const updatedDates = [...appData.dates];
+        const updatedDates = [...(appData.dates || [])];
         const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
         if (targetDateIdx !== -1) {
           updatedDates[targetDateIdx].slots = removeOverlappingSlots(updatedDates[targetDateIdx].slots, selectedTime, selectedDuration);
@@ -811,14 +899,14 @@
                 <img src={appData.photoUrl} alt="Master" className="object-cover w-full h-full opacity-90" />
               </div>
             </div>
-            <h1 onClick={handleNameClick} className="text-2xl font-bold text-white tracking-wide cursor-pointer select-none">
+            <h1 onClick={handleNameClick} className="text-xl font-medium text-gray-100 tracking-[0.15em] uppercase cursor-pointer select-none drop-shadow-sm mt-2">
               {appData.name}
             </h1>
             <p className="text-[#C89D7C] font-medium mt-1">{appData.profession}</p>
           </div>
 
           <div className="flex justify-evenly w-full px-4 mb-6">
-            {appData.stories.map((story, idx) => {
+            {(appData.stories || []).map((story, idx) => {
               if (!story.name.trim()) return null; 
               return (
                 <div key={idx} onClick={() => openStory(story)} className="flex flex-col items-center gap-2">
@@ -869,8 +957,8 @@
               </div>
 
               <div className="flex flex-col gap-3">
-                {appData.services.map(service => {
-                  const isSelected = selectedServices.find(s => s.id === service.id);
+                {(appData.services || []).map(service => {
+                  const isSelected = (selectedServices || []).find(s => s.id === service.id);
                   return (
                     <div key={service.id} onClick={() => toggleService(service)} className={`glass-card-dark p-4 rounded-3xl cursor-pointer transition-all duration-300 border ${isSelected ? 'border-[#C89D7C] bg-[#C89D7C]/10' : 'border-white/5 hover:border-white/20'}`}>
                       <div className="flex items-center justify-between">
@@ -894,8 +982,8 @@
 
               <h2 className="text-xl font-bold text-white tracking-wide mt-6 mb-4 px-1">Нужно добавить?</h2>
               <div className="flex flex-col gap-3">
-                {appData.addons.map(addon => {
-                  const isSelected = selectedAddons.find(a => a.id === addon.id);
+                {(appData.addons || []).map(addon => {
+                  const isSelected = (selectedAddons || []).find(a => a.id === addon.id);
                   return (
                     <div key={addon.id} onClick={() => toggleAddon(addon)} className={`glass-card-dark p-4 rounded-3xl cursor-pointer transition-all duration-300 border ${isSelected ? 'border-[#C89D7C] bg-[#C89D7C]/10' : 'border-white/5 hover:border-white/20'}`}>
                       <div className="flex items-center justify-between">
@@ -948,7 +1036,7 @@
           );
         }
 
-        const availableSlotsForDate = appData.dates.find(d => d.date === selectedDate)?.slots || [];
+        const availableSlotsForDate = (appData.dates || []).find(d => d.date === selectedDate)?.slots || [];
 
         return (
           <div className="px-4 pb-24 animate-[slideIn_0.3s_ease-out]">
@@ -969,7 +1057,7 @@
               </div>
               
               <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar">
-                {appData.dates.map((item, idx) => (
+                {(appData.dates || []).map((item, idx) => (
                   <div key={idx} onClick={() => selectDateSlot(item)} className={`flex flex-col items-center justify-center min-w-[70px] h-20 rounded-2xl cursor-pointer transition-all border shrink-0 ${selectedDate === item.date ? 'bg-gradient-to-b from-[#C89D7C] to-[#9A6A45] text-black shadow-[0_5px_15px_rgba(200,157,124,0.3)] border-transparent' : 'glass-card-dark text-gray-300 border-white/5'}`}>
                     <span className="text-xs mb-1 opacity-80">{item.day}</span>
                     <span className="text-xl font-bold">{item.date.split(' ')[0]}</span>
@@ -1027,12 +1115,12 @@
           <div className="z-10 glass-card-dark p-6 rounded-3xl w-full text-left mb-8 border border-[#C89D7C]/30 shadow-2xl">
             <h4 className="font-semibold text-gray-200 mb-3">Детали записи:</h4>
             <ul className="space-y-2 mb-4">
-              {selectedServices.map(s => (
+              {(selectedServices || []).map(s => (
                 <li key={s.id} className="text-sm text-gray-300 flex justify-between">
                   <span>{s.icon} {s.name}</span>
                 </li>
               ))}
-              {selectedAddons.map(a => (
+              {(selectedAddons || []).map(a => (
                 <li key={a.id} className="text-sm text-[#C89D7C] flex justify-between">
                   <span>{a.icon} {a.name}</span>
                   <span className="font-medium">+ {a.price} ₽</span>
@@ -1064,7 +1152,7 @@
               <h3 className="text-xl font-bold text-white">Важно перед процедурой!</h3>
             </div>
             <ul className="text-sm text-gray-300 space-y-3 mb-4 list-disc pl-5 marker:text-[#C89D7C]">
-              {appData.memo.map((item, idx) => (
+              {(appData.memo || []).map((item, idx) => (
                 <li key={idx}>{item}</li>
               ))}
             </ul>
@@ -1103,6 +1191,7 @@
 
             <h2 className="text-2xl font-bold text-white mb-6 tracking-wide">Отзывы клиентов</h2>
 
+            {/* БЛОК ОСТАВИТЬ ОТЗЫВ (ПЕРЕНЕСЕН НАВЕРХ) */}
             <div className="glass-card-dark p-4 rounded-2xl border border-[#C89D7C]/20 relative overflow-hidden mb-8 shadow-sm">
               <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-[#C89D7C] to-[#9A6A45]"></div>
               <h3 className="text-base font-bold text-white mb-3 text-center tracking-wide">Оставить отзыв</h3>
@@ -1137,6 +1226,7 @@
               </button>
             </div>
 
+            {/* СПИСОК ОТЗЫВОВ */}
             <div className="space-y-4 mb-8">
               {approvedReviews.length === 0 ? (
                 <p className="text-gray-500 text-center py-6">Отзывов пока нет. Будь первой!</p>
@@ -1164,7 +1254,7 @@
         const copyEmptySlotsToClipboard = () => {
           triggerHaptic();
           
-          const availableDates = editData.dates.filter(d => d.slots && d.slots.length > 0);
+          const availableDates = (editData.dates || []).filter(d => d.slots && d.slots.length > 0);
 
           if (availableDates.length === 0) {
             showToast("Нет свободных окошек 😔");
@@ -1223,11 +1313,9 @@
 
           if(db) await db.collection("bookings").doc(newB.id).set(newB);
 
-          // ИСПРАВЛЕНИЕ: ГЛУБОКОЕ КОПИРОВАНИЕ
-          let newDates = JSON.parse(JSON.stringify(editData.dates || []));
+          const newDates = [...(editData.dates || [])];
           const dIdx = newDates.findIndex(d => d.date === manualDate);
           if (dIdx !== -1) {
-            if (!newDates[dIdx].slots) newDates[dIdx].slots = [];
             newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
             const newData = {...editData, dates: newDates};
             setEditData(newData);
@@ -1261,11 +1349,9 @@
 
           if(db) await db.collection("bookings").doc(newB.id).set(newB);
 
-          // ИСПРАВЛЕНИЕ: ГЛУБОКОЕ КОПИРОВАНИЕ
-          let newDates = JSON.parse(JSON.stringify(editData.dates || []));
+          const newDates = [...(editData.dates || [])];
           const dIdx = newDates.findIndex(d => d.date === manualDate);
           if (dIdx !== -1) {
-            if (!newDates[dIdx].slots) newDates[dIdx].slots = [];
             newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
             const newData = {...editData, dates: newDates};
             setEditData(newData);
@@ -1326,11 +1412,9 @@
 
           if(db) await db.collection("bookings").doc(booking.id).delete();
 
-          // ИСПРАВЛЕНИЕ: ГЛУБОКОЕ КОПИРОВАНИЕ
-          let newDates = JSON.parse(JSON.stringify(editData.dates || []));
+          const newDates = [...(editData.dates || [])];
           const dIdx = newDates.findIndex(d => d.date === booking.date);
           if (dIdx !== -1) {
-            if (!newDates[dIdx].slots) newDates[dIdx].slots = [];
             if(!newDates[dIdx].slots.includes(booking.time)){
                 newDates[dIdx].slots.push(booking.time);
                 newDates[dIdx].slots.sort();
@@ -1357,84 +1441,53 @@
           showToast("Бронь отменена, слот возвращен. 🔄");
         };
 
-        // ИСПРАВЛЕНИЕ: ПРОВЕРКИ И ДЕФОЛТНЫЕ ЗНАЧЕНИЯ (ЧТОБЫ НЕ БЫЛО UNDEFINED)
         const openEditBooking = (b) => {
-            if (!b) return;
             triggerHaptic();
-            setEditBDate(b.date || "");
-            setEditBTime(b.time || "");
-            setEditBDuration(b.duration ? Number(b.duration) : 60);
+            setEditBDate(b.date);
+            setEditBTime(b.time);
+            setEditBDuration(b.duration || 60);
             setEditBName(b.clientName || ""); 
+            setEditBServices(b.services || ""); 
             setEditingBooking(b);
         };
 
-        // ИСПРАВЛЕНИЕ: БЕЗОПАСНАЯ И МГНОВЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ
         const confirmEditBooking = async () => {
-            const nameStr = String(editBName || '');
-            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !nameStr.trim()) {
-                return alert("Заполните все поля: имя, дату, время и длительность!");
+            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim() || !editBServices.trim()) {
+                return alert("Заполните все поля: имя, зоны, дату, время и длительность!");
             }
             triggerHaptic();
 
-            const safeDuration = Number(editBDuration) || 60;
-            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: nameStr };
+            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
             
-            // 1. МГНОВЕННО ОБНОВЛЯЕМ ЛОКАЛЬНО! (Интерфейс сразу покажет изменения, не дожидаясь базы)
+            // ОПТИМИСТИЧНОЕ ОБНОВЛЕНИЕ - Моментально меняем список на экране!
             setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
 
-            try {
-                // 2. Отправляем в Firebase (даже если будет секундный сбой сети, локально всё уже работает)
-                if(db && updatedB.id) {
-                    await db.collection("bookings").doc(String(updatedB.id)).update({
-                        date: editBDate, time: editBTime, duration: safeDuration, clientName: nameStr
-                    });
+            if(db) db.collection("bookings").doc(updatedB.id).update({
+                date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
+            });
+
+            const newDates = [...(editData.dates || [])];
+            if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                    newDates[oldDIdx].slots.push(editingBooking.time);
+                    newDates[oldDIdx].slots.sort();
                 }
-            } catch (err) {
-                console.error("Ошибка Firebase при сохранении: ", err);
+            }
+            
+            const newDIdx = newDates.findIndex(d => d.date === editBDate);
+            if (newDIdx !== -1) {
+                newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
             }
 
-            try {
-                // 3. Безопасно пересчитываем сетку свободных окон
-                let newDates = JSON.parse(JSON.stringify(editData.dates || []));
-                
-                if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
-                    // Возвращаем старый слот
-                    const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                    if (oldDIdx !== -1) {
-                        if (!newDates[oldDIdx].slots) newDates[oldDIdx].slots = [];
-                        if (!newDates[oldDIdx].slots.includes(editingBooking.time)) {
-                            newDates[oldDIdx].slots.push(editingBooking.time);
-                            newDates[oldDIdx].slots.sort();
-                        }
-                    } else {
-                        const gDay = globalCalendarDays.find(g => g.date === editingBooking.date);
-                        if (gDay) {
-                            newDates.push({ date: editingBooking.date, day: gDay.day, slots: [editingBooking.time] });
-                        }
-                    }
-                }
-                
-                // Забираем новый слот
-                const newDIdx = newDates.findIndex(d => d.date === editBDate);
-                if (newDIdx !== -1) {
-                    if (!newDates[newDIdx].slots) newDates[newDIdx].slots = [];
-                    newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
-                }
+            const newData = {...editData, dates: newDates};
+            setEditData(newData);
+            setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
 
-                // 4. Сохраняем все данные
-                const newData = {...editData, dates: newDates};
-                setEditData(newData);
-                setAppData(newData);
-                try { syncToFirebase(newData); } catch(e) {}
-                localStorage.setItem('electroAppData', JSON.stringify(newData));
-
-                // 5. Закрываем окно
-                setEditingBooking(null);
-                showToast("Запись успешно обновлена! ✏️");
-            } catch (err) {
-                console.error("Ошибка при локальном пересчете: ", err);
-                showToast("Ошибка сохранения ❌");
-            }
+            setEditingBooking(null);
+            showToast("Запись успешно обновлена! ✏️");
         };
 
         const getMonthGrid = (date) => {
@@ -1501,14 +1554,14 @@
         const handleArrayTextChange = (e, field) => { setEditData({...editData, [field]: e.target.value.split('\n')}); };
         
         const handleStoryPropChange = (index, field, value) => {
-          const newStories = [...editData.stories];
+          const newStories = [...(editData.stories || [])];
           newStories[index] = { ...newStories[index], [field]: value };
           setEditData({...editData, stories: newStories});
         };
 
         const moveStory = (index, direction) => {
           triggerHaptic();
-          const newStories = [...editData.stories];
+          const newStories = [...(editData.stories || [])];
           if (direction === 'up' && index > 0) {
             [newStories[index - 1], newStories[index]] = [newStories[index], newStories[index - 1]];
           } else if (direction === 'down' && index < newStories.length - 1) {
@@ -1518,40 +1571,52 @@
         };
 
         const handleServiceChange = (index, field, value) => {
-          const newServices = [...editData.services];
+          const newServices = [...(editData.services || [])];
           newServices[index][field] = value;
           setEditData({...editData, services: newServices});
         };
+
+        const moveService = (index, direction) => {
+          triggerHaptic();
+          const newServices = [...(editData.services || [])];
+          if (direction === 'up' && index > 0) {
+            [newServices[index - 1], newServices[index]] = [newServices[index], newServices[index - 1]];
+          } else if (direction === 'down' && index < newServices.length - 1) {
+            [newServices[index + 1], newServices[index]] = [newServices[index], newServices[index + 1]];
+          }
+          setEditData({...editData, services: newServices});
+        };
+
         const addService = () => {
           triggerHaptic();
-          setEditData({...editData, services: [...editData.services, { id: 's'+Date.now(), name: '', defaultTime: 30, icon: '✨' }]});
+          setEditData({...editData, services: [...(editData.services || []), { id: 's'+Date.now(), name: '', defaultTime: 30, icon: '✨' }]});
         };
         const removeService = (index) => {
           triggerHaptic();
-          const newServices = [...editData.services];
+          const newServices = [...(editData.services || [])];
           newServices.splice(index, 1);
           setEditData({...editData, services: newServices});
         };
 
         const handleAddonChange = (index, field, value) => {
-          const newAddons = [...editData.addons];
+          const newAddons = [...(editData.addons || [])];
           newAddons[index][field] = value;
           setEditData({...editData, addons: newAddons});
         };
         const addAddon = () => {
           triggerHaptic();
-          setEditData({...editData, addons: [...editData.addons, { id: 'a'+Date.now(), name: '', price: 100, icon: '➕' }]});
+          setEditData({...editData, addons: [...(editData.addons || []), { id: 'a'+Date.now(), name: '', price: 100, icon: '➕' }]});
         };
         const removeAddon = (index) => {
           triggerHaptic();
-          const newAddons = [...editData.addons];
+          const newAddons = [...(editData.addons || [])];
           newAddons.splice(index, 1);
           setEditData({...editData, addons: newAddons});
         };
 
         const approveReview = async (reviewId) => {
           triggerHaptic();
-          const updatedReviews = editData.reviews.map(r => 
+          const updatedReviews = (editData.reviews || []).map(r => 
             r.id === reviewId ? { ...r, approved: true, admin_id: ADMIN_TG_ID } : r
           );
           const newEditData = {...editData, reviews: updatedReviews};
@@ -1566,7 +1631,7 @@
         const deleteReviewAdmin = async (reviewId) => {
           triggerHaptic();
           if(!confirm("Удалить этот отзыв навсегда?")) return;
-          const updatedReviews = editData.reviews.filter(r => r.id !== reviewId);
+          const updatedReviews = (editData.reviews || []).filter(r => r.id !== reviewId);
           const newEditData = {...editData, reviews: updatedReviews};
           
           setEditData(newEditData);
@@ -1582,6 +1647,7 @@
            if(cIdx !== -1) {
                newClients[cIdx] = { ...newClients[cIdx], [field]: value };
                setEditData({...editData, clients: newClients});
+               saveClientToFirebase(newClients[cIdx]);
            }
         };
 
@@ -1589,10 +1655,15 @@
           triggerHaptic();
           if(!confirm("Удалить клиента из базы навсегда? Это также удалит его историю оплат.")) return;
           
-          const clientBookings = bookingsList.filter(b => 
-             (b.tgId && b.tgId === tgId) || 
-             (tgId.startsWith('manual_') && b.clientContact === 'Ручная запись' && b.id) 
-          );
+          const clientObj = (editData.clients || []).find(c => c.tgId === tgId);
+          const clientBookings = bookingsList.filter(b => {
+             if (!clientObj) return false;
+             const matchTgId = clientObj.tgId && b.tgId === clientObj.tgId;
+             const matchUsername = clientObj.username && b.clientContact && b.clientContact.includes(clientObj.username);
+             const matchPhone = clientObj.phone && b.phone && b.phone === clientObj.phone;
+             const matchName = (b.clientName === clientObj.customName) || (b.clientName === clientObj.originalName);
+             return matchTgId || matchUsername || matchPhone || matchName;
+          });
 
           const bookingIdsToDelete = clientBookings.map(b => b.id);
           setBookingsList(prev => prev.filter(b => !bookingIdsToDelete.includes(b.id)));
@@ -1601,10 +1672,12 @@
              bookingIdsToDelete.forEach(id => db.collection("bookings").doc(id).delete().catch(console.error));
           }
 
-          const newClients = editData.clients.filter(c => c.tgId !== tgId);
+          const newClients = (editData.clients || []).filter(c => c.tgId !== tgId);
           const newEditData = {...editData, clients: newClients};
           setEditData(newEditData);
           setAppData(newEditData);
+          
+          deleteClientFromFirebase(tgId);
           await syncToFirebase(newEditData);
           localStorage.setItem('electroAppData', JSON.stringify(newEditData));
           showToast("Клиент удален! 🗑️");
@@ -1614,9 +1687,14 @@
            if(!newClientName) return alert("Введите имя!");
            triggerHaptic();
 
-           const matches = bookingsList.filter(b => b.clientName === newClientName || (newClientContact && b.clientContact.includes(newClientContact)));
+           const matches = bookingsList.filter(b => {
+               const matchUsername = newClientContact && b.clientContact && b.clientContact.includes(newClientContact);
+               const matchName = newClientName && b.clientName === newClientName;
+               const matchPhone = newClientPhone && b.phone === newClientPhone;
+               return matchUsername || matchName || matchPhone;
+           });
            const calcVisits = matches.length;
-           const calcSpent = matches.reduce((sum, b) => sum + (b.actualPrice !== undefined ? b.actualPrice : b.price), 0);
+           const calcSpent = matches.reduce((sum, b) => sum + (b.actualPrice !== undefined && b.actualPrice !== null ? b.actualPrice : b.price), 0);
 
            const client = {
                tgId: 'manual_' + Date.now(),
@@ -1634,6 +1712,8 @@
            const newEditData = { ...editData, clients: updatedClients };
            setEditData(newEditData);
            setAppData(newEditData);
+           
+           saveClientToFirebase(client);
            await syncToFirebase(newEditData);
            localStorage.setItem('electroAppData', JSON.stringify(newEditData));
 
@@ -1685,6 +1765,7 @@
             
             {adminSubView === 'main' ? (
               <>
+                {/* ЗАГОЛОВОК И ВКЛАДКИ */}
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <Icon name="Settings" className="w-8 h-8 text-[#C89D7C]" />
@@ -1732,13 +1813,13 @@
                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                       <label className="block text-sm font-bold text-white mb-3">Названия 5 кружочков (Сториз)</label>
                       <p className="text-xs text-gray-400 mb-4">Оставь имя пустым, чтобы скрыть кружок на главной.</p>
-                      {editData.stories.map((story, i) => (
+                      {(editData.stories || []).map((story, i) => (
                         <div key={i} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 mb-3">
                           <div className="flex justify-between items-center">
                             <label className="text-[10px] text-[#C89D7C] font-bold uppercase tracking-wider">Кружок {i+1}</label>
                             <div className="flex gap-3 px-1">
                               <button onClick={() => moveStory(i, 'up')} disabled={i === 0} className={`text-lg leading-none font-bold ${i === 0 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↑</button>
-                              <button onClick={() => moveStory(i, 'down')} disabled={i === editData.stories.length - 1} className={`text-lg leading-none font-bold ${i === editData.stories.length - 1 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↓</button>
+                              <button onClick={() => moveStory(i, 'down')} disabled={i === (editData.stories || []).length - 1} className={`text-lg leading-none font-bold ${i === (editData.stories || []).length - 1 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↓</button>
                             </div>
                           </div>
                           <input 
@@ -1786,13 +1867,49 @@
                       ))}
                     </div>
 
+                    {/* ШАБЛОН РАБОЧЕГО ДНЯ */}
+                    <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
+                      <label className="block text-sm font-bold text-white mb-1">Шаблон рабочего дня</label>
+                      <p className="text-xs text-gray-400 mb-4">Эти часы будут автоматически добавляться при создании нового рабочего дня. Удалите ненужные или добавьте новые.</p>
+                      
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {(editData.defaultSlots || []).length === 0 && <span className="text-xs text-gray-500">Нет шаблона времени</span>}
+                        {(editData.defaultSlots || []).map((time, idx) => (
+                          <div key={idx} className="bg-[#2A2A2A] border border-[#C89D7C]/30 rounded-lg px-2 py-1 flex items-center gap-1">
+                            <span className="text-sm text-white font-medium">{time}</span>
+                            <button onClick={() => {
+                              triggerHaptic();
+                              const newDefSlots = [...(editData.defaultSlots || [])];
+                              newDefSlots.splice(idx, 1);
+                              setEditData({...editData, defaultSlots: newDefSlots});
+                            }} className="text-red-400 hover:text-red-300 ml-1">×</button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <GlassTimePicker value={newDefaultTimeVal} onChange={setNewDefaultTimeVal} />
+                        <button onClick={() => {
+                          if(!newDefaultTimeVal) return;
+                          triggerHaptic();
+                          const newDefSlots = [...(editData.defaultSlots || [])];
+                          if (!newDefSlots.includes(newDefaultTimeVal)) {
+                             newDefSlots.push(newDefaultTimeVal);
+                             newDefSlots.sort();
+                          }
+                          setEditData({...editData, defaultSlots: newDefSlots});
+                          setNewDefaultTimeVal('');
+                        }} className="bg-[#C89D7C] text-black px-4 py-2 rounded-lg font-bold text-sm">Добавить</button>
+                      </div>
+                    </div>
+
                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                       <label className="block text-sm font-bold text-white mb-1">Свободные даты и окошки</label>
                       <p className="text-xs text-gray-400 mb-4">Нажми на день, чтобы настроить его время.</p>
                       
                       <div className="grid grid-cols-7 gap-1 mb-4">
                         {globalCalendarDays.map((item, idx) => {
-                          const isSelected = editData.dates.some(d => d.date === item.date);
+                          const isSelected = (editData.dates || []).some(d => d.date === item.date);
                           const isEditingThis = adminSelectedDateObj?.date === item.date;
                           return (
                             <div key={idx} onClick={() => { triggerHaptic(); setAdminSelectedDateObj(item); setNewTimeVal(''); }} 
@@ -1807,7 +1924,7 @@
                       </div>
 
                       {adminSelectedDateObj && (() => {
-                        const dateEntryIndex = editData.dates.findIndex(d => d.date === adminSelectedDateObj.date);
+                        const dateEntryIndex = (editData.dates || []).findIndex(d => d.date === adminSelectedDateObj.date);
                         const isWorkingDay = dateEntryIndex !== -1;
 
                         if (!isWorkingDay) {
@@ -1817,7 +1934,7 @@
                               <p className="text-gray-500 text-xs mb-3">Сейчас это выходной день.</p>
                               <button onClick={() => {
                                 triggerHaptic();
-                                const newDates = [...editData.dates, { ...adminSelectedDateObj, slots: ['10:00', '12:00', '14:00', '16:00'] }];
+                                const newDates = [...(editData.dates || []), { ...adminSelectedDateObj, slots: [...(editData.defaultSlots || [])] }];
                                 newDates.sort((a, b) => {
                                    const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
                                    const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
@@ -1836,7 +1953,7 @@
                           <div className="animate-[fadeIn_0.3s_ease-out] bg-[#1A1A1A] p-4 rounded-xl border border-[#C89D7C]/50 relative">
                             <button onClick={() => {
                               triggerHaptic();
-                              const newDates = [...editData.dates];
+                              const newDates = [...(editData.dates || [])];
                               newDates.splice(dateEntryIndex, 1);
                               setEditData({...editData, dates: newDates});
                             }} className="absolute top-3 right-3 text-red-400 text-xs font-bold bg-red-400/10 px-2 py-1 rounded-md">Сделать выходным</button>
@@ -1844,13 +1961,13 @@
                             <p className="text-[#C89D7C] font-bold mb-3">{adminSelectedDateObj.date}, {adminSelectedDateObj.day}</p>
                             
                             <div className="flex flex-wrap gap-2 mb-4">
-                              {entry.slots.length === 0 && <span className="text-xs text-gray-500">Нет свободного времени</span>}
-                              {entry.slots.map((time, idx) => (
+                              {(entry.slots || []).length === 0 && <span className="text-xs text-gray-500">Нет свободного времени</span>}
+                              {(entry.slots || []).map((time, idx) => (
                                 <div key={idx} className="bg-[#2A2A2A] border border-[#C89D7C]/30 rounded-lg px-2 py-1 flex items-center gap-1">
                                   <span className="text-sm text-white font-medium">{time}</span>
                                   <button onClick={() => {
                                     triggerHaptic();
-                                    const newDates = [...editData.dates];
+                                    const newDates = [...(editData.dates || [])];
                                     newDates[dateEntryIndex].slots.splice(idx, 1);
                                     setEditData({...editData, dates: newDates});
                                   }} className="text-red-400 hover:text-red-300 ml-1">×</button>
@@ -1863,7 +1980,7 @@
                               <button onClick={() => {
                                 if(!newTimeVal) return;
                                 triggerHaptic();
-                                const newDates = [...editData.dates];
+                                const newDates = [...(editData.dates || [])];
                                 newDates[dateEntryIndex].slots.push(newTimeVal);
                                 newDates[dateEntryIndex].slots.sort();
                                 setEditData({...editData, dates: newDates});
@@ -1878,7 +1995,7 @@
                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                       <label className="block text-xs text-gray-400 mb-1">Памятка (каждый пункт с новой строки)</label>
                       <textarea 
-                        value={editData.memo.join('\n')} 
+                        value={(editData.memo || []).join('\n')} 
                         onChange={(e) => handleArrayTextChange(e, 'memo')} 
                         rows="4" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-white text-sm"></textarea>
                     </div>
@@ -1886,9 +2003,18 @@
                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                       <label className="block text-sm font-bold text-white mb-3">Услуги (Зоны)</label>
                       <div className="space-y-3 mb-3">
-                        {editData.services.map((svc, idx) => (
+                        {(editData.services || []).map((svc, idx) => (
                           <div key={idx} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 relative">
-                            <button onClick={() => removeService(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shadow-lg">×</button>
+                            <button onClick={() => removeService(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shadow-lg z-10">×</button>
+                            
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="text-[10px] text-[#C89D7C] font-bold uppercase tracking-wider">Зона {idx+1}</label>
+                              <div className="flex gap-3 px-1">
+                                <button onClick={() => moveService(idx, 'up')} disabled={idx === 0} className={`text-lg leading-none font-bold ${idx === 0 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↑</button>
+                                <button onClick={() => moveService(idx, 'down')} disabled={idx === (editData.services || []).length - 1} className={`text-lg leading-none font-bold ${idx === (editData.services || []).length - 1 ? 'text-gray-700 cursor-not-allowed' : 'text-[#C89D7C] hover:text-white transition-colors'}`}>↓</button>
+                              </div>
+                            </div>
+
                             <div className="flex gap-2 mb-2">
                               <input value={svc.icon} onChange={e => handleServiceChange(idx, 'icon', e.target.value)} className="w-12 text-center bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="✨" />
                               <input value={svc.name} onChange={e => handleServiceChange(idx, 'name', e.target.value)} className="flex-1 bg-[#2A2A2A] rounded-lg p-2 text-white text-sm" placeholder="Название зоны" />
@@ -1906,7 +2032,7 @@
                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                       <label className="block text-sm font-bold text-white mb-3">Дополнительно (Допы)</label>
                       <div className="space-y-3 mb-3">
-                        {editData.addons.map((addon, idx) => (
+                        {(editData.addons || []).map((addon, idx) => (
                           <div key={idx} className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 flex flex-col gap-2 relative">
                             <button onClick={() => removeAddon(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center shadow-lg">×</button>
                             <div className="flex gap-2">
@@ -1970,12 +2096,13 @@
                        ) : (
                           <div className="space-y-3">
                              {filteredClients.map((client, idx) => {
-                                const clientBookings = bookingsList.filter(b => 
-                                    b.clientContact.includes(client.username) || 
-                                    (client.tgId && b.clientContact.includes(client.tgId)) || 
-                                    b.clientName === client.customName || 
-                                    b.clientName === client.originalName
-                                );
+                                const clientBookings = bookingsList.filter(b => {
+                                     const matchTgId = client.tgId && b.tgId === client.tgId;
+                                     const matchUsername = client.username && b.clientContact && b.clientContact.includes(client.username);
+                                     const matchPhone = client.phone && b.phone && b.phone === client.phone;
+                                     const matchName = (b.clientName === client.customName) || (b.clientName === client.originalName);
+                                     return matchTgId || matchUsername || matchPhone || matchName;
+                                });
 
                                 let realTotalSpent = 0;
                                 const bookingsByMonth = {};
@@ -2383,6 +2510,14 @@
                    className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-4 focus:outline-none focus:border-[#C89D7C] border border-transparent" 
                 />
 
+                <label className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Зоны (Услуги)</label>
+                <input 
+                   type="text" 
+                   value={editBServices} 
+                   onChange={e => setEditBServices(e.target.value)} 
+                   className="w-full bg-[#2A2A2A] rounded-xl p-3 text-white text-sm mb-4 focus:outline-none focus:border-[#C89D7C] border border-transparent" 
+                />
+
                 <label className="block text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Дата</label>
                 <div className="mb-4">
                    <GlassSelect value={editBDate} options={dateOptions} onChange={setEditBDate} placeholder="Выберите дату" />
@@ -2403,9 +2538,44 @@
 
                 <div className="flex gap-3">
                   <button onClick={() => setEditingBooking(null)} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">Отмена</button>
-                  
-                  {/* ИСПРАВЛЕНИЕ: ТЕПЕРЬ КНОПКА ВЫЗЫВАЕТ ПРАВИЛЬНУЮ ФУНКЦИЮ */}
-                  <button onClick={confirmEditBooking} className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">Сохранить</button>
+                  <button onClick={() => {
+                     if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim()) {
+                         return alert("Заполните все поля: имя, дату, время и длительность!");
+                     }
+                     triggerHaptic();
+
+                     const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
+                     
+                     // ОПТИМИСТИЧНОЕ ОБНОВЛЕНИЕ - Моментально меняем список на экране!
+                     setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
+
+                     if(db) db.collection("bookings").doc(updatedB.id).update({
+                         date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
+                     });
+
+                     const newDates = [...(editData.dates || [])];
+                     if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                         const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                         if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                             newDates[oldDIdx].slots.push(editingBooking.time);
+                             newDates[oldDIdx].slots.sort();
+                         }
+                     }
+                     
+                     const newDIdx = newDates.findIndex(d => d.date === editBDate);
+                     if (newDIdx !== -1) {
+                         newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
+                     }
+
+                     const newData = {...editData, dates: newDates};
+                     setEditData(newData);
+                     setAppData(newData);
+                     syncToFirebase(newData);
+                     localStorage.setItem('electroAppData', JSON.stringify(newData));
+
+                     setEditingBooking(null);
+                     showToast("Запись успешно обновлена! ✏️");
+                  }} className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">Сохранить</button>
                 </div>
               </div>
             </div>
@@ -2455,25 +2625,12 @@
       );
     }
 
-    tailwind.config = {
-      theme: {
-        extend: {
-          keyframes: {
-            fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
-            slideIn: { '0%': { transform: 'translateX(20px)', opacity: '0' }, '100%': { transform: 'translateX(0)', opacity: '1' } },
-            slideInUp: { '0%': { transform: 'translateY(20px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
-            zoomIn: { '0%': { transform: 'scale(0.95)', opacity: '0' }, '100%': { transform: 'scale(1)', opacity: '1' } },
-            floatUp: { 
-              '0%': { transform: 'translateY(100vh) scale(0.5) rotate(0deg)', opacity: '1' }, 
-              '100%': { transform: 'translateY(-20vh) scale(1.5) rotate(360deg)', opacity: '0' } 
-            },
-          }
-        }
-      }
-    }
-
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    root.render(
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    );
   </script>
 </body>
 </html>
