@@ -1320,9 +1320,9 @@
           const numVal = val === '' ? null : (parseInt(val) || 0);
           const updatedList = bookingsList.map(b => b.id === bookingId ? { ...b, actualPrice: numVal } : b);
           setBookingsList(updatedList);
-          if (db) {
+          if (db && bookingId) {
             try {
-              await db.collection("bookings").doc(bookingId).update({ actualPrice: numVal });
+              await db.collection("bookings").doc(String(bookingId)).update({ actualPrice: numVal });
               showToast("Оплата сохранена! 💰");
             } catch(e) {
               showToast("Ошибка сохранения ❌");
@@ -1351,9 +1351,11 @@
           try {
             if(db) await db.collection("bookings").doc(newB.id).set(newB);
 
-            const newDates = [...(editData.dates || [])];
+            // ГЛУБОКАЯ КОПИЯ ДЛЯ БЕЗОПАСНОСТИ ОТ ОШИБОК REACT
+            let newDates = JSON.parse(JSON.stringify(editData.dates || []));
             const dIdx = newDates.findIndex(d => d.date === manualDate);
             if (dIdx !== -1) {
+              if(!newDates[dIdx].slots) newDates[dIdx].slots = [];
               newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
               const newData = {...editData, dates: newDates};
               setEditData(newData);
@@ -1392,9 +1394,11 @@
           try {
             if(db) await db.collection("bookings").doc(newB.id).set(newB);
 
-            const newDates = [...(editData.dates || [])];
+            // ГЛУБОКАЯ КОПИЯ ДЛЯ БЕЗОПАСНОСТИ ОТ ОШИБОК REACT
+            let newDates = JSON.parse(JSON.stringify(editData.dates || []));
             const dIdx = newDates.findIndex(d => d.date === manualDate);
             if (dIdx !== -1) {
+              if(!newDates[dIdx].slots) newDates[dIdx].slots = [];
               newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
               const newData = {...editData, dates: newDates};
               setEditData(newData);
@@ -1457,11 +1461,13 @@
           setBookingsList(prev => prev.filter(b => b.id !== booking.id));
 
           try {
-            if(db) await db.collection("bookings").doc(booking.id).delete();
+            if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
 
-            const newDates = [...(editData.dates || [])];
+            // ГЛУБОКАЯ КОПИЯ ДЛЯ БЕЗОПАСНОСТИ
+            let newDates = JSON.parse(JSON.stringify(editData.dates || []));
             const dIdx = newDates.findIndex(d => d.date === booking.date);
             if (dIdx !== -1) {
+              if(!newDates[dIdx].slots) newDates[dIdx].slots = [];
               if(!newDates[dIdx].slots.includes(booking.time)){
                   newDates[dIdx].slots.push(booking.time);
                   newDates[dIdx].slots.sort();
@@ -1522,21 +1528,39 @@
             setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
 
             try {
-              if(db) await db.collection("bookings").doc(updatedB.id).update({
-                  date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
-              });
+              if(db && updatedB.id) {
+                  await db.collection("bookings").doc(String(updatedB.id)).update({
+                      date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
+                  });
+              }
 
-              const newDates = [...(editData.dates || [])];
+              // ИСПОЛЬЗУЕМ ГЛУБОКУЮ КОПИЮ, ЧТОБЫ ИЗБЕЖАТЬ ОШИБКИ ИЗМЕНЕНИЯ СОСТОЯНИЯ (Mutation)
+              let newDates = JSON.parse(JSON.stringify(editData.dates || []));
+              
               if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
                   const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                  if (oldDIdx !== -1 && newDates[oldDIdx].slots && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
-                      newDates[oldDIdx].slots.push(editingBooking.time);
-                      newDates[oldDIdx].slots.sort();
+                  if (oldDIdx !== -1) {
+                      if (!newDates[oldDIdx].slots) newDates[oldDIdx].slots = [];
+                      if (!newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                          newDates[oldDIdx].slots.push(editingBooking.time);
+                          newDates[oldDIdx].slots.sort();
+                      }
+                  } else {
+                      const gDay = globalCalendarDays.find(g => g.date === editingBooking.date);
+                      if (gDay) {
+                          newDates.push({ date: editingBooking.date, day: gDay.day, slots: [editingBooking.time] });
+                          newDates.sort((a, b) => {
+                            const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                            const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                            return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                          });
+                      }
                   }
               }
               
               const newDIdx = newDates.findIndex(d => d.date === editBDate);
               if (newDIdx !== -1) {
+                  if(!newDates[newDIdx].slots) newDates[newDIdx].slots = [];
                   newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
               }
 
@@ -1550,7 +1574,8 @@
               showToast("Запись успешно обновлена! ✏️");
             } catch(e) {
               showToast("Ошибка сохранения ❌");
-              console.error(e);
+              console.error("Критическая ошибка при сохранении редактирования:", e);
+              setEditingBooking(null); // Всё равно закроем окно, чтобы не висело
             }
         };
 
