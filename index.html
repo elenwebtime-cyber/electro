@@ -14,6 +14,7 @@
   <!-- Подключаем Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 
   <style>
     body { 
@@ -43,6 +44,20 @@
       background: rgba(30, 30, 30, 0.4); 
       backdrop-filter: blur(12px); 
       -webkit-backdrop-filter: blur(12px); 
+    }
+
+    /* Надежная анимация для летящих сердечек */
+    @keyframes floatUpAnim {
+      0% { transform: translateY(10vh) scale(0.8); opacity: 0; }
+      10% { opacity: 1; }
+      80% { opacity: 1; }
+      100% { transform: translateY(-80vh) scale(1.5); opacity: 0; }
+    }
+    .heart-float {
+      animation-name: floatUpAnim;
+      animation-timing-function: ease-in;
+      animation-iteration-count: infinite;
+      animation-fill-mode: both;
     }
   </style>
   <script>
@@ -124,7 +139,7 @@
                </div>
                <h2 className="text-2xl font-bold text-white mb-2">Ой! Системная ошибка</h2>
                <p className="text-sm text-gray-400 mb-8 max-w-[280px]">
-                  Скорее всего, в настройки попал невидимый спецсимвол (например, при копировании) или кривая ссылка. 
+                  Возможно в настройки попал невидимый спецсимвол.
                </p>
                <button onClick={() => {
                   localStorage.removeItem('electroAppData');
@@ -132,9 +147,6 @@
                }} className="bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-4 px-8 rounded-2xl shadow-[0_5px_15px_rgba(200,157,124,0.3)] hover:opacity-90 transition-opacity">
                  Сбросить кэш и починить
                </button>
-               <p className="text-[10px] text-gray-600 mt-6 max-w-[250px]">
-                  После сброса удалите сломанные данные в Firebase (настройки masterData) и заполните профиль заново, печатая текст вручную.
-               </p>
             </div>
           );
         }
@@ -212,8 +224,10 @@
 
     const GlassTimePicker = ({ value, onChange, disabled }) => {
       const [isOpen, setIsOpen] = useState(false);
-      const [hour, setHour] = useState(value ? value.split(':')[0] : '14');
-      const [minute, setMinute] = useState(value ? value.split(':')[1] : '00');
+      
+      // Надежная проверка входящего времени, чтобы не крашилось на кривых данных
+      const [hour, setHour] = useState(() => (typeof value === 'string' && value.includes(':') ? value.split(':')[0] : '14'));
+      const [minute, setMinute] = useState(() => (typeof value === 'string' && value.includes(':') ? value.split(':')[1] : '00'));
       
       const hours = Array.from({length: 13}, (_, i) => String(i + 9).padStart(2, '0'));
       const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
@@ -223,8 +237,8 @@
 
       useEffect(() => {
         if (isOpen) {
-            setHour(value ? value.split(':')[0] : '14');
-            setMinute(value ? value.split(':')[1] : '00');
+            setHour(typeof value === 'string' && value.includes(':') ? value.split(':')[0] : '14');
+            setMinute(typeof value === 'string' && value.includes(':') ? value.split(':')[1] : '00');
         }
       }, [isOpen, value]);
 
@@ -291,14 +305,14 @@
 
     const GlassDurationPicker = ({ value, onChange, disabled }) => {
       const [isOpen, setIsOpen] = useState(false);
-      const [mins, setMins] = useState(value || 30);
-      const durations = Array.from({length: 36}, (_, i) => (i + 1) * 10); // 10, 20 ... 360
+      const [mins, setMins] = useState(Number(value) || 30);
+      const durations = Array.from({length: 36}, (_, i) => (i + 1) * 10);
 
       const listRef = useRef(null);
 
       useEffect(() => {
         if (isOpen) {
-            setMins(value || 30);
+            setMins(Number(value) || 30);
         }
       }, [isOpen, value]);
 
@@ -423,13 +437,19 @@
     // УМНОЕ УДАЛЕНИЕ ПЕРЕКРЫВАЮЩИХСЯ СЛОТОВ
     // ==========================================
     const removeOverlappingSlots = (slots, startTime, durationMins) => {
-      const [h, m] = startTime.split(':').map(Number);
+      // Бронированная проверка на случай кривых данных
+      if (!startTime || typeof startTime !== 'string') return slots || [];
+      const parts = startTime.split(':');
+      if (parts.length !== 2) return slots || [];
+      
+      const [h, m] = parts.map(Number);
       const startMins = h * 60 + m;
       const endMins = startMins + durationMins;
       
       return (slots || []).filter(time => {
+          if (!time || typeof time !== 'string') return false;
           const [th, tm] = time.split(':').map(Number);
-          const tMins = th * 60 + tm;
+          const tMins = (th || 0) * 60 + (tm || 0);
           return tMins < startMins || tMins >= endMins;
       });
     };
@@ -506,13 +526,18 @@
 
       const fetchBookings = async () => {
         if (!db) return;
+        const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+        if (userTgId !== ADMIN_TG_ID) return;
+
         setLoadingBookings(true);
         try {
           const snap = await db.collection("bookings").get();
           let b = [];
           snap.forEach(doc => b.push(doc.data()));
           setBookingsList(b);
-        } catch(e) { console.error(e); }
+        } catch(e) { 
+          console.error("Ошибка загрузки записей:", e); 
+        }
         setLoadingBookings(false);
       };
 
@@ -520,7 +545,6 @@
         if (adminTab === 'calendar' || adminTab === 'clients') fetchBookings();
       }, [adminTab]);
 
-      // ГЛАВНЫЙ ЭФФЕКТ ЗАГРУЗКИ
       useEffect(() => {
         if (window.Telegram && window.Telegram.WebApp) {
           window.Telegram.WebApp.ready();
@@ -530,7 +554,7 @@
           }
         }
 
-        const initializeApp = async () => {
+        const loadDatabase = async () => {
           let finalData = { ...initialMasterData };
 
           const saved = localStorage.getItem('electroAppData');
@@ -548,7 +572,6 @@
               if (doc.exists) {
                 finalData = { ...initialMasterData, ...finalData, ...doc.data() };
                 
-                // Авто-исцеление массивов
                 finalData.stories = finalData.stories || initialMasterData.stories;
                 finalData.services = finalData.services || initialMasterData.services;
                 finalData.addons = finalData.addons || initialMasterData.addons;
@@ -568,19 +591,23 @@
                 finalData.dates = finalData.dates.map(d => ({...d, slots: d.slots || []}));
                 if (finalData.mapLink === undefined) finalData.mapLink = "";
                 
-                // Подтягиваем клиентов
-                try {
-                  const snap = await db.collection("clients").get();
-                  let cList = [];
-                  snap.forEach(d => cList.push(d.data()));
-                  
-                  finalData.clients = cList.length > 0 ? cList : (finalData.clients || []);
-                  
-                  if (cList.length === 0 && finalData.clients.length > 0) {
-                      finalData.clients.forEach(c => db.collection("clients").doc(String(c.tgId)).set(c).catch(console.error));
-                  }
-                } catch(err) {
-                  finalData.clients = finalData.clients || [];
+                const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+                if (userTgId === ADMIN_TG_ID) {
+                   try {
+                     const snap = await db.collection("clients").get();
+                     let cList = [];
+                     snap.forEach(d => cList.push(d.data()));
+                     
+                     finalData.clients = cList.length > 0 ? cList : (finalData.clients || []);
+                     
+                     if (cList.length === 0 && finalData.clients.length > 0) {
+                         finalData.clients.forEach(c => db.collection("clients").doc(String(c.tgId)).set(c).catch(console.error));
+                     }
+                   } catch(err) {
+                     finalData.clients = finalData.clients || [];
+                   }
+                } else {
+                   finalData.clients = [];
                 }
               }
             } catch(err) {
@@ -594,7 +621,31 @@
           setIsAppReady(true);
         };
 
-        initializeApp();
+        if (db) {
+          const auth = firebase.auth();
+          const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+
+          const unsubscribe = auth.onAuthStateChanged(async (user) => {
+            if (user) {
+              loadDatabase();
+            } else {
+              try {
+                if (userTgId === ADMIN_TG_ID) {
+                  await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), atob("U3VwZXJBZG1pbjEyMyE="));
+                } else {
+                  await auth.signInAnonymously();
+                }
+              } catch (e) {
+                console.error("Auth init error:", e);
+                loadDatabase(); 
+              }
+            }
+          });
+          
+          return () => unsubscribe();
+        } else {
+          loadDatabase();
+        }
       }, []);
 
       const syncToFirebase = async (newData) => {
@@ -628,8 +679,6 @@
               setEditData(appData); 
               setShowAdminGear(true);
               triggerHaptic();
-            } else {
-              alert("Доступ запрещен! Ваш TG ID: " + (userTgId || "Неизвестен"));
             }
             return 0;
           }
@@ -677,7 +726,6 @@
           setSelectedTime(timeStr); 
       };
 
-      // ПРОВЕРКА НА ГОТОВНОСТЬ: Если данные еще не загружены, рендерим только спиннер!
       if (!isAppReady || !appData) {
         return (
           <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
@@ -814,7 +862,6 @@
           const newData = { ...appData, dates: updatedDates, clients: updatedClients };
           setAppData(newData);
           setEditData(newData);
-          syncToFirebase(newData);
           localStorage.setItem('electroAppData', JSON.stringify(newData));
         }
       };
@@ -851,7 +898,8 @@
         
         setAppData(newData);
         setEditData(newData);
-        syncToFirebase(newData);
+        
+        localStorage.setItem('electroAppData', JSON.stringify(newData));
         
         showToast("Спасибо! Отзыв отправлен на модерацию. 💖");
         setRevName('');
@@ -1082,14 +1130,13 @@
       };
 
       const renderHearts = () => {
-        return Array.from({ length: 25 }).map((_, i) => (
-          <div key={i} className="absolute text-[#C89D7C] animate-[floatUp_linear_infinite]" 
+        return Array.from({ length: 15 }).map((_, i) => (
+          <div key={i} className="absolute text-[#C89D7C] heart-float bottom-0 pointer-events-none" 
                style={{
                  left: `${Math.random() * 100}%`,
-                 animationDuration: `${Math.random() * 3 + 2}s`,
-                 animationDelay: `${Math.random() * 2}s`,
-                 fontSize: `${Math.random() * 15 + 10}px`,
-                 opacity: 0.7
+                 animationDuration: `${Math.random() * 2 + 2}s`,
+                 animationDelay: `${Math.random() * 1.5}s`,
+                 fontSize: `${Math.random() * 15 + 15}px`
                }}>
             <Icon name="Heart" className="w-full h-full" />
           </div>
@@ -1186,7 +1233,6 @@
 
             <h2 className="text-2xl font-bold text-white mb-6 tracking-wide">Отзывы клиентов</h2>
 
-            {/* БЛОК ОСТАВИТЬ ОТЗЫВ (ПЕРЕНЕСЕН НАВЕРХ) */}
             <div className="glass-card-dark p-4 rounded-2xl border border-[#C89D7C]/20 relative overflow-hidden mb-8 shadow-sm">
               <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-[#C89D7C] to-[#9A6A45]"></div>
               <h3 className="text-base font-bold text-white mb-3 text-center tracking-wide">Оставить отзыв</h3>
@@ -1221,7 +1267,6 @@
               </button>
             </div>
 
-            {/* СПИСОК ОТЗЫВОВ */}
             <div className="space-y-4 mb-8">
               {approvedReviews.length === 0 ? (
                 <p className="text-gray-500 text-center py-6">Отзывов пока нет. Будь первой!</p>
@@ -1284,9 +1329,14 @@
           const updatedList = bookingsList.map(b => b.id === bookingId ? { ...b, actualPrice: numVal } : b);
           setBookingsList(updatedList);
           if (db) {
-            await db.collection("bookings").doc(bookingId).update({ actualPrice: numVal }).catch(e => console.error(e));
+            try {
+              await db.collection("bookings").doc(bookingId).update({ actualPrice: numVal });
+              showToast("Оплата сохранена! 💰");
+            } catch(e) {
+              showToast("Ошибка сохранения ❌");
+              console.error(e);
+            }
           }
-          showToast("Оплата сохранена! 💰");
         };
 
         const addManualBooking = async () => {
@@ -1306,24 +1356,29 @@
             createdAt: new Date().toISOString()
           };
 
-          if(db) await db.collection("bookings").doc(newB.id).set(newB);
+          try {
+            if(db) await db.collection("bookings").doc(newB.id).set(newB);
 
-          const newDates = [...(editData.dates || [])];
-          const dIdx = newDates.findIndex(d => d.date === manualDate);
-          if (dIdx !== -1) {
-            newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
-            const newData = {...editData, dates: newDates};
-            setEditData(newData);
-            setAppData(newData);
-            syncToFirebase(newData);
-            localStorage.setItem('electroAppData', JSON.stringify(newData));
+            const newDates = [...(editData.dates || [])];
+            const dIdx = newDates.findIndex(d => d.date === manualDate);
+            if (dIdx !== -1) {
+              newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
+              const newData = {...editData, dates: newDates};
+              setEditData(newData);
+              setAppData(newData);
+              syncToFirebase(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
+            }
+
+            setManualName(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
+            fetchBookings();
+            setShowManualBooking(false);
+            setAdminCalendarDate(manualDate);
+            showToast("Слот успешно забронирован! ✨");
+          } catch(e) {
+             showToast("Ошибка бронирования ❌");
+             console.error(e);
           }
-
-          setManualName(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
-          fetchBookings();
-          setShowManualBooking(false);
-          setAdminCalendarDate(manualDate);
-          showToast("Слот успешно забронирован! ✨");
         };
 
         const addBreak = async () => {
@@ -1342,24 +1397,29 @@
             createdAt: new Date().toISOString()
           };
 
-          if(db) await db.collection("bookings").doc(newB.id).set(newB);
+          try {
+            if(db) await db.collection("bookings").doc(newB.id).set(newB);
 
-          const newDates = [...(editData.dates || [])];
-          const dIdx = newDates.findIndex(d => d.date === manualDate);
-          if (dIdx !== -1) {
-            newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
-            const newData = {...editData, dates: newDates};
-            setEditData(newData);
-            setAppData(newData);
-            syncToFirebase(newData);
-            localStorage.setItem('electroAppData', JSON.stringify(newData));
+            const newDates = [...(editData.dates || [])];
+            const dIdx = newDates.findIndex(d => d.date === manualDate);
+            if (dIdx !== -1) {
+              newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
+              const newData = {...editData, dates: newDates};
+              setEditData(newData);
+              setAppData(newData);
+              syncToFirebase(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
+            }
+
+            setManualName(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
+            fetchBookings();
+            setShowManualBooking(false);
+            setAdminCalendarDate(manualDate);
+            showToast("Перерыв добавлен! ☕");
+          } catch(e) {
+             showToast("Ошибка ❌");
+             console.error(e);
           }
-
-          setManualName(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
-          fetchBookings();
-          setShowManualBooking(false);
-          setAdminCalendarDate(manualDate);
-          showToast("Перерыв добавлен! ☕");
         };
 
         const sendReminder = async (booking) => {
@@ -1404,84 +1464,97 @@
           
           setBookingsList(prev => prev.filter(b => b.id !== booking.id));
 
-          if(db) await db.collection("bookings").doc(booking.id).delete();
-
-          const newDates = [...(editData.dates || [])];
-          const dIdx = newDates.findIndex(d => d.date === booking.date);
-          if (dIdx !== -1) {
-            if(!newDates[dIdx].slots.includes(booking.time)){
-                newDates[dIdx].slots.push(booking.time);
-                newDates[dIdx].slots.sort();
-            }
-          } else {
-             const gDay = globalCalendarDays.find(g => g.date === booking.date);
-             if(gDay) {
-                 newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
-                 newDates.sort((a, b) => {
-                   const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
-                   const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
-                   return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
-                 });
-             }
-          }
-          
-          const newData = {...editData, dates: newDates};
-          setEditData(newData);
-          setAppData(newData);
-          syncToFirebase(newData);
-          localStorage.setItem('electroAppData', JSON.stringify(newData));
-          
-          fetchBookings();
-          showToast("Бронь отменена, слот возвращен. 🔄");
-        };
-
-        const openEditBooking = (b) => {
-            triggerHaptic();
-            setEditBDate(b.date);
-            setEditBTime(b.time);
-            setEditBDuration(b.duration || 60);
-            setEditBName(b.clientName || ""); 
-            setEditBServices(b.services || ""); 
-            setEditingBooking(b);
-        };
-
-        const confirmEditBooking = async () => {
-            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim() || !editBServices.trim()) {
-                return alert("Заполните все поля: имя, зоны, дату, время и длительность!");
-            }
-            triggerHaptic();
-
-            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
-            
-            // ОПТИМИСТИЧНОЕ ОБНОВЛЕНИЕ - Моментально меняем список на экране!
-            setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
-
-            if(db) db.collection("bookings").doc(updatedB.id).update({
-                date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
-            });
+          try {
+            if(db) await db.collection("bookings").doc(booking.id).delete();
 
             const newDates = [...(editData.dates || [])];
-            if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
-                const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
-                    newDates[oldDIdx].slots.push(editingBooking.time);
-                    newDates[oldDIdx].slots.sort();
-                }
+            const dIdx = newDates.findIndex(d => d.date === booking.date);
+            if (dIdx !== -1) {
+              if(!newDates[dIdx].slots.includes(booking.time)){
+                  newDates[dIdx].slots.push(booking.time);
+                  newDates[dIdx].slots.sort();
+              }
+            } else {
+               const gDay = globalCalendarDays.find(g => g.date === booking.date);
+               if(gDay) {
+                   newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                   newDates.sort((a, b) => {
+                     const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                     const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                     return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                   });
+               }
             }
             
-            const newDIdx = newDates.findIndex(d => d.date === editBDate);
-            if (newDIdx !== -1) {
-                newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
-            }
-
             const newData = {...editData, dates: newDates};
             setEditData(newData);
             setAppData(newData);
             syncToFirebase(newData);
             localStorage.setItem('electroAppData', JSON.stringify(newData));
+            
+            fetchBookings();
+            showToast("Бронь отменена, слот возвращен. 🔄");
+          } catch(e) {
+             showToast("Ошибка удаления ❌");
+             console.error(e);
+          }
+        };
 
-            setEditingBooking(null);
-            showToast("Запись успешно обновлена! ✏️");
+        const openEditBooking = (b) => {
+            try {
+              triggerHaptic();
+              setEditBDate(b.date || "");
+              setEditBTime(b.time || "14:00");
+              setEditBDuration(Number(b.duration) || 60);
+              setEditBName(b.clientName || ""); 
+              setEditBServices(b.services || ""); 
+              setEditingBooking(b);
+            } catch(err) {
+              console.error("Ошибка при открытии окна редактирования:", err);
+            }
+        };
+
+        const confirmEditBooking = async () => {
+            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim()) {
+                return alert("Заполните все поля: имя, дату, время и длительность!");
+            }
+            triggerHaptic();
+
+            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
+            
+            setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
+
+            try {
+              if(db) await db.collection("bookings").doc(updatedB.id).update({
+                  date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
+              });
+
+              const newDates = [...(editData.dates || [])];
+              if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                  const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                  if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                      newDates[oldDIdx].slots.push(editingBooking.time);
+                      newDates[oldDIdx].slots.sort();
+                  }
+              }
+              
+              const newDIdx = newDates.findIndex(d => d.date === editBDate);
+              if (newDIdx !== -1) {
+                  newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
+              }
+
+              const newData = {...editData, dates: newDates};
+              setEditData(newData);
+              setAppData(newData);
+              syncToFirebase(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
+
+              setEditingBooking(null);
+              showToast("Запись успешно обновлена! ✏️");
+            } catch(e) {
+              showToast("Ошибка сохранения ❌");
+              console.error(e);
+            }
         };
 
         const getMonthGrid = (date) => {
@@ -1513,9 +1586,12 @@
         };
 
         const SimpleBookingBlock = ({ booking, hourHeight, onEdit, onCancel, onRemind }) => {
-            const [h, m] = booking.time.split(':').map(Number);
-            const initialTop = (h - 9) * hourHeight + (m / 60) * hourHeight;
-            const height = Math.max((booking.duration || 30) * (hourHeight / 60), 30);
+            const timeStr = typeof booking.time === 'string' ? booking.time : "09:00";
+            const timeParts = timeStr.includes(':') ? timeStr.split(':') : ["09", "00"];
+            const [h, m] = timeParts.map(Number);
+            const initialTop = ((h || 9) - 9) * hourHeight + ((m || 0) / 60) * hourHeight;
+            const duration = Number(booking.duration) || 30;
+            const height = Math.max(duration * (hourHeight / 60), 30);
             const isBreak = booking.clientName === "Перерыв";
 
             return (
@@ -2532,44 +2608,7 @@
 
                 <div className="flex gap-3">
                   <button onClick={() => setEditingBooking(null)} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">Отмена</button>
-                  <button onClick={() => {
-                     if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim()) {
-                         return alert("Заполните все поля: имя, дату, время и длительность!");
-                     }
-                     triggerHaptic();
-
-                     const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
-                     
-                     // ОПТИМИСТИЧНОЕ ОБНОВЛЕНИЕ - Моментально меняем список на экране!
-                     setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
-
-                     if(db) db.collection("bookings").doc(updatedB.id).update({
-                         date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
-                     });
-
-                     const newDates = [...(editData.dates || [])];
-                     if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
-                         const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                         if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
-                             newDates[oldDIdx].slots.push(editingBooking.time);
-                             newDates[oldDIdx].slots.sort();
-                         }
-                     }
-                     
-                     const newDIdx = newDates.findIndex(d => d.date === editBDate);
-                     if (newDIdx !== -1) {
-                         newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
-                     }
-
-                     const newData = {...editData, dates: newDates};
-                     setEditData(newData);
-                     setAppData(newData);
-                     syncToFirebase(newData);
-                     localStorage.setItem('electroAppData', JSON.stringify(newData));
-
-                     setEditingBooking(null);
-                     showToast("Запись успешно обновлена! ✏️");
-                  }} className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">Сохранить</button>
+                  <button onClick={confirmEditBooking} className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">Сохранить</button>
                 </div>
               </div>
             </div>
