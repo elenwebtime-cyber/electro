@@ -819,40 +819,44 @@
             saveClientToFirebase(finalClientObj);
         }
         
+        // ФУНКЦИЯ ЭКРАНИРОВАНИЯ (БРОНЯ ОТ ПАДЕНИЯ ТЕЛЕГРАМА ИЗ-ЗА _ В НИКАХ)
+        const escapeMD = (str) => String(str || '').replace(/([_*\[\]`\\])/g, '\\$1');
+        
+        const safeName = escapeMD(finalClientName);
+        const safeUsername = escapeMD(clientUsername);
+        const safePhone = escapeMD(clientPhone);
+        const safeServices = escapeMD(servicesList);
+        const safeAddons = escapeMD(addonsList);
+
         const messageToAdmin = `🔥 *Новая запись!*\n\n` +
-                        `👤 Клиент: ${finalClientName} ${clientUsername} ${clientId}\n` +
-                        (clientPhone ? `📞 Телефон: ${clientPhone}\n` : ``) +
+                        `👤 Клиент: ${safeName} ${safeUsername} ${clientId}\n` +
+                        (clientPhone ? `📞 Телефон: ${safePhone}\n` : ``) +
                         `📅 ${selectedDate} в ${selectedTime}\n` +
-                        `🌸 Зоны: ${servicesList}${addonsList}\n` +
+                        `🌸 Зоны: ${safeServices}${safeAddons}\n` +
                         `⏳ Забронировано: ${selectedDuration} мин\n` +
                         `💰 Ожидаемая сумма: ~${totalPrice} ₽`;
 
         if (GOOGLE_SCRIPT_URL) {
-          try {
-            await fetch(GOOGLE_SCRIPT_URL, {
-              method: 'POST',
-              body: JSON.stringify({
-                chat_id: CHAT_ID,
-                text: messageToAdmin
-              })
-            });
-          } catch (error) {
-            console.error("Ошибка отправки админу", error);
-          }
+          // Выставляем keepalive: true, чтобы запрос ушел, даже если клиент моментально закрыл приложение
+          const fetchOpts = (payload) => ({
+            method: 'POST',
+            keepalive: true, 
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+          });
 
+          // Отправка админу (без await, чтобы не тормозить закрытие и не блокироваться)
+          fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: CHAT_ID, text: messageToAdmin }))
+             .catch(error => console.error("Ошибка отправки админу", error));
+
+          // Отправка клиенту
           if (tgUser.id) {
-            const messageToClient = `✨ *${finalClientName}, ваша запись подтверждена!*\n\n📅 Дата: ${selectedDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${servicesList}${addonsList}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${appData.address}\n_${appData.addressNote}_\n\nЖду вас! ❤️`;
-            try {
-              await fetch(GOOGLE_SCRIPT_URL, {
-                method: 'POST',
-                body: JSON.stringify({
-                  chat_id: tgUser.id,
-                  text: messageToClient
-                })
-              });
-            } catch (error) {
-              console.error("Ошибка отправки клиенту", error);
-            }
+            const safeAddress = escapeMD(appData.address);
+            const safeNote = escapeMD(appData.addressNote);
+            const messageToClient = `✨ *${safeName}, ваша запись подтверждена!*\n\n📅 Дата: ${selectedDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${safeServices}${safeAddons}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${safeAddress}\n_${safeNote}_\n\nЖду вас! ❤️`;
+            
+            fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: tgUser.id, text: messageToClient }))
+               .catch(error => console.error("Ошибка отправки клиенту", error));
           }
         }
 
@@ -1533,8 +1537,10 @@
             return;
           }
           if (GOOGLE_SCRIPT_URL) {
+             const escapeMD = (str) => String(str || '').replace(/([_*\[\]`\\])/g, '\\$1');
              const shortName = booking.clientName.split(' ')[0];
-             const text = `Привет, ${shortName}! Завтра жду тебя на электро в ${booking.time}! 🤗\n\nЕсли планы изменились, пожалуйста, предупреди меня заранее.`;
+             const safeName = escapeMD(shortName);
+             const text = `Привет, *${safeName}*! Завтра жду тебя на электро в ${booking.time}! 🤗\n\nЕсли планы изменились, пожалуйста, предупреди меня заранее.`;
              
              const adminUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username || "";
              const confirmText = encodeURIComponent(`Привет! Я буду на процедуре завтра в ${booking.time} ✅`);
@@ -1550,6 +1556,8 @@
              try {
                 await fetch(GOOGLE_SCRIPT_URL, {
                   method: 'POST',
+                  keepalive: true,
+                  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                   body: JSON.stringify({ chat_id: booking.tgId, text: text, reply_markup: reply_markup })
                 });
                 showToast("Напоминание отправлено! 💌");
