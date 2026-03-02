@@ -456,7 +456,6 @@
     };
 
     function App() {
-      const [isTgValid, setIsTgValid] = useState(true);
       const [isAppReady, setIsAppReady] = useState(false);
       
       const [appData, setAppData] = useState(null); 
@@ -593,20 +592,12 @@
       }, [adminTab]);
 
       useEffect(() => {
-        // Блок проверки: если открыли не через Telegram WebApp, то доступ закрыт
         if (window.Telegram && window.Telegram.WebApp) {
-           const platform = window.Telegram.WebApp.platform;
-           if (platform === 'unknown' || platform === '') {
-               setIsTgValid(false);
-           } else {
-               window.Telegram.WebApp.ready();
-               window.Telegram.WebApp.expand();
-               if (window.Telegram.WebApp.disableVerticalSwipes) {
-                   window.Telegram.WebApp.disableVerticalSwipes();
-               }
+           window.Telegram.WebApp.ready();
+           window.Telegram.WebApp.expand();
+           if (window.Telegram.WebApp.disableVerticalSwipes) {
+               window.Telegram.WebApp.disableVerticalSwipes();
            }
-        } else {
-           setIsTgValid(false);
         }
 
         const loadDatabase = async () => {
@@ -798,20 +789,6 @@
           setSelectedTime(timeStr); 
       };
 
-      if (!isTgValid) {
-          return (
-             <div className="min-h-[100dvh] bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-center animate-[fadeIn_0.3s_ease-out]">
-                <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/30">
-                   <span className="text-4xl">⛔</span>
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Доступ закрыт</h2>
-                <p className="text-sm text-gray-400 mb-8 max-w-[280px]">
-                   Это приложение работает только внутри Telegram.
-                </p>
-             </div>
-          );
-      }
-
       if (!isAppReady || !appData) {
         return (
           <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
@@ -861,12 +838,34 @@
         let finalClientName = clientName;
         
         if (tgUser.id) {
-            const cIdx = updatedClients.findIndex(c => c.tgId === tgUser.id);
+            const cleanTgUsername = clientUsername ? clientUsername.replace(/[@()]/g, '').trim().toLowerCase() : '';
+            const cleanTgPhone = clientPhone ? clientPhone.replace(/[^\d]/g, '') : '';
+
+            let cIdx = updatedClients.findIndex(c => c.tgId === tgUser.id);
+
+            // ИЩЕМ РУЧНУЮ ЗАПИСЬ (СЛИЯНИЕ КАРТОЧЕК)
+            if (cIdx === -1) {
+                 cIdx = updatedClients.findIndex(c => {
+                    if (!String(c.tgId).startsWith('manual_')) return false;
+                    const dbUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                    const dbPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
+                    return (cleanTgUsername && dbUser === cleanTgUsername) || (cleanTgPhone && dbPhone === cleanTgPhone);
+                 });
+            }
+
             let finalClientObj;
             if (cIdx !== -1) {
+                // Если мы сливаем с ручной записью, то старую удаляем из БД, чтобы заменить нормальным tgId
+                const oldTgId = updatedClients[cIdx].tgId;
+                if (String(oldTgId).startsWith('manual_') && oldTgId !== tgUser.id) {
+                     deleteClientFromFirebase(oldTgId);
+                }
+
+                updatedClients[cIdx].tgId = tgUser.id; // Перезаписываем ID на реальный
                 updatedClients[cIdx].visits = (updatedClients[cIdx].visits || 0) + 1;
-                updatedClients[cIdx].username = clientUsername || updatedClients[cIdx].username;
-                if (clientPhone) updatedClients[cIdx].phone = clientPhone;
+                if (clientUsername && !updatedClients[cIdx].username) updatedClients[cIdx].username = clientUsername;
+                if (clientPhone && !updatedClients[cIdx].phone) updatedClients[cIdx].phone = clientPhone;
+
                 finalClientName = updatedClients[cIdx].customName || updatedClients[cIdx].originalName || clientName;
                 finalClientObj = updatedClients[cIdx];
             } else {
@@ -1639,7 +1638,7 @@
 
         const sendReminder = async (booking) => {
           triggerHaptic();
-          if (!booking.tgId) {
+          if (!booking.tgId || String(booking.tgId).startsWith('manual_')) {
             showToast("Невозможно отправить: ручная запись (нет ТГ) 😔");
             return;
           }
@@ -1828,7 +1827,7 @@
                                     ⚙️
                                 </button>
                             )}
-                            {!isBreak && booking.tgId && (
+                            {!isBreak && booking.tgId && !String(booking.tgId).startsWith('manual_') && (
                                 <button onClick={(e) => { e.stopPropagation(); onRemind(booking); }} className="flex items-center justify-center w-7 h-7 bg-black/10 hover:bg-black/30 rounded-full text-sm shadow-sm backdrop-blur-md transition-all border border-black/10" title="Напомнить">
                                     🔔
                                 </button>
