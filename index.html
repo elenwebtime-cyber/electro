@@ -650,6 +650,7 @@
       const [clientListTab, setClientListTab] = useState('active'); // 'active' | 'archive'
       
       let tapTimeout = useRef(null);
+      const adminPasswordRef = useRef('');
 
       // Refs для свайпа назад
       const activeTabRef = useRef(activeTab);
@@ -710,6 +711,18 @@
         setTimeout(() => setToastMsg(''), 3000);
       };
 
+      const saveLocalCache = (dataObj) => {
+        try {
+          if (!dataObj || typeof dataObj !== 'object') return;
+          const cacheData = { ...dataObj };
+          // Персональные данные клиентов не сохраняем в localStorage
+          delete cacheData.clients;
+          localStorage.setItem('electroAppData', JSON.stringify(cacheData));
+        } catch (e) {
+          console.error("Local cache error:", e);
+        }
+      };
+
       const fetchBookings = async () => {
         if (!db) return;
         const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
@@ -760,7 +773,11 @@
           const saved = localStorage.getItem('electroAppData');
           if (saved) {
             try {
-              finalData = { ...initialMasterData, ...JSON.parse(saved) };
+              const parsedCache = JSON.parse(saved);
+              if (parsedCache && typeof parsedCache === 'object') {
+                delete parsedCache.clients;
+              }
+              finalData = { ...initialMasterData, ...(parsedCache || {}) };
             } catch (e) {}
           }
 
@@ -830,13 +847,14 @@
               if (!user || user.email !== 'admin@electro.app') {
                 try {
                   if (user) await auth.signOut();
-                  // Защита: удалили пароль из кода, спрашиваем у админа один раз
-                  let pwd = localStorage.getItem('epil_admin_pwd');
+                  // Пароль храним только в памяти сессии (без localStorage)
+                  let pwd = adminPasswordRef.current;
                   if (!pwd) {
                       pwd = prompt("🔒 Введите пароль администратора базы данных (из правил Firebase):");
-                      if (pwd) localStorage.setItem('epil_admin_pwd', pwd);
+                      pwd = pwd ? String(pwd) : '';
                   }
                   if (pwd) {
+                      adminPasswordRef.current = pwd;
                       await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), pwd);
                       return; 
                   } else {
@@ -845,7 +863,7 @@
                   }
                 } catch (e) {
                   console.error("Auth admin error:", e);
-                  localStorage.removeItem('epil_admin_pwd');
+                  adminPasswordRef.current = '';
                   loadDatabase(); 
                 }
               } else {
@@ -1113,7 +1131,7 @@
               const newData = { ...appData, dates: updatedDates, clients: updatedClients };
               setAppData(newData);
               setEditData(newData);
-              localStorage.setItem('electroAppData', JSON.stringify(newData));
+              saveLocalCache(newData);
             }
 
         } catch (err) {
@@ -1155,7 +1173,7 @@
         setAppData(newData);
         setEditData(newData);
         
-        localStorage.setItem('electroAppData', JSON.stringify(newData));
+        saveLocalCache(newData);
         
         showToast("Спасибо! Отзыв отправлен на модерацию. 💖");
         setRevName('');
@@ -1233,7 +1251,7 @@
             setEditData(newData);
             setAppData(newData);
             syncToFirebase(newData);
-            localStorage.setItem('electroAppData', JSON.stringify(newData));
+            saveLocalCache(newData);
 
             setEditingBooking(null);
             showToast("Запись успешно обновлена! ✏️");
@@ -1275,7 +1293,7 @@
             if (editData) setEditData(newData);
             if (appData) setAppData(newData);
             syncToFirebase(newData);
-            localStorage.setItem('electroAppData', JSON.stringify(newData));
+            saveLocalCache(newData);
             
             fetchBookings();
             showToast("Бронь отменена, слот возвращен. 🔄");
@@ -1779,7 +1797,7 @@
               setEditData(newData);
               setAppData(newData);
               syncToFirebase(newData);
-              localStorage.setItem('electroAppData', JSON.stringify(newData));
+              saveLocalCache(newData);
             }
 
             setManualName(''); setManualContact(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
@@ -1820,7 +1838,7 @@
               setEditData(newData);
               setAppData(newData);
               syncToFirebase(newData);
-              localStorage.setItem('electroAppData', JSON.stringify(newData));
+              saveLocalCache(newData);
             }
 
             setManualName(''); setManualContact(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
@@ -1925,7 +1943,7 @@
               setEditData(newData);
               setAppData(newData);
               syncToFirebase(newData);
-              localStorage.setItem('electroAppData', JSON.stringify(newData));
+              saveLocalCache(newData);
 
               setEditingBooking(null);
               showToast("Запись успешно обновлена! ✏️");
@@ -1967,7 +1985,7 @@
               if (editData) setEditData(newData);
               if (appData) setAppData(newData);
               syncToFirebase(newData);
-              localStorage.setItem('electroAppData', JSON.stringify(newData));
+              saveLocalCache(newData);
               
               fetchBookings();
               showToast("Бронь отменена, слот возвращен. 🔄");
@@ -2119,7 +2137,7 @@
           setEditData(newEditData);
           setAppData(newEditData);
           await syncToFirebase(newEditData);
-          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+          saveLocalCache(newEditData);
           showToast("Отзыв успешно опубликован! ✅");
         };
 
@@ -2132,7 +2150,7 @@
           setEditData(newEditData);
           setAppData(newEditData);
           await syncToFirebase(newEditData);
-          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+          saveLocalCache(newEditData);
           showToast("Отзыв удален. 🗑️");
         };
 
@@ -2182,7 +2200,7 @@
           
           deleteClientFromFirebase(tgId);
           await syncToFirebase(newEditData);
-          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+          saveLocalCache(newEditData);
           showToast("Клиент удален! 🗑️");
         };
 
@@ -2225,7 +2243,7 @@
            
            saveClientToFirebase(client);
            await syncToFirebase(newEditData);
-           localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+           saveLocalCache(newEditData);
 
            setNewClientName('');
            setNewClientContact('');
@@ -2239,7 +2257,7 @@
           setIsSaving(true);
           setAppData(editData);
           await syncToFirebase(editData);
-          localStorage.setItem('electroAppData', JSON.stringify(editData));
+          saveLocalCache(editData);
           setIsSaving(false);
           showToast("Настройки успешно сохранены! ✓");
         };
@@ -2708,7 +2726,7 @@
                                         <div className="flex flex-col gap-1.5">
                                           <div className="text-xs text-gray-400">
                                             ТГ: {client.username ? (
-                                              <a href={`https://t.me/${client.username.replace('@', '')}`} target="_blank" className="text-[#C89D7C] hover:text-white transition-colors font-medium ml-1">
+                                              <a href={`https://t.me/${String(client.username).replace('@', '')}`} target="_blank" className="text-[#C89D7C] hover:text-white transition-colors font-medium ml-1">
                                                 {client.username}
                                               </a>
                                             ) : (
