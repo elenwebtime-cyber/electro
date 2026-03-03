@@ -76,17 +76,7 @@
 </head>
 <body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30">
   
-  <div id="root">
-    <!-- Идеальный нативный кружок загрузки, который появляется моментально -->
-    <div style="max-width: 28rem; margin: 0 auto; min-height: 100dvh; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #0a0a0a; position: relative; overflow: hidden;">
-       <div style="width: 3rem; height: 3rem; border-width: 4px; border-style: solid; border-color: rgba(200, 157, 124, 0.2); border-top-color: #C89D7C; border-radius: 50%; margin-bottom: 1rem; animation: spin 1s linear infinite; box-sizing: border-box;"></div>
-       <p style="color: #C89D7C; font-size: 0.75rem; font-weight: bold; letter-spacing: 0.2em; margin: 0; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">ЗАГРУЗКА...</p>
-    </div>
-    <style>
-      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-    </style>
-  </div>
+  <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
@@ -942,7 +932,12 @@
       };
 
       if (!isAppReady || !appData) {
-        return null; // Родной HTML лоадер всё красиво крутит и показывает
+        return (
+          <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
+             <div className="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4"></div>
+             <p className="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
+          </div>
+        );
       }
 
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
@@ -1507,7 +1502,7 @@
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
                     {availableSlotsForDate.map((time, idx) => (
-                      <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3.5 rounded-2xl text-center font-semibold cursor-pointer transition-all duration-200 border ${selectedTime === time ? 'bg-[#C89D7C] text-black border-[#C89D7C] shadow-[0_0_15px_rgba(200,157,124,0.4)] scale-105' : 'glass-card-dark text-gray-300 border-white/5 hover:border-white/20 hover:bg-white/5'}`}>
+                      <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3.5 rounded-xl text-center font-medium cursor-pointer transition-all duration-200 border ${selectedTime === time ? 'bg-[#2A2A2A] text-[#C89D7C] border-[#C89D7C] shadow-[0_0_10px_rgba(200,157,124,0.2)] scale-105' : 'glass-card-dark text-gray-400 border-white/5 hover:bg-white/5'}`}>
                         {time}
                       </div>
                     ))}
@@ -1854,6 +1849,150 @@
           }
         };
 
+        const cancelBooking = async (booking) => {
+          triggerHaptic();
+          if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
+          
+          setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
+
+          try {
+            if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
+
+            const newDates = [...(editData?.dates || appData?.dates || [])];
+            const dIdx = newDates.findIndex(d => d.date === booking.date);
+            if (dIdx !== -1) {
+              if(!newDates[dIdx].slots.includes(booking.time)){
+                  newDates[dIdx].slots.push(booking.time);
+                  newDates[dIdx].slots.sort();
+              }
+            } else {
+               const gDay = globalCalendarDays.find(g => g.date === booking.date);
+               if(gDay) {
+                   newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                   newDates.sort((a, b) => {
+                     const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                     const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                     return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                   });
+               }
+            }
+            
+            const newData = {...(editData || appData), dates: newDates};
+            if (editData) setEditData(newData);
+            if (appData) setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
+            
+            fetchBookings();
+            showToast("Бронь отменена, слот возвращен. 🔄");
+          } catch(e) {
+             showToast("Ошибка удаления ❌");
+             console.error(e);
+          }
+        };
+
+        const openEditBooking = (b) => {
+            try {
+              triggerHaptic();
+              const safeB = normalizeBooking(b);
+              setEditBDate(safeB.date || "");
+              setEditBTime(safeB.time || "14:00");
+              setEditBDuration(Number(safeB.duration) || 60);
+              setEditBName(toSafeString(safeB.clientName, "")); 
+              setEditBServices(toSafeString(safeB.services, "")); 
+              setEditingBooking(safeB);
+            } catch(err) {
+              console.error("Ошибка при открытии окна редактирования:", err);
+            }
+        };
+
+        const confirmEditBooking = async () => {
+            if(!editingBooking) return;
+            const safeDuration = Number(editBDuration);
+            if(!editBDate || !editBTime || !Number.isFinite(safeDuration) || safeDuration <= 0 || !toSafeString(editBName, '').trim()) {
+                return alert("Заполните все поля: имя, дату, время и длительность!");
+            }
+            triggerHaptic();
+
+            const updatedB = normalizeBooking({ ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName, services: editBServices });
+            
+            setBookingsList(prev => prev.map(b => String(b.id || '') === String(updatedB.id || '') ? updatedB : b));
+
+            try {
+              if(db && updatedB.id) await db.collection("bookings").doc(String(updatedB.id)).update({
+                  date: updatedB.date, time: updatedB.time, duration: updatedB.duration, clientName: updatedB.clientName, services: updatedB.services
+              });
+
+              const newDates = [...(editData.dates || [])];
+              if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                  const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                  if (oldDIdx !== -1 && newDates[oldDIdx].slots && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                      newDates[oldDIdx].slots.push(editingBooking.time);
+                      newDates[oldDIdx].slots.sort();
+                  }
+              }
+              
+              const newDIdx = newDates.findIndex(d => d.date === editBDate);
+              if (newDIdx !== -1) {
+                  newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
+              }
+
+              const newData = {...editData, dates: newDates};
+              setEditData(newData);
+              setAppData(newData);
+              syncToFirebase(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
+
+              setEditingBooking(null);
+              showToast("Запись успешно обновлена! ✏️");
+            } catch(e) {
+              showToast("Ошибка сохранения ❌");
+              console.error(e);
+            }
+        };
+
+        const handleDeleteBookingGlobal = async (booking) => {
+            triggerHaptic();
+            if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
+            
+            setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
+
+            try {
+              if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
+
+              const newDates = [...(editData?.dates || appData?.dates || [])];
+              const dIdx = newDates.findIndex(d => d.date === booking.date);
+              if (dIdx !== -1) {
+                if(!newDates[dIdx].slots.includes(booking.time)){
+                    newDates[dIdx].slots.push(booking.time);
+                    newDates[dIdx].slots.sort();
+                }
+              } else {
+                 const gDay = globalCalendarDays.find(g => g.date === booking.date);
+                 if(gDay) {
+                     newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                     newDates.sort((a, b) => {
+                       const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                       const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                       return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                     });
+                 }
+              }
+              
+              const newData = {...(editData || appData), dates: newDates};
+              if (editData) setEditData(newData);
+              if (appData) setAppData(newData);
+              syncToFirebase(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
+              
+              fetchBookings();
+              showToast("Бронь отменена, слот возвращен. 🔄");
+            } catch(e) {
+               showToast("Ошибка удаления ❌");
+               console.error(e);
+            }
+        };
+
         const getMonthGrid = (date) => {
           const year = date.getFullYear();
           const month = date.getMonth();
@@ -1882,7 +2021,7 @@
           return `${dateObj.getDate()} ${mNames[dateObj.getMonth()]}`;
         };
 
-        const SimpleBookingBlock = ({ booking, hourHeight, onEdit, onRemind }) => {
+        const SimpleBookingBlock = ({ booking, hourHeight, onEdit, onCancel, onRemind }) => {
             const safeBooking = normalizeBooking(booking);
             const timeStr = typeof safeBooking.time === 'string' ? safeBooking.time : "09:00";
             const timeParts = timeStr.includes(':') ? timeStr.split(':') : ["09", "00"];
@@ -1912,6 +2051,9 @@
                                     🔔
                                 </button>
                             )}
+                            <button onClick={(e) => { e.stopPropagation(); onCancel(safeBooking); }} className="flex items-center justify-center w-7 h-7 bg-red-500/80 hover:bg-red-600 text-white rounded-full text-lg leading-none shadow-sm backdrop-blur-md transition-all border border-red-700/30" title="Отменить">
+                                ×
+                            </button>
                         </div>
                     </div>
                     {!isBreak && <div className="text-black/80 text-[10px] truncate drop-shadow-sm pr-20">{safeBooking.services}</div>}
@@ -2805,6 +2947,7 @@
                                           booking={enhancedBooking} 
                                           hourHeight={60} 
                                           onEdit={openEditBooking}
+                                          onCancel={handleDeleteBookingGlobal}
                                           onRemind={sendReminder}
                                       />
                                   );
