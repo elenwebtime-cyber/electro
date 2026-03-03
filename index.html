@@ -940,12 +940,7 @@
       };
 
       if (!isAppReady || !appData) {
-        return (
-          <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
-             <div className="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4"></div>
-             <p className="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
-          </div>
-        );
+        return null; // Родной HTML лоадер всё красиво крутит и показывает
       }
 
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
@@ -1509,7 +1504,7 @@
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
                     {availableSlotsForDate.map((time, idx) => (
-                      <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3.5 rounded-2xl text-center font-semibold cursor-pointer transition-all duration-200 border ${selectedTime === time ? 'bg-[#C89D7C] text-black border-[#C89D7C] shadow-[0_0_15px_rgba(200,157,124,0.4)] scale-105' : 'glass-card-dark text-gray-300 border-white/5 hover:border-white/20 hover:bg-white/5'}`}>
+                      <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3.5 rounded-xl text-center font-medium cursor-pointer transition-all duration-200 border ${selectedTime === time ? 'bg-[#2A2A2A] text-[#C89D7C] border-[#C89D7C] shadow-[0_0_10px_rgba(200,157,124,0.2)] scale-105' : 'glass-card-dark text-gray-400 border-white/5 hover:bg-white/5'}`}>
                         {time}
                       </div>
                     ))}
@@ -1865,7 +1860,7 @@
           try {
             if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
 
-            const newDates = [...(editData.dates || [])];
+            const newDates = [...(editData?.dates || appData?.dates || [])];
             const dIdx = newDates.findIndex(d => d.date === booking.date);
             if (dIdx !== -1) {
               if(!newDates[dIdx].slots.includes(booking.time)){
@@ -1884,9 +1879,9 @@
                }
             }
             
-            const newData = {...editData, dates: newDates};
-            setEditData(newData);
-            setAppData(newData);
+            const newData = {...(editData || appData), dates: newDates};
+            if (editData) setEditData(newData);
+            if (appData) setAppData(newData);
             syncToFirebase(newData);
             localStorage.setItem('electroAppData', JSON.stringify(newData));
             
@@ -1896,6 +1891,66 @@
              showToast("Ошибка удаления ❌");
              console.error(e);
           }
+        };
+
+        const openEditBooking = (b) => {
+            try {
+              triggerHaptic();
+              const safeB = normalizeBooking(b);
+              setEditBDate(safeB.date || "");
+              setEditBTime(safeB.time || "14:00");
+              setEditBDuration(Number(safeB.duration) || 60);
+              setEditBName(toSafeString(safeB.clientName, "")); 
+              setEditBServices(toSafeString(safeB.services, "")); 
+              setEditingBooking(safeB);
+            } catch(err) {
+              console.error("Ошибка при открытии окна редактирования:", err);
+            }
+        };
+
+        const confirmEditBooking = async () => {
+            if(!editingBooking) return;
+            const safeDuration = Number(editBDuration);
+            if(!editBDate || !editBTime || !Number.isFinite(safeDuration) || safeDuration <= 0 || !toSafeString(editBName, '').trim()) {
+                return alert("Заполните все поля: имя, дату, время и длительность!");
+            }
+            triggerHaptic();
+
+            const updatedB = normalizeBooking({ ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName, services: editBServices });
+            
+            setBookingsList(prev => prev.map(b => String(b.id || '') === String(updatedB.id || '') ? updatedB : b));
+
+            try {
+              if(db && updatedB.id) await db.collection("bookings").doc(String(updatedB.id)).update({
+                  date: updatedB.date, time: updatedB.time, duration: updatedB.duration, clientName: updatedB.clientName, services: updatedB.services
+              });
+
+              const newDates = [...(editData.dates || [])];
+              if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                  const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                  if (oldDIdx !== -1 && newDates[oldDIdx].slots && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                      newDates[oldDIdx].slots.push(editingBooking.time);
+                      newDates[oldDIdx].slots.sort();
+                  }
+              }
+              
+              const newDIdx = newDates.findIndex(d => d.date === editBDate);
+              if (newDIdx !== -1) {
+                  newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
+              }
+
+              const newData = {...editData, dates: newDates};
+              setEditData(newData);
+              setAppData(newData);
+              syncToFirebase(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
+
+              setEditingBooking(null);
+              showToast("Запись успешно обновлена! ✏️");
+            } catch(e) {
+              showToast("Ошибка сохранения ❌");
+              console.error(e);
+            }
         };
 
         const getMonthGrid = (date) => {
@@ -2803,16 +2858,43 @@
                             {loadingBookings ? (
                                <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-[#C89D7C] text-sm">Загрузка...</div>
                             ) : (
-                              bookingsList.filter(b => b.date === adminCalendarDate).map(b => (
-                                  <SimpleBookingBlock 
-                                      key={b.id} 
-                                      booking={b} 
-                                      hourHeight={60} 
-                                      onEdit={openEditBooking}
-                                      onCancel={handleDeleteBookingGlobal}
-                                      onRemind={sendReminder}
-                                  />
-                              ))
+                              bookingsList.filter(b => b.date === adminCalendarDate).map(b => {
+                                  let realTgId = b.tgId;
+                                  
+                                  // Динамический поиск реального Telegram ID для ручных записей
+                                  if (!realTgId || String(realTgId).startsWith('manual_')) {
+                                      const allClients = editData?.clients || appData?.clients || [];
+                                      const matchedClient = allClients.find(c => {
+                                          const cUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                          const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                          const matchUsername = cUser.length > 2 && bUser.length > 2 && (bUser.includes(cUser) || cUser.includes(bUser));
+                                          
+                                          const cPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
+                                          const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
+                                          const matchPhone = cPhone.length > 6 && bPhone.length > 6 && cPhone === bPhone;
+                                          
+                                          const matchName = b.clientName && b.clientName.length > 2 && ((b.clientName === c.customName) || (b.clientName === c.originalName));
+                                          
+                                          return matchUsername || matchPhone || matchName;
+                                      });
+                                      if (matchedClient && matchedClient.tgId && !String(matchedClient.tgId).startsWith('manual_')) {
+                                          realTgId = matchedClient.tgId;
+                                      }
+                                  }
+                                  
+                                  const enhancedBooking = { ...b, tgId: realTgId };
+
+                                  return (
+                                      <SimpleBookingBlock 
+                                          key={b.id} 
+                                          booking={enhancedBooking} 
+                                          hourHeight={60} 
+                                          onEdit={openEditBooking}
+                                          onCancel={handleDeleteBookingGlobal}
+                                          onRemind={sendReminder}
+                                      />
+                                  );
+                              })
                             )}
                         </div>
                       </div>
