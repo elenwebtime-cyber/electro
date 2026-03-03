@@ -1087,7 +1087,7 @@
 
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
             if (userTgId === ADMIN_TG_ID && !skipAdminAuthRef.current) {
-              if (!user || user.email !== 'admin@electro.app') {
+              if (!user || user.email !== 'boss@electro.app') {
                 if (auth.currentUser) auth.signOut().catch(e => console.error(e));
                 setShowAdminAuthModal(true);
               } else {
@@ -1150,7 +1150,7 @@
             const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
             if (userTgId === ADMIN_TG_ID) {
               const currentUser = db ? firebase.auth().currentUser : null;
-              if (currentUser && currentUser.email === 'admin@electro.app') {
+              if (currentUser && currentUser.email === 'boss@electro.app') {
                 setEditData(appData); 
                 setShowAdminGear(true);
                 triggerHaptic();
@@ -1236,7 +1236,7 @@
                 <button onClick={async () => {
                   triggerHaptic();
                   try {
-                    await firebase.auth().signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), adminAuthInput);
+                    await firebase.auth().signInWithEmailAndPassword(atob("Ym9zc0BlbGVjdHJvLmFwcA=="), adminAuthInput);
                     setAdminAuthInput('');
                   } catch(e) {
                     alert("❌ Неверный пароль! Попробуйте еще раз.");
