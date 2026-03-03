@@ -568,7 +568,14 @@
         const diff = mins[i] - mins[i - 1];
         if (diff > 0 && diff < minDiff) minDiff = diff;
       }
-      return Number.isFinite(minDiff) ? minDiff : fallback;
+      
+      // БРОНЯ: Если разница слишком большая (например 6 часов дыры в расписании),
+      // не позволяем алгоритму прыгать огромными кусками, возвращаем fallback (обычно 60).
+      if (!Number.isFinite(minDiff) || minDiff > fallback) {
+        return fallback;
+      }
+      
+      return minDiff;
     };
 
     const hasEnoughContinuousTimeWindow = (availableSlots, startTime, procedureMins, restMins = REST_AFTER_CLIENT_MINS, workingSlots = []) => {
