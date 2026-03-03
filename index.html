@@ -76,7 +76,17 @@
 </head>
 <body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30">
   
-  <div id="root"></div>
+  <div id="root">
+    <!-- Идеальный нативный кружок загрузки, который появляется моментально -->
+    <div style="max-width: 28rem; margin: 0 auto; min-height: 100dvh; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #0a0a0a; position: relative; overflow: hidden;">
+       <div style="width: 3rem; height: 3rem; border-width: 4px; border-style: solid; border-color: rgba(200, 157, 124, 0.2); border-top-color: #C89D7C; border-radius: 50%; margin-bottom: 1rem; animation: spin 1s linear infinite; box-sizing: border-box;"></div>
+       <p style="color: #C89D7C; font-size: 0.75rem; font-weight: bold; letter-spacing: 0.2em; margin: 0; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">ЗАГРУЗКА...</p>
+    </div>
+    <style>
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    </style>
+  </div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
@@ -89,6 +99,7 @@
     
     // 🔥 ВОТ ОНА НАША БРОНЯ! Ссылка на сервер Гугла, никаких токенов!
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxNGMR366TWwfE1iO7VvF8uGsCXRsDeHY9rt03EI_-OowgLxQ08omNQXJOi4stkRsFK/exec";
+    const GOOGLE_SCRIPT_SECRET = "ElectroEpil2026_Secure"; // Секретный ключ для защиты от спама
     
     const CHAT_ID = "758556732"; 
 
@@ -507,12 +518,12 @@
          const tgIdStr = String(b.tgId);
          
          if (!isManualBooking) {
-             const cleanUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+             const cleanUser = b.clientContact ? String(b.clientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
              const cleanPhone = toSafeString(b.phone, '').replace(/[^\d]/g, '');
              
              const mIdx = manualClients.findIndex(mc => {
-                const dbUser = mc.username ? mc.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
-                const dbPhone = mc.phone ? mc.phone.replace(/[^\d]/g, '') : '';
+                const dbUser = mc.username ? String(mc.username).replace(/[@()]/g, '').trim().toLowerCase() : '';
+                const dbPhone = mc.phone ? String(mc.phone).replace(/[^\d]/g, '') : '';
                 return (cleanUser && dbUser === cleanUser) || (cleanPhone && dbPhone === cleanPhone);
              });
              
@@ -819,16 +830,29 @@
               if (!user || user.email !== 'admin@electro.app') {
                 try {
                   if (user) await auth.signOut();
-                  await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), atob("U3VwZXJBZG1pbjEyMyE="));
-                  return; 
+                  // Защита: удалили пароль из кода, спрашиваем у админа один раз
+                  let pwd = localStorage.getItem('epil_admin_pwd');
+                  if (!pwd) {
+                      pwd = prompt("🔒 Введите пароль администратора базы данных (из правил Firebase):");
+                      if (pwd) localStorage.setItem('epil_admin_pwd', pwd);
+                  }
+                  if (pwd) {
+                      await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), pwd);
+                      return; 
+                  } else {
+                      await auth.signInAnonymously();
+                      return;
+                  }
                 } catch (e) {
                   console.error("Auth admin error:", e);
+                  localStorage.removeItem('epil_admin_pwd');
                   loadDatabase(); 
                 }
               } else {
                 loadDatabase();
               }
             } else {
+              // Если зашел Клиент
               if (!user) {
                 try {
                   await auth.signInAnonymously();
@@ -880,7 +904,7 @@
         setTapCount(prev => {
           if (prev + 1 >= 5) {
             const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-            if (userTgId === ADMIN_TG_ID || !window.Telegram?.WebApp?.initDataUnsafe?.user) {
+            if (userTgId === ADMIN_TG_ID) {
               setEditData(appData); 
               setShowAdminGear(true);
               triggerHaptic();
@@ -932,12 +956,7 @@
       };
 
       if (!isAppReady || !appData) {
-        return (
-          <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
-             <div className="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4"></div>
-             <p className="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
-          </div>
-        );
+        return null; // Родной HTML лоадер всё красиво крутит и показывает
       }
 
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
@@ -959,14 +978,12 @@
       };
 
       const handleFinalBooking = async () => {
-        if (!isExistingClient() && (!clientPhone || !clientPhone.trim())) {
+        if (!isExistingClient() && (!clientPhone || !toSafeString(clientPhone, '').trim())) {
            alert("Пожалуйста, введите ваш номер телефона!");
            return;
         }
 
         triggerHaptic();
-        setShowMemo(false); 
-        setActiveTab('success'); 
 
         const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
         const clientName = tgUser.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : "Неизвестный клиент";
@@ -981,7 +998,7 @@
         
         if (tgUser.id) {
             const cleanTgUsername = clientUsername ? clientUsername.replace(/[@()]/g, '').trim().toLowerCase() : '';
-            const cleanTgPhone = clientPhone ? clientPhone.replace(/[^\d]/g, '') : '';
+            const cleanTgPhone = clientPhone ? toSafeString(clientPhone).replace(/[^\d]/g, '') : '';
 
             let cIdx = updatedClients.findIndex(c => c.tgId === tgUser.id);
 
@@ -989,8 +1006,8 @@
             if (cIdx === -1) {
                  cIdx = updatedClients.findIndex(c => {
                     if (!String(c.tgId).startsWith('manual_')) return false;
-                    const dbUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
-                    const dbPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
+                    const dbUser = c.username ? String(c.username).replace(/[@()]/g, '').trim().toLowerCase() : '';
+                    const dbPhone = c.phone ? String(c.phone).replace(/[^\d]/g, '') : '';
                     return (cleanTgUsername && dbUser === cleanTgUsername) || (cleanTgPhone && dbPhone === cleanTgPhone);
                  });
             }
@@ -1044,29 +1061,6 @@
                         `⏳ Забронировано: ${selectedDuration} мин\n` +
                         `💰 Ожидаемая сумма: ~${totalPrice} ₽`;
 
-        if (GOOGLE_SCRIPT_URL) {
-          const fetchOpts = (payload) => ({
-            method: 'POST',
-            keepalive: true, 
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-          });
-
-          // Отправка админу 
-          fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: CHAT_ID, text: messageToAdmin }))
-             .catch(error => console.error("Ошибка отправки админу", error));
-
-          // Отправка клиенту
-          if (tgUser.id) {
-            const safeAddress = escapeMD(appData.address);
-            const safeNote = escapeMD(appData.addressNote);
-            const messageToClient = `✨ *${safeName}, ваша запись подтверждена!*\n\n📅 Дата: ${selectedDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${safeServices}${safeAddons}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${safeAddress}\n_${safeNote}_\n\nЖду вас! ❤️`;
-            
-            fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: tgUser.id, text: messageToClient }))
-               .catch(error => console.error("Ошибка отправки клиенту", error));
-          }
-        }
-
         const newBooking = {
           id: 'b' + Date.now(),
           date: selectedDate,
@@ -1081,18 +1075,50 @@
           createdAt: new Date().toISOString()
         };
 
-        if (db) {
-          db.collection("bookings").doc(newBooking.id).set(newBooking).catch(err => console.error("Firebase booking error:", err));
-        }
+        try {
+            if (db) {
+                // Дожидаемся успешной записи в базу
+                await db.collection("bookings").doc(newBooking.id).set(newBooking);
+            }
 
-        const updatedDates = [...(appData.dates || [])];
-        const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
-        if (targetDateIdx !== -1) {
-          updatedDates[targetDateIdx].slots = removeOverlappingSlots(updatedDates[targetDateIdx].slots, selectedTime, selectedDuration);
-          const newData = { ...appData, dates: updatedDates, clients: updatedClients };
-          setAppData(newData);
-          setEditData(newData);
-          localStorage.setItem('electroAppData', JSON.stringify(newData));
+            // Только после успеха показываем экран
+            setShowMemo(false); 
+            setActiveTab('success'); 
+
+            if (GOOGLE_SCRIPT_URL) {
+              const fetchOpts = (payload) => ({
+                method: 'POST',
+                keepalive: true, 
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ ...payload, app_secret: GOOGLE_SCRIPT_SECRET })
+              });
+
+              fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: CHAT_ID, text: messageToAdmin }))
+                 .catch(error => console.error("Ошибка отправки админу", error));
+
+              if (tgUser.id) {
+                const safeAddress = escapeMD(appData.address);
+                const safeNote = escapeMD(appData.addressNote);
+                const messageToClient = `✨ *${safeName}, ваша запись подтверждена!*\n\n📅 Дата: ${selectedDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${safeServices}${safeAddons}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${safeAddress}\n_${safeNote}_\n\nЖду вас! ❤️`;
+                
+                fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: tgUser.id, text: messageToClient }))
+                   .catch(error => console.error("Ошибка отправки клиенту", error));
+              }
+            }
+
+            const updatedDates = [...(appData.dates || [])];
+            const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
+            if (targetDateIdx !== -1) {
+              updatedDates[targetDateIdx].slots = removeOverlappingSlots(updatedDates[targetDateIdx].slots, selectedTime, selectedDuration);
+              const newData = { ...appData, dates: updatedDates, clients: updatedClients };
+              setAppData(newData);
+              setEditData(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
+            }
+
+        } catch (err) {
+            console.error("Firebase booking error:", err);
+            alert("К сожалению, это время уже занято или произошла ошибка. Пожалуйста, выберите другое время.");
         }
       };
 
@@ -1589,7 +1615,7 @@
                 type="tel" 
                 inputMode="tel"
                 value={clientPhone} 
-                onChange={e => setClientPhone(e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))}
+                onChange={e => setClientPhone(toSafeString(e.target.value).replace(/[^\d\+\-\(\)\s]/g, ''))}
                 placeholder="Ваш телефон (обязательно)" 
                 className="w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm mb-6 focus:outline-none focus:border-[#C89D7C]"
               />
@@ -1837,7 +1863,7 @@
                   method: 'POST',
                   keepalive: true,
                   headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                  body: JSON.stringify({ chat_id: safeBooking.tgId, text: text, reply_markup: reply_markup })
+                  body: JSON.stringify({ chat_id: safeBooking.tgId, text: text, reply_markup: reply_markup, app_secret: GOOGLE_SCRIPT_SECRET })
                 });
                 showToast("Напоминание отправлено! 💌");
              } catch(e) {
@@ -1846,48 +1872,6 @@
              }
           } else {
              showToast("Бот не настроен 😔");
-          }
-        };
-
-        const cancelBooking = async (booking) => {
-          triggerHaptic();
-          if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
-          
-          setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
-
-          try {
-            if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
-
-            const newDates = [...(editData?.dates || appData?.dates || [])];
-            const dIdx = newDates.findIndex(d => d.date === booking.date);
-            if (dIdx !== -1) {
-              if(!newDates[dIdx].slots.includes(booking.time)){
-                  newDates[dIdx].slots.push(booking.time);
-                  newDates[dIdx].slots.sort();
-              }
-            } else {
-               const gDay = globalCalendarDays.find(g => g.date === booking.date);
-               if(gDay) {
-                   newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
-                   newDates.sort((a, b) => {
-                     const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
-                     const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
-                     return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
-                   });
-               }
-            }
-            
-            const newData = {...(editData || appData), dates: newDates};
-            if (editData) setEditData(newData);
-            if (appData) setAppData(newData);
-            syncToFirebase(newData);
-            localStorage.setItem('electroAppData', JSON.stringify(newData));
-            
-            fetchBookings();
-            showToast("Бронь отменена, слот возвращен. 🔄");
-          } catch(e) {
-             showToast("Ошибка удаления ❌");
-             console.error(e);
           }
         };
 
@@ -2171,12 +2155,12 @@
              if (!clientObj) return false;
              const matchTgId = clientObj.tgId && String(b.tgId) === String(clientObj.tgId);
              
-             const cUser = clientObj.username ? clientObj.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
-             const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+             const cUser = clientObj.username ? String(clientObj.username).replace(/[@()]/g, '').trim().toLowerCase() : '';
+             const bUser = b.clientContact ? String(b.clientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
              const matchUsername = cUser && bUser && bUser.includes(cUser);
              
-             const cPhone = clientObj.phone ? clientObj.phone.replace(/[^\d]/g, '') : '';
-             const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
+             const cPhone = clientObj.phone ? String(clientObj.phone).replace(/[^\d]/g, '') : '';
+             const bPhone = b.phone ? String(b.phone).replace(/[^\d]/g, '') : '';
              const matchPhone = cPhone && bPhone && bPhone === cPhone;
              
              const matchName = (b.clientName === clientObj.customName) || (b.clientName === clientObj.originalName);
@@ -2207,12 +2191,12 @@
            triggerHaptic();
 
            const matches = bookingsList.filter(b => {
-               const cUser = newClientContact ? newClientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
-               const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+               const cUser = newClientContact ? String(newClientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
+               const bUser = b.clientContact ? String(b.clientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
                const matchUsername = cUser && bUser && bUser.includes(cUser);
                
-               const cPhone = newClientPhone ? newClientPhone.replace(/[^\d]/g, '') : '';
-               const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
+               const cPhone = newClientPhone ? String(newClientPhone).replace(/[^\d]/g, '') : '';
+               const bPhone = b.phone ? String(b.phone).replace(/[^\d]/g, '') : '';
                const matchPhone = cPhone && bPhone && bPhone === cPhone;
                
                const matchName = newClientName && b.clientName === newClientName;
@@ -2264,10 +2248,10 @@
         const allClients = [...(editData.clients || [])].sort((a,b) => (b.totalSpent || 0) - (a.totalSpent || 0));
         
         const filteredClients = allClients.filter(c =>
-            (c.customName && c.customName.toLowerCase().includes(clientSearch.toLowerCase())) ||
-            (c.originalName && c.originalName.toLowerCase().includes(clientSearch.toLowerCase())) ||
-            (c.username && c.username.toLowerCase().includes(clientSearch.toLowerCase())) ||
-            (c.phone && c.phone.includes(clientSearch))
+            (toSafeString(c.customName).toLowerCase().includes(clientSearch.toLowerCase())) ||
+            (toSafeString(c.originalName).toLowerCase().includes(clientSearch.toLowerCase())) ||
+            (toSafeString(c.username).toLowerCase().includes(clientSearch.toLowerCase())) ||
+            (toSafeString(c.phone).includes(clientSearch))
         );
 
         const activeClients = filteredClients.filter(c => !c.isArchived);
@@ -2583,7 +2567,7 @@
                           <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
                              <input value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Имя клиента" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                              <input value={newClientContact} onChange={e=>setNewClientContact(e.target.value)} placeholder="Контакт (Ник в ТГ)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
-                             <input type="tel" inputMode="tel" value={newClientPhone} onChange={e=>setNewClientPhone(e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]" />
+                             <input type="tel" inputMode="tel" value={newClientPhone} onChange={e=>setNewClientPhone(toSafeString(e.target.value).replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]" />
                              <button onClick={handleAddManualClient} className="w-full bg-[#2A2A2A] text-[#C89D7C] hover:bg-[#C89D7C] hover:text-black py-3 rounded-xl font-bold transition-colors border border-[#C89D7C]/30 shadow-lg">
                                 + Сохранить клиента
                              </button>
@@ -2669,12 +2653,12 @@
                                      if (!client) return false;
                                      const matchTgId = client.tgId && String(b.tgId) === String(client.tgId);
                                      
-                                     const cUser = client.username ? client.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
-                                     const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                     const cUser = client.username ? String(client.username).replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                     const bUser = b.clientContact ? String(b.clientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
                                      const matchUsername = cUser && bUser && bUser.includes(cUser);
                                      
-                                     const cPhone = client.phone ? client.phone.replace(/[^\d]/g, '') : '';
-                                     const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
+                                     const cPhone = client.phone ? String(client.phone).replace(/[^\d]/g, '') : '';
+                                     const bPhone = b.phone ? String(b.phone).replace(/[^\d]/g, '') : '';
                                      const matchPhone = cPhone && bPhone && bPhone === cPhone;
                                      
                                      const matchName = (b.clientName === client.customName) || (b.clientName === client.originalName);
@@ -2732,7 +2716,7 @@
                                             )}
                                           </div>
                                           <div className="text-xs text-gray-400 flex items-center">
-                                            Тел: <input type="tel" inputMode="tel" value={client.phone || ''} onChange={(e) => handleClientChange(client.tgId, 'phone', e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Не указан" className="ml-1 bg-transparent border-b border-gray-700 focus:border-[#C89D7C] text-white w-24 focus:outline-none px-1 py-0.5 placeholder-gray-600 transition-colors" />
+                                            Тел: <input type="tel" inputMode="tel" value={client.phone || ''} onChange={(e) => handleClientChange(client.tgId, 'phone', toSafeString(e.target.value).replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Не указан" className="ml-1 bg-transparent border-b border-gray-700 focus:border-[#C89D7C] text-white w-24 focus:outline-none px-1 py-0.5 placeholder-gray-600 transition-colors" />
                                           </div>
                                         </div>
                                         <div className="text-xs text-gray-400 bg-black/30 px-2 py-1 rounded-md border border-white/5">
@@ -2834,7 +2818,7 @@
                           <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Имя клиентки (или контакт)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                           <input value={manualContact} onChange={e=>setManualContact(e.target.value)} placeholder="Ник в ТГ (необязательно, @...)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                           <input value={manualService} onChange={e=>setManualService(e.target.value)} placeholder="Услуга (напр. Бикини 60 мин)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
-                          <input type="tel" inputMode="tel" value={manualPhone} onChange={e=>setManualPhone(e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                          <input type="tel" inputMode="tel" value={manualPhone} onChange={e=>setManualPhone(toSafeString(e.target.value).replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                           
                           <div className="flex gap-2 mb-3">
                             <GlassSelect value={manualDate} options={dateOptions} onChange={(val) => { setManualDate(val); setManualTime(''); }} placeholder="Дата" />
@@ -2922,12 +2906,12 @@
                                   if (!realTgId || String(realTgId).startsWith('manual_')) {
                                       const allClients = editData?.clients || appData?.clients || [];
                                       const matchedClient = allClients.find(c => {
-                                          const cUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
-                                          const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                          const cUser = c.username ? String(c.username).replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                          const bUser = b.clientContact ? String(b.clientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
                                           const matchUsername = cUser.length > 2 && bUser.length > 2 && (bUser.includes(cUser) || cUser.includes(bUser));
                                           
-                                          const cPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
-                                          const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
+                                          const cPhone = c.phone ? String(c.phone).replace(/[^\d]/g, '') : '';
+                                          const bPhone = b.phone ? String(b.phone).replace(/[^\d]/g, '') : '';
                                           const matchPhone = cPhone.length > 6 && bPhone.length > 6 && cPhone === bPhone;
                                           
                                           const matchName = b.clientName && b.clientName.length > 2 && ((b.clientName === c.customName) || (b.clientName === c.originalName));
