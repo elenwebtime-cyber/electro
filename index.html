@@ -497,6 +497,75 @@
       };
     };
 
+    const extractUsernameFromContact = (contact) => {
+      const match = toSafeString(contact, '').match(/\(@([a-zA-Z0-9_]+)\)/);
+      return match ? `@${match[1]}` : '';
+    };
+
+    const buildClientsFromBookings = (bookings, existingClients) => {
+      const existingMap = new Map();
+      (existingClients || []).forEach(c => {
+        if (c && c.tgId !== undefined && c.tgId !== null) existingMap.set(String(c.tgId), c);
+      });
+
+      const statsMap = new Map();
+      (bookings || []).forEach(raw => {
+        const b = normalizeBooking(raw);
+        if (b.tgId === undefined || b.tgId === null) return;
+        const key = String(b.tgId);
+        if (!key || key.startsWith('manual_')) return;
+
+        const prev = statsMap.get(key) || {
+          tgId: b.tgId,
+          originalName: b.clientName || 'Клиент',
+          customName: '',
+          username: extractUsernameFromContact(b.clientContact),
+          phone: toSafeString(b.phone, ''),
+          visits: 0,
+          totalSpent: 0,
+          isBlacklisted: false,
+          firstVisit: toSafeString(b.createdAt, new Date().toISOString())
+        };
+
+        prev.visits += 1;
+        const paid = (raw.actualPrice !== undefined && raw.actualPrice !== null && raw.actualPrice !== '') ? Number(raw.actualPrice) : (Number(raw.price) || 0);
+        prev.totalSpent += Number.isFinite(paid) ? paid : 0;
+        if (!prev.phone && b.phone) prev.phone = b.phone;
+        if (!prev.username) prev.username = extractUsernameFromContact(b.clientContact);
+        if (!prev.originalName && b.clientName) prev.originalName = b.clientName;
+
+        const prevDate = new Date(prev.firstVisit);
+        const curDate = new Date(toSafeString(b.createdAt, prev.firstVisit));
+        if (!Number.isNaN(curDate.getTime()) && (Number.isNaN(prevDate.getTime()) || curDate < prevDate)) {
+          prev.firstVisit = curDate.toISOString();
+        }
+
+        statsMap.set(key, prev);
+      });
+
+      const merged = [];
+      const used = new Set();
+      statsMap.forEach((stat, key) => {
+        const base = existingMap.get(key) || {};
+        merged.push({
+          ...base,
+          ...stat,
+          originalName: toSafeString(base.originalName, stat.originalName),
+          customName: toSafeString(base.customName, stat.customName || stat.originalName),
+          username: toSafeString(base.username, stat.username),
+          phone: toSafeString(base.phone, stat.phone),
+          isBlacklisted: !!base.isBlacklisted
+        });
+        used.add(key);
+      });
+
+      existingMap.forEach((base, key) => {
+        if (!used.has(key)) merged.push(base);
+      });
+
+      return merged;
+    };
+
     function App() {
       const [isAppReady, setIsAppReady] = useState(false);
       
@@ -632,6 +701,20 @@
           let b = [];
           snap.forEach(doc => b.push(normalizeBooking(doc.data(), doc.id)));
           setBookingsList(b);
+
+          // Автосинхронизация CRM из фактических записей, чтобы новые клиентки всегда появлялись в базе.
+          const baseClients = (editData?.clients || appData?.clients || []);
+          const mergedClients = buildClientsFromBookings(b, baseClients);
+          setAppData(prev => prev ? { ...prev, clients: mergedClients } : prev);
+          setEditData(prev => prev ? { ...prev, clients: mergedClients } : prev);
+
+          const baseIds = new Set((baseClients || []).map(c => String(c.tgId)));
+          mergedClients.forEach(c => {
+            if (!c || c.tgId === undefined || c.tgId === null) return;
+            const id = String(c.tgId);
+            if (baseIds.has(id)) return;
+            db.collection("clients").doc(id).set(c).catch(console.error);
+          });
         } catch(e) { 
           console.error("Ошибка загрузки записей:", e); 
         }
