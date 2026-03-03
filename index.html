@@ -618,6 +618,52 @@
       };
     };
 
+    const minutesToTime = (mins) => {
+      if (!Number.isFinite(mins)) return '';
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
+    const getBookingBlockedMins = (bookingObj) => {
+      const safeBooking = normalizeBooking(bookingObj);
+      const baseDuration = Number(safeBooking.duration) || 60;
+      const isBreak = safeBooking.clientName === "Перерыв";
+      return baseDuration + (isBreak ? 0 : REST_AFTER_CLIENT_MINS);
+    };
+
+    const restoreBlockedWindowSlots = (slots, startTime, blockedMins, workingSlots = []) => {
+      const startMins = timeToMinutes(startTime);
+      const duration = Number(blockedMins);
+      if (!Number.isFinite(startMins) || !Number.isFinite(duration) || duration <= 0) return [...(slots || [])];
+
+      const baseSlots = [...(slots || [])];
+      const stepMins = getSlotStepMins((workingSlots && workingSlots.length) ? workingSlots : baseSlots, 60);
+      const workingMins = (workingSlots || []).map(timeToMinutes).filter(v => Number.isFinite(v));
+      const maxWorkingMins = workingMins.length ? Math.max(...workingMins) : (startMins + duration);
+
+      const restoredSet = new Set(baseSlots);
+      const untilMins = startMins + duration;
+      for (let t = startMins; t < untilMins; t += stepMins) {
+        if (t > maxWorkingMins) break;
+        restoredSet.add(minutesToTime(t));
+      }
+
+      return Array.from(restoredSet).sort((a, b) => (timeToMinutes(a) || 0) - (timeToMinutes(b) || 0));
+    };
+
+    const removeSlotsBlockedByBookings = (slots, bookings, dateStr, excludedBookingId = null) => {
+      let result = [...(slots || [])];
+      (bookings || []).forEach(raw => {
+        const safeBooking = normalizeBooking(raw);
+        if (!safeBooking.date || safeBooking.date !== dateStr) return;
+        if (excludedBookingId !== null && String(safeBooking.id || '') === String(excludedBookingId)) return;
+        const blockedMins = getBookingBlockedMins(safeBooking);
+        result = removeOverlappingSlots(result, safeBooking.time, blockedMins);
+      });
+      return result;
+    };
+
     const extractUsernameFromContact = (contact) => {
       const str = toSafeString(contact, '');
       const match = str.match(/@([a-zA-Z0-9_]+)/);
@@ -1411,9 +1457,27 @@
             const newDates = [...(editData.dates || [])];
             if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
                 const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                if (oldDIdx !== -1 && newDates[oldDIdx].slots && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
-                    newDates[oldDIdx].slots.push(editingBooking.time);
-                    newDates[oldDIdx].slots.sort();
+                if (oldDIdx !== -1) {
+                    const currentOldSlots = [...(newDates[oldDIdx].slots || [])];
+                    const workingSlots = Array.from(new Set([
+                      ...(editData.defaultSlots || []),
+                      ...currentOldSlots,
+                      toSafeString(editingBooking.time, '')
+                    ].filter(Boolean)));
+
+                    let restoredOldSlots = restoreBlockedWindowSlots(
+                      currentOldSlots,
+                      editingBooking.time,
+                      getBookingBlockedMins(editingBooking),
+                      workingSlots
+                    );
+                    restoredOldSlots = removeSlotsBlockedByBookings(
+                      restoredOldSlots,
+                      bookingsList,
+                      editingBooking.date,
+                      editingBooking.id
+                    );
+                    newDates[oldDIdx].slots = restoredOldSlots;
                 }
             }
             
@@ -1452,14 +1516,46 @@
             const newDates = [...(editData?.dates || appData?.dates || [])];
             const dIdx = newDates.findIndex(d => d.date === booking.date);
             if (dIdx !== -1) {
-              if(!newDates[dIdx].slots.includes(booking.time)){
-                  newDates[dIdx].slots.push(booking.time);
-                  newDates[dIdx].slots.sort();
-              }
+              const currentSlots = [...(newDates[dIdx].slots || [])];
+              const workingSlots = Array.from(new Set([
+                ...(editData?.defaultSlots || appData?.defaultSlots || []),
+                ...currentSlots,
+                toSafeString(booking.time, '')
+              ].filter(Boolean)));
+
+              let restoredSlots = restoreBlockedWindowSlots(
+                currentSlots,
+                booking.time,
+                getBookingBlockedMins(booking),
+                workingSlots
+              );
+              restoredSlots = removeSlotsBlockedByBookings(
+                restoredSlots,
+                bookingsList,
+                booking.date,
+                booking.id
+              );
+              newDates[dIdx].slots = restoredSlots;
             } else {
                const gDay = globalCalendarDays.find(g => g.date === booking.date);
                if(gDay) {
-                   newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                   const workingSlots = Array.from(new Set([
+                     ...(editData?.defaultSlots || appData?.defaultSlots || []),
+                     toSafeString(booking.time, '')
+                   ].filter(Boolean)));
+                   let restoredSlots = restoreBlockedWindowSlots(
+                     [],
+                     booking.time,
+                     getBookingBlockedMins(booking),
+                     workingSlots
+                   );
+                   restoredSlots = removeSlotsBlockedByBookings(
+                     restoredSlots,
+                     bookingsList,
+                     booking.date,
+                     booking.id
+                   );
+                   newDates.push({ date: booking.date, day: gDay.day, slots: restoredSlots });
                    newDates.sort((a, b) => {
                      const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
                      const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
@@ -2122,9 +2218,27 @@
               const newDates = [...(editData.dates || [])];
               if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
                   const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                  if (oldDIdx !== -1 && newDates[oldDIdx].slots && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
-                      newDates[oldDIdx].slots.push(editingBooking.time);
-                      newDates[oldDIdx].slots.sort();
+                  if (oldDIdx !== -1) {
+                      const currentOldSlots = [...(newDates[oldDIdx].slots || [])];
+                      const workingSlots = Array.from(new Set([
+                        ...(editData.defaultSlots || []),
+                        ...currentOldSlots,
+                        toSafeString(editingBooking.time, '')
+                      ].filter(Boolean)));
+
+                      let restoredOldSlots = restoreBlockedWindowSlots(
+                        currentOldSlots,
+                        editingBooking.time,
+                        getBookingBlockedMins(editingBooking),
+                        workingSlots
+                      );
+                      restoredOldSlots = removeSlotsBlockedByBookings(
+                        restoredOldSlots,
+                        bookingsList,
+                        editingBooking.date,
+                        editingBooking.id
+                      );
+                      newDates[oldDIdx].slots = restoredOldSlots;
                   }
               }
               
@@ -2163,14 +2277,46 @@
               const newDates = [...(editData?.dates || appData?.dates || [])];
               const dIdx = newDates.findIndex(d => d.date === booking.date);
               if (dIdx !== -1) {
-                if(!newDates[dIdx].slots.includes(booking.time)){
-                    newDates[dIdx].slots.push(booking.time);
-                    newDates[dIdx].slots.sort();
-                }
+                const currentSlots = [...(newDates[dIdx].slots || [])];
+                const workingSlots = Array.from(new Set([
+                  ...(editData?.defaultSlots || appData?.defaultSlots || []),
+                  ...currentSlots,
+                  toSafeString(booking.time, '')
+                ].filter(Boolean)));
+
+                let restoredSlots = restoreBlockedWindowSlots(
+                  currentSlots,
+                  booking.time,
+                  getBookingBlockedMins(booking),
+                  workingSlots
+                );
+                restoredSlots = removeSlotsBlockedByBookings(
+                  restoredSlots,
+                  bookingsList,
+                  booking.date,
+                  booking.id
+                );
+                newDates[dIdx].slots = restoredSlots;
               } else {
                  const gDay = globalCalendarDays.find(g => g.date === booking.date);
                  if(gDay) {
-                     newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                     const workingSlots = Array.from(new Set([
+                       ...(editData?.defaultSlots || appData?.defaultSlots || []),
+                       toSafeString(booking.time, '')
+                     ].filter(Boolean)));
+                     let restoredSlots = restoreBlockedWindowSlots(
+                       [],
+                       booking.time,
+                       getBookingBlockedMins(booking),
+                       workingSlots
+                     );
+                     restoredSlots = removeSlotsBlockedByBookings(
+                       restoredSlots,
+                       bookingsList,
+                       booking.date,
+                       booking.id
+                     );
+                     newDates.push({ date: booking.date, day: gDay.day, slots: restoredSlots });
                      newDates.sort((a, b) => {
                        const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
                        const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
