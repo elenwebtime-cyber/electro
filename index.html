@@ -59,6 +59,89 @@
       animation-iteration-count: infinite;
       animation-fill-mode: both;
     }
+
+    @keyframes loaderSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes loaderSpinReverse {
+      from { transform: rotate(360deg); }
+      to { transform: rotate(0deg); }
+    }
+    @keyframes loaderPulse {
+      0%, 100% { opacity: 0.5; transform: scale(0.92); }
+      50% { opacity: 1; transform: scale(1); }
+    }
+    .boot-loader-shell {
+      max-width: 28rem;
+      margin: 0 auto;
+      min-height: 100dvh;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(120% 80% at 50% 0%, rgba(200, 157, 124, 0.16), rgba(10, 10, 10, 0.98) 58%),
+        #0a0a0a;
+      position: relative;
+      overflow: hidden;
+    }
+    .boot-loader {
+      position: relative;
+      width: 122px;
+      height: 122px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      filter: drop-shadow(0 0 26px rgba(200, 157, 124, 0.28));
+    }
+    .boot-loader__halo {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(200, 157, 124, 0.18) 0%, rgba(200, 157, 124, 0.05) 38%, transparent 70%);
+      animation: loaderPulse 2.4s ease-in-out infinite;
+    }
+    .boot-loader__ring {
+      position: absolute;
+      border-radius: 999px;
+      box-sizing: border-box;
+      border: 3px solid transparent;
+    }
+    .boot-loader__ring--outer {
+      width: 108px;
+      height: 108px;
+      border-top-color: #e8cdb5;
+      border-right-color: #c89d7c;
+      animation: loaderSpin 1.05s linear infinite;
+    }
+    .boot-loader__ring--inner {
+      width: 72px;
+      height: 72px;
+      border-bottom-color: rgba(232, 205, 181, 0.95);
+      border-left-color: rgba(154, 106, 69, 0.95);
+      animation: loaderSpinReverse 1.35s linear infinite;
+    }
+    .boot-loader__core {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #f0decf 0%, #c89d7c 55%, #9a6a45 100%);
+      box-shadow: 0 0 18px rgba(200, 157, 124, 0.55), inset 0 0 6px rgba(0, 0, 0, 0.3);
+    }
+    .boot-loader__text {
+      position: absolute;
+      bottom: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #c89d7c;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.26em;
+      white-space: nowrap;
+      text-shadow: 0 0 12px rgba(200, 157, 124, 0.35);
+      animation: loaderPulse 2s ease-in-out infinite;
+    }
   </style>
   <script>
     // Броня от подглядывания и просмотра кода
@@ -77,15 +160,15 @@
 <body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30">
   
   <div id="root">
-    <!-- Идеальный нативный кружок загрузки, который появляется моментально -->
-    <div style="max-width: 28rem; margin: 0 auto; min-height: 100dvh; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #0a0a0a; position: relative; overflow: hidden;">
-       <div style="width: 3rem; height: 3rem; border-width: 4px; border-style: solid; border-color: rgba(200, 157, 124, 0.2); border-top-color: #C89D7C; border-radius: 50%; margin-bottom: 1rem; animation: spin 1s linear infinite; box-sizing: border-box;"></div>
-       <p style="color: #C89D7C; font-size: 0.75rem; font-weight: bold; letter-spacing: 0.2em; margin: 0; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">ЗАГРУЗКА...</p>
+    <div class="boot-loader-shell">
+      <div class="boot-loader">
+        <div class="boot-loader__halo"></div>
+        <div class="boot-loader__ring boot-loader__ring--outer"></div>
+        <div class="boot-loader__ring boot-loader__ring--inner"></div>
+        <div class="boot-loader__core"></div>
+        <p class="boot-loader__text">ЗАГРУЗКА</p>
+      </div>
     </div>
-    <style>
-      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-    </style>
   </div>
 
   <script type="text/babel">
@@ -974,7 +1057,17 @@
       };
 
       if (!isAppReady || !appData) {
-        return null; // Родной HTML лоадер всё красиво крутит и показывает
+        return (
+          <div className="boot-loader-shell">
+            <div className="boot-loader">
+              <div className="boot-loader__halo"></div>
+              <div className="boot-loader__ring boot-loader__ring--outer"></div>
+              <div className="boot-loader__ring boot-loader__ring--inner"></div>
+              <div className="boot-loader__core"></div>
+              <p className="boot-loader__text">ЗАГРУЗКА</p>
+            </div>
+          </div>
+        );
       }
 
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
