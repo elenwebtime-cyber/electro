@@ -456,7 +456,6 @@
     // УМНОЕ УДАЛЕНИЕ ПЕРЕКРЫВАЮЩИХСЯ СЛОТОВ
     // ==========================================
     const removeOverlappingSlots = (slots, startTime, durationMins) => {
-      // Бронированная проверка на случай кривых данных
       if (!startTime || typeof startTime !== 'string') return slots || [];
       const parts = startTime.split(':');
       if (parts.length !== 2) return slots || [];
@@ -471,6 +470,125 @@
           const tMins = (th || 0) * 60 + (tm || 0);
           return tMins < startMins || tMins >= endMins;
       });
+    };
+
+    const toSafeString = (v, fallback = '') => {
+      if (v === null || v === undefined) return fallback;
+      try {
+        return typeof v === 'string' ? v : String(v);
+      } catch (e) {
+        return fallback;
+      }
+    };
+
+    const normalizeBooking = (raw = {}, docId = '') => {
+      const durationNum = Number(raw.duration);
+      const timeRaw = toSafeString(raw.time, '14:00');
+      const safeTime = timeRaw.includes(':') ? timeRaw : '14:00';
+      return {
+        ...raw,
+        id: raw.id || docId || '',
+        date: toSafeString(raw.date, ''),
+        time: safeTime,
+        duration: Number.isFinite(durationNum) && durationNum > 0 ? durationNum : 60,
+        clientName: toSafeString(raw.clientName, 'Без имени'),
+        services: toSafeString(raw.services, '')
+      };
+    };
+
+    const extractUsernameFromContact = (contact) => {
+      const str = toSafeString(contact, '');
+      const match = str.match(/@([a-zA-Z0-9_]+)/);
+      return match ? `@${match[1]}` : '';
+    };
+
+    const buildClientsFromBookings = (bookings, existingClients) => {
+      const finalClients = [];
+      const manualClients = [];
+      const realClientsMap = new Map();
+
+      (existingClients || []).forEach(c => {
+         if (!c || !c.tgId) return;
+         if (String(c.tgId).startsWith('manual_')) {
+             manualClients.push({...c});
+         } else {
+             realClientsMap.set(String(c.tgId), {...c});
+         }
+      });
+
+      const statsMap = new Map();
+      
+      (bookings || []).forEach(raw => {
+         const b = normalizeBooking(raw);
+         if (!b.tgId) return;
+         
+         const isManualBooking = String(b.tgId).startsWith('manual_');
+         const tgIdStr = String(b.tgId);
+         
+         if (!isManualBooking) {
+             const cleanUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+             const cleanPhone = toSafeString(b.phone, '').replace(/[^\d]/g, '');
+             
+             const mIdx = manualClients.findIndex(mc => {
+                const dbUser = mc.username ? mc.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                const dbPhone = mc.phone ? mc.phone.replace(/[^\d]/g, '') : '';
+                return (cleanUser && dbUser === cleanUser) || (cleanPhone && dbPhone === cleanPhone);
+             });
+             
+             if (mIdx !== -1) {
+                 const mc = manualClients.splice(mIdx, 1)[0];
+                 const oldTgId = mc.tgId;
+                 mc.tgId = tgIdStr; 
+                 realClientsMap.set(tgIdStr, mc);
+                 
+                 const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+                 if (db && userTgId === ADMIN_TG_ID) {
+                     db.collection("clients").doc(String(oldTgId)).delete().catch(e=>console.log(e));
+                     db.collection("clients").doc(tgIdStr).set(mc).catch(e=>console.log(e));
+                 }
+             }
+         }
+         
+         if (!isManualBooking) {
+             const prev = statsMap.get(tgIdStr) || {
+                 tgId: b.tgId,
+                 originalName: b.clientName || 'Клиент',
+                 customName: '',
+                 username: extractUsernameFromContact(b.clientContact),
+                 phone: toSafeString(b.phone, ''),
+                 visits: 0,
+                 totalSpent: 0,
+                 isBlacklisted: false,
+                 firstVisit: toSafeString(b.createdAt, new Date().toISOString())
+             };
+             prev.visits += 1;
+             const paid = (raw.actualPrice !== undefined && raw.actualPrice !== null && raw.actualPrice !== '') ? Number(raw.actualPrice) : (Number(raw.price) || 0);
+             prev.totalSpent += Number.isFinite(paid) ? paid : 0;
+             if (!prev.phone && b.phone) prev.phone = b.phone;
+             if (!prev.username) prev.username = extractUsernameFromContact(b.clientContact);
+             if (!prev.originalName && b.clientName) prev.originalName = b.clientName;
+             
+             statsMap.set(tgIdStr, prev);
+         }
+      });
+
+      statsMap.forEach((stat, key) => {
+          const base = realClientsMap.get(key) || {};
+          realClientsMap.set(key, {
+              ...base,
+              ...stat,
+              originalName: toSafeString(base.originalName, stat.originalName),
+              customName: toSafeString(base.customName, stat.customName || stat.originalName),
+              username: toSafeString(base.username, stat.username),
+              phone: toSafeString(base.phone, stat.phone),
+              isBlacklisted: !!base.isBlacklisted
+          });
+      });
+
+      realClientsMap.forEach(c => finalClients.push(c));
+      manualClients.forEach(c => finalClients.push(c));
+
+      return finalClients;
     };
 
     function App() {
@@ -606,8 +724,22 @@
         try {
           const snap = await db.collection("bookings").get();
           let b = [];
-          snap.forEach(doc => b.push(doc.data()));
+          snap.forEach(doc => b.push(normalizeBooking(doc.data(), doc.id)));
           setBookingsList(b);
+
+          // Автосинхронизация CRM из фактических записей
+          const baseClients = (editData?.clients || appData?.clients || []);
+          const mergedClients = buildClientsFromBookings(b, baseClients);
+          setAppData(prev => prev ? { ...prev, clients: mergedClients } : prev);
+          setEditData(prev => prev ? { ...prev, clients: mergedClients } : prev);
+
+          const baseIds = new Set((baseClients || []).map(c => String(c.tgId)));
+          mergedClients.forEach(c => {
+            if (!c || c.tgId === undefined || c.tgId === null) return;
+            const id = String(c.tgId);
+            if (baseIds.has(id)) return;
+            db.collection("clients").doc(id).set(c).catch(console.error);
+          });
         } catch(e) { 
           console.error("Ошибка загрузки записей:", e); 
         }
@@ -700,33 +832,28 @@
 
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
             if (userTgId === ADMIN_TG_ID) {
-              // Если зашел Босс (по Telegram ID)
               if (!user || user.email !== 'admin@electro.app') {
-                // Если нет пользователя ИЛИ у него старый/анонимный пропуск
                 try {
+                  if (user) await auth.signOut();
                   await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), atob("U3VwZXJBZG1pbjEyMyE="));
-                  return; // Прерываем, так как после входа слушатель сработает снова
+                  return; 
                 } catch (e) {
                   console.error("Auth admin error:", e);
                   loadDatabase(); 
                 }
               } else {
-                // Если пропуск правильный (админский)
                 loadDatabase();
               }
             } else {
-              // Если зашел Клиент
               if (!user) {
-                // Если пропуска нет вообще, даем анонимный
                 try {
                   await auth.signInAnonymously();
-                  return; // Прерываем, ждем повторного срабатывания
+                  return; 
                 } catch (e) {
                   console.error("Auth client error:", e);
                   loadDatabase(); 
                 }
               } else {
-                // Если у клиента уже есть какой-то пропуск (анонимный), пускаем
                 loadDatabase();
               }
             }
@@ -753,11 +880,15 @@
       };
 
       const saveClientToFirebase = (clientObj) => {
-          if (db) db.collection("clients").doc(String(clientObj.tgId)).set(clientObj).catch(console.error);
+          const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+          if (!db || userTgId !== ADMIN_TG_ID) return;
+          db.collection("clients").doc(String(clientObj.tgId)).set(clientObj).catch(console.error);
       };
 
       const deleteClientFromFirebase = (tgId) => {
-          if (db) db.collection("clients").doc(String(tgId)).delete().catch(console.error);
+          const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+          if (!db || userTgId !== ADMIN_TG_ID) return;
+          db.collection("clients").doc(String(tgId)).delete().catch(console.error);
       };
 
       const handleNameClick = () => {
@@ -817,12 +948,7 @@
       };
 
       if (!isAppReady || !appData) {
-        return (
-          <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
-             <div className="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4 box-border"></div>
-             <p className="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
-          </div>
-        );
+        return null; // Родной HTML лоадер всё красиво крутит и показывает
       }
 
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
@@ -882,13 +1008,12 @@
 
             let finalClientObj;
             if (cIdx !== -1) {
-                // Если мы сливаем с ручной записью, то старую удаляем из БД, чтобы заменить нормальным tgId
                 const oldTgId = updatedClients[cIdx].tgId;
                 if (String(oldTgId).startsWith('manual_') && oldTgId !== tgUser.id) {
                      deleteClientFromFirebase(oldTgId);
                 }
 
-                updatedClients[cIdx].tgId = tgUser.id; // Перезаписываем ID на реальный
+                updatedClients[cIdx].tgId = tgUser.id; 
                 updatedClients[cIdx].visits = (updatedClients[cIdx].visits || 0) + 1;
                 if (clientUsername && !updatedClients[cIdx].username) updatedClients[cIdx].username = clientUsername;
                 if (clientPhone && !updatedClients[cIdx].phone) updatedClients[cIdx].phone = clientPhone;
@@ -930,7 +1055,6 @@
                         `💰 Ожидаемая сумма: ~${totalPrice} ₽`;
 
         if (GOOGLE_SCRIPT_URL) {
-          // Выставляем keepalive: true, чтобы запрос ушел, даже если клиент моментально закрыл приложение
           const fetchOpts = (payload) => ({
             method: 'POST',
             keepalive: true, 
@@ -938,7 +1062,7 @@
             body: JSON.stringify(payload)
           });
 
-          // Отправка админу (без await, чтобы не тормозить закрытие и не блокироваться)
+          // Отправка админу 
           fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: CHAT_ID, text: messageToAdmin }))
              .catch(error => console.error("Ошибка отправки админу", error));
 
@@ -1042,41 +1166,37 @@
         }
       };
 
-      // БРОНЕБОЙНАЯ ФУНКЦИЯ ОТКРЫТИЯ РЕДАКТИРОВАНИЯ (с защитой от сломанных данных)
+      // БРОНЕБОЙНАЯ ФУНКЦИЯ ОТКРЫТИЯ РЕДАКТИРОВАНИЯ
       const openEditBooking = (b) => {
           try {
             triggerHaptic();
-            setEditBDate(b.date ? String(b.date) : "");
-            
-            // Если время сломано, подставляем стандартное
-            const safeTime = (typeof b.time === 'string' && b.time.includes(':')) ? b.time : "14:00";
-            setEditBTime(safeTime);
-            
-            const parsedDur = Number(b.duration);
-            setEditBDuration(isNaN(parsedDur) ? 60 : parsedDur);
-            
-            setEditBName(b.clientName ? String(b.clientName) : ""); 
-            setEditBServices(b.services ? String(b.services) : ""); 
-            
-            setEditingBooking(b);
+            const safeB = normalizeBooking(b);
+            setEditBDate(safeB.date || "");
+            setEditBTime(safeB.time || "14:00");
+            setEditBDuration(Number(safeB.duration) || 60);
+            setEditBName(toSafeString(safeB.clientName, "")); 
+            setEditBServices(toSafeString(safeB.services, "")); 
+            setEditingBooking(safeB);
           } catch(err) {
             console.error("Ошибка при открытии окна редактирования:", err);
           }
       };
 
       const confirmEditBooking = async () => {
-          if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !String(editBName).trim()) {
+          if(!editingBooking) return;
+          const safeDuration = Number(editBDuration);
+          if(!editBDate || !editBTime || !Number.isFinite(safeDuration) || safeDuration <= 0 || !toSafeString(editBName, '').trim()) {
               return alert("Заполните все поля: имя, дату, время и длительность!");
           }
           triggerHaptic();
 
-          const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
+          const updatedB = normalizeBooking({ ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName, services: editBServices });
           
-          setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
+          setBookingsList(prev => prev.map(b => String(b.id || '') === String(updatedB.id || '') ? updatedB : b));
 
           try {
-            if(db) await db.collection("bookings").doc(updatedB.id).update({
-                date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
+            if(db && updatedB.id) await db.collection("bookings").doc(String(updatedB.id)).update({
+                date: updatedB.date, time: updatedB.time, duration: updatedB.duration, clientName: updatedB.clientName, services: updatedB.services
             });
 
             const newDates = [...(editData.dates || [])];
@@ -1090,7 +1210,7 @@
             
             const newDIdx = newDates.findIndex(d => d.date === editBDate);
             if (newDIdx !== -1) {
-                newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
+                newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
             }
 
             const newData = {...editData, dates: newDates};
@@ -1260,14 +1380,12 @@
           );
         }
 
-        // Фильтруем даты: оставляем только те, что не остались в прошлом (начиная с сегодня)
         const validDates = (appData.dates || []).filter(item => 
           globalCalendarDays.some(g => g.date === item.date)
         );
 
         let availableSlotsForDate = (appData.dates || []).find(d => d.date === selectedDate)?.slots || [];
         
-        // Если выбран сегодняшний день, фильтруем время (чтобы не показывать прошедшие окошки)
         if (selectedDate === globalCalendarDays[0].date) {
             const now = new Date();
             const currentHour = now.getHours();
@@ -1286,7 +1404,7 @@
                  let bestIdx = 0;
                  let minDiff = Infinity;
                  Array.from(container.children).forEach((child, idx) => {
-                     const diff = Math.abs(child.getBoundingClientRect().left - containerRect.left - 16); // 16px это padding (px-4)
+                     const diff = Math.abs(child.getBoundingClientRect().left - containerRect.left - 16); 
                      if (diff < minDiff) { 
                          minDiff = diff; 
                          bestIdx = idx; 
@@ -1340,7 +1458,6 @@
                 {validDates.length === 0 && (
                   <div className="text-gray-400 text-sm w-full px-4">Нет свободных дат на ближайшее время</div>
                 )}
-                {/* Пустой блок в конце, чтобы последний элемент можно было докрутить до левого края */}
                 {validDates.length > 0 && <div className="min-w-[calc(100vw-100px)] shrink-0"></div>}
               </div>
             </div>
@@ -1353,7 +1470,7 @@
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
                     {availableSlotsForDate.map((time, idx) => (
-                      <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3.5 rounded-xl text-center font-medium cursor-pointer transition-all duration-200 border ${selectedTime === time ? 'bg-[#2A2A2A] text-[#C89D7C] border-[#C89D7C] shadow-[0_0_10px_rgba(200,157,124,0.2)] scale-105' : 'glass-card-dark text-gray-400 border-white/5 hover:bg-white/5'}`}>
+                      <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3.5 rounded-2xl text-center font-semibold cursor-pointer transition-all duration-200 border ${selectedTime === time ? 'bg-[#C89D7C] text-black border-[#C89D7C] shadow-[0_0_15px_rgba(200,157,124,0.4)] scale-105' : 'glass-card-dark text-gray-300 border-white/5 hover:border-white/20 hover:bg-white/5'}`}>
                         {time}
                       </div>
                     ))}
@@ -1563,11 +1680,11 @@
 
         const updateActualPrice = async (bookingId, val) => {
           const numVal = val === '' ? null : (parseInt(val) || 0);
-          const updatedList = bookingsList.map(b => b.id === bookingId ? { ...b, actualPrice: numVal } : b);
+          const updatedList = bookingsList.map(b => String(b.id) === String(bookingId) ? { ...b, actualPrice: numVal } : b);
           setBookingsList(updatedList);
           if (db) {
             try {
-              await db.collection("bookings").doc(bookingId).update({ actualPrice: numVal });
+              await db.collection("bookings").doc(String(bookingId)).update({ actualPrice: numVal });
               showToast("Оплата сохранена! 💰");
             } catch(e) {
               showToast("Ошибка сохранения ❌");
@@ -1667,12 +1784,13 @@
           }
           if (GOOGLE_SCRIPT_URL) {
              const escapeMD = (str) => String(str || '').replace(/([_*\[\]`\\])/g, '\\$1');
-             const shortName = booking.clientName.split(' ')[0];
+             const safeBooking = normalizeBooking(booking);
+             const shortName = safeBooking.clientName.split(' ')[0];
              const safeName = escapeMD(shortName);
-             const text = `Привет, *${safeName}*! Завтра жду тебя на электро в ${booking.time}! 🤗\n\nЕсли планы изменились, пожалуйста, предупреди меня заранее.`;
+             const text = `Привет, *${safeName}*! Завтра жду тебя на электро в ${safeBooking.time}! 🤗\n\nЕсли планы изменились, пожалуйста, предупреди меня заранее.`;
              
              const adminUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username || "";
-             const confirmText = encodeURIComponent(`Привет! Я буду на процедуре завтра в ${booking.time} ✅`);
+             const confirmText = encodeURIComponent(`Привет! Я буду на процедуре завтра в ${safeBooking.time} ✅`);
              const cancelText = encodeURIComponent(`Привет! К сожалению, мне нужно перенести запись ❌`);
              
              const reply_markup = adminUsername ? {
@@ -1687,7 +1805,7 @@
                   method: 'POST',
                   keepalive: true,
                   headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                  body: JSON.stringify({ chat_id: booking.tgId, text: text, reply_markup: reply_markup })
+                  body: JSON.stringify({ chat_id: safeBooking.tgId, text: text, reply_markup: reply_markup })
                 });
                 showToast("Напоминание отправлено! 💌");
              } catch(e) {
@@ -1703,10 +1821,10 @@
           triggerHaptic();
           if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
           
-          setBookingsList(prev => prev.filter(b => b.id !== booking.id));
+          setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
 
           try {
-            if(db) await db.collection("bookings").doc(booking.id).delete();
+            if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
 
             const newDates = [...(editData.dates || [])];
             const dIdx = newDates.findIndex(d => d.date === booking.date);
@@ -1744,36 +1862,39 @@
         const openEditBooking = (b) => {
             try {
               triggerHaptic();
-              setEditBDate(b.date || "");
-              setEditBTime(b.time || "14:00");
-              setEditBDuration(Number(b.duration) || 60);
-              setEditBName(b.clientName || ""); 
-              setEditBServices(b.services || ""); 
-              setEditingBooking(b);
+              const safeB = normalizeBooking(b);
+              setEditBDate(safeB.date || "");
+              setEditBTime(safeB.time || "14:00");
+              setEditBDuration(Number(safeB.duration) || 60);
+              setEditBName(toSafeString(safeB.clientName, "")); 
+              setEditBServices(toSafeString(safeB.services, "")); 
+              setEditingBooking(safeB);
             } catch(err) {
               console.error("Ошибка при открытии окна редактирования:", err);
             }
         };
 
         const confirmEditBooking = async () => {
-            if(!editBDate || !editBTime || editBDuration === '' || editBDuration === null || !editBName.trim()) {
+            if(!editingBooking) return;
+            const safeDuration = Number(editBDuration);
+            if(!editBDate || !editBTime || !Number.isFinite(safeDuration) || safeDuration <= 0 || !toSafeString(editBName, '').trim()) {
                 return alert("Заполните все поля: имя, дату, время и длительность!");
             }
             triggerHaptic();
 
-            const updatedB = { ...editingBooking, date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices };
+            const updatedB = normalizeBooking({ ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName, services: editBServices });
             
-            setBookingsList(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
+            setBookingsList(prev => prev.map(b => String(b.id || '') === String(updatedB.id || '') ? updatedB : b));
 
             try {
-              if(db) await db.collection("bookings").doc(updatedB.id).update({
-                  date: editBDate, time: editBTime, duration: editBDuration, clientName: editBName, services: editBServices
+              if(db && updatedB.id) await db.collection("bookings").doc(String(updatedB.id)).update({
+                  date: updatedB.date, time: updatedB.time, duration: updatedB.duration, clientName: updatedB.clientName, services: updatedB.services
               });
 
               const newDates = [...(editData.dates || [])];
               if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
                   const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                  if (oldDIdx !== -1 && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                  if (oldDIdx !== -1 && newDates[oldDIdx].slots && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
                       newDates[oldDIdx].slots.push(editingBooking.time);
                       newDates[oldDIdx].slots.sort();
                   }
@@ -1781,7 +1902,7 @@
               
               const newDIdx = newDates.findIndex(d => d.date === editBDate);
               if (newDIdx !== -1) {
-                  newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, editBDuration);
+                  newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
               }
 
               const newData = {...editData, dates: newDates};
@@ -1827,13 +1948,14 @@
         };
 
         const SimpleBookingBlock = ({ booking, hourHeight, onEdit, onCancel, onRemind }) => {
-            const timeStr = typeof booking.time === 'string' ? booking.time : "09:00";
+            const safeBooking = normalizeBooking(booking);
+            const timeStr = typeof safeBooking.time === 'string' ? safeBooking.time : "09:00";
             const timeParts = timeStr.includes(':') ? timeStr.split(':') : ["09", "00"];
             const [h, m] = timeParts.map(Number);
             const initialTop = ((h || 9) - 9) * hourHeight + ((m || 0) / 60) * hourHeight;
-            const duration = Number(booking.duration) || 30;
+            const duration = Number(safeBooking.duration) || 30;
             const height = Math.max(duration * (hourHeight / 60), 38); 
-            const isBreak = booking.clientName === "Перерыв";
+            const isBreak = safeBooking.clientName === "Перерыв";
 
             return (
                 <div 
@@ -1842,25 +1964,25 @@
                 >
                     <div className="flex justify-between items-start">
                         <div className={`font-bold text-xs leading-tight drop-shadow-md pr-2 ${isBreak ? 'text-gray-200' : 'text-black'}`}>
-                            {booking.time} - {booking.clientName}
+                            {safeBooking.time} - {safeBooking.clientName}
                         </div>
                         <div className="flex gap-1.5 z-20 shrink-0">
                             {!isBreak && (
-                                <button onClick={(e) => { e.stopPropagation(); onEdit(booking); }} className="flex items-center justify-center w-7 h-7 bg-black/10 hover:bg-black/30 rounded-full text-sm shadow-sm backdrop-blur-md transition-all border border-black/10" title="Редактировать">
+                                <button onClick={(e) => { e.stopPropagation(); onEdit(safeBooking); }} className="flex items-center justify-center w-7 h-7 bg-black/10 hover:bg-black/30 rounded-full text-sm shadow-sm backdrop-blur-md transition-all border border-black/10" title="Редактировать">
                                     ⚙️
                                 </button>
                             )}
-                            {!isBreak && booking.tgId && !String(booking.tgId).startsWith('manual_') && (
-                                <button onClick={(e) => { e.stopPropagation(); onRemind(booking); }} className="flex items-center justify-center w-7 h-7 bg-black/10 hover:bg-black/30 rounded-full text-sm shadow-sm backdrop-blur-md transition-all border border-black/10" title="Напомнить">
+                            {!isBreak && safeBooking.tgId && !String(safeBooking.tgId).startsWith('manual_') && (
+                                <button onClick={(e) => { e.stopPropagation(); onRemind(safeBooking); }} className="flex items-center justify-center w-7 h-7 bg-black/10 hover:bg-black/30 rounded-full text-sm shadow-sm backdrop-blur-md transition-all border border-black/10" title="Напомнить">
                                     🔔
                                 </button>
                             )}
-                            <button onClick={(e) => { e.stopPropagation(); onCancel(booking); }} className="flex items-center justify-center w-7 h-7 bg-red-500/80 hover:bg-red-600 text-white rounded-full text-lg leading-none shadow-sm backdrop-blur-md transition-all border border-red-700/30" title="Отменить">
+                            <button onClick={(e) => { e.stopPropagation(); onCancel(safeBooking); }} className="flex items-center justify-center w-7 h-7 bg-red-500/80 hover:bg-red-600 text-white rounded-full text-lg leading-none shadow-sm backdrop-blur-md transition-all border border-red-700/30" title="Отменить">
                                 ×
                             </button>
                         </div>
                     </div>
-                    {!isBreak && <div className="text-black/80 text-[10px] truncate drop-shadow-sm pr-20">{booking.services}</div>}
+                    {!isBreak && <div className="text-black/80 text-[10px] truncate drop-shadow-sm pr-20">{safeBooking.services}</div>}
                 </div>
             );
         };
@@ -1973,10 +2095,18 @@
           const clientObj = (editData.clients || []).find(c => c.tgId === tgId);
           const clientBookings = bookingsList.filter(b => {
              if (!clientObj) return false;
-             const matchTgId = clientObj.tgId && b.tgId === clientObj.tgId;
-             const matchUsername = clientObj.username && b.clientContact && b.clientContact.includes(clientObj.username);
-             const matchPhone = clientObj.phone && b.phone && b.phone === clientObj.phone;
+             const matchTgId = clientObj.tgId && String(b.tgId) === String(clientObj.tgId);
+             
+             const cUser = clientObj.username ? clientObj.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+             const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+             const matchUsername = cUser && bUser && bUser.includes(cUser);
+             
+             const cPhone = clientObj.phone ? clientObj.phone.replace(/[^\d]/g, '') : '';
+             const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
+             const matchPhone = cPhone && bPhone && bPhone === cPhone;
+             
              const matchName = (b.clientName === clientObj.customName) || (b.clientName === clientObj.originalName);
+             
              return matchTgId || matchUsername || matchPhone || matchName;
           });
 
@@ -1984,10 +2114,10 @@
           setBookingsList(prev => prev.filter(b => !bookingIdsToDelete.includes(b.id)));
 
           if(db) {
-             bookingIdsToDelete.forEach(id => db.collection("bookings").doc(id).delete().catch(console.error));
+             bookingIdsToDelete.forEach(id => db.collection("bookings").doc(String(id)).delete().catch(console.error));
           }
 
-          const newClients = (editData.clients || []).filter(c => c.tgId !== tgId);
+          const newClients = (editData.clients || []).filter(c => String(c.tgId) !== String(tgId));
           const newEditData = {...editData, clients: newClients};
           setEditData(newEditData);
           setAppData(newEditData);
@@ -2003,10 +2133,16 @@
            triggerHaptic();
 
            const matches = bookingsList.filter(b => {
-               const matchUsername = newClientContact && b.clientContact && b.clientContact.includes(newClientContact);
+               const cUser = newClientContact ? newClientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+               const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+               const matchUsername = cUser && bUser && bUser.includes(cUser);
+               
+               const cPhone = newClientPhone ? newClientPhone.replace(/[^\d]/g, '') : '';
+               const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
+               const matchPhone = cPhone && bPhone && bPhone === cPhone;
+               
                const matchName = newClientName && b.clientName === newClientName;
-               const matchPhone = newClientPhone && b.phone === newClientPhone;
-               return matchUsername || matchName || matchPhone;
+               return matchUsername || matchPhone || matchName;
            });
            const calcVisits = matches.length;
            const calcSpent = matches.reduce((sum, b) => sum + (b.actualPrice !== undefined && b.actualPrice !== null ? b.actualPrice : b.price), 0);
@@ -2382,7 +2518,7 @@
                          let totalRevenueAllTime = 0;
                          bookingsList.forEach(b => {
                              if (b.actualPrice !== undefined && b.actualPrice !== null && b.actualPrice !== '') {
-                                 const m = b.date ? b.date.split(' ')[1] : '';
+                                 const m = toSafeString(b.date, '').split(' ')[1] || '';
                                  if (m) {
                                      if (!revenueByMonth[m]) revenueByMonth[m] = 0;
                                      revenueByMonth[m] += Number(b.actualPrice);
@@ -2404,7 +2540,7 @@
                                 </h3>
                                 <div className="flex gap-2 overflow-x-auto hide-scrollbar snap-x snap-mandatory pb-1">
                                    {/* ИТОГОВЫЙ БЛОК (СТАТИЧНЫЙ СЛЕВА) */}
-                                   <div className="snap-start min-w-[90px] py-1.5 px-2.5 rounded-lg border border-[#C89D7C]/40 bg-gradient-to-r from-[#C89D7C]/10 to-transparent flex flex-col justify-center shrink-0">
+                                   <div className="snap-start min-w-[90px] py-1.5 px-2.5 rounded-lg border border-[#C89D7C]/40 bg-[#C89D7C]/10 flex flex-col justify-center shrink-0">
                                        <span className="text-[9px] uppercase font-bold text-[#C89D7C] tracking-wider mb-0.5">Всего</span>
                                        <span className="text-sm font-bold text-white drop-shadow-sm">{totalRevenueAllTime.toLocaleString('ru-RU')} ₽</span>
                                    </div>
@@ -2445,17 +2581,26 @@
                           <div className="space-y-3">
                              {filteredClients.map((client, idx) => {
                                 const clientBookings = bookingsList.filter(b => {
-                                     const matchTgId = client.tgId && b.tgId === client.tgId;
-                                     const matchUsername = client.username && b.clientContact && b.clientContact.includes(client.username);
-                                     const matchPhone = client.phone && b.phone && b.phone === client.phone;
+                                     if (!client) return false;
+                                     const matchTgId = client.tgId && String(b.tgId) === String(client.tgId);
+                                     
+                                     const cUser = client.username ? client.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                     const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                     const matchUsername = cUser && bUser && bUser.includes(cUser);
+                                     
+                                     const cPhone = client.phone ? client.phone.replace(/[^\d]/g, '') : '';
+                                     const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
+                                     const matchPhone = cPhone && bPhone && bPhone === cPhone;
+                                     
                                      const matchName = (b.clientName === client.customName) || (b.clientName === client.originalName);
+                                     
                                      return matchTgId || matchUsername || matchPhone || matchName;
                                 });
 
                                 let realTotalSpent = 0;
                                 const bookingsByMonth = {};
                                 clientBookings.forEach(b => {
-                                   const [d, m] = b.date ? b.date.split(' ') : ['', ''];
+                                   const [, m] = toSafeString(b.date, '').split(' ');
                                    const monthName = m || 'Другое';
                                    if(!bookingsByMonth[monthName]) bookingsByMonth[monthName] = { total: 0, items: [] };
                                    bookingsByMonth[monthName].items.push(b);
