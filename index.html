@@ -664,6 +664,33 @@
       return result;
     };
 
+    const isSameBookingRecord = (a, b) => {
+      if (!a || !b) return false;
+      const left = normalizeBooking(a);
+      const right = normalizeBooking(b);
+
+      const leftId = toSafeString(left.id, '');
+      const rightId = toSafeString(right.id, '');
+      if (leftId && rightId) return leftId === rightId;
+
+      const leftCreated = toSafeString(left.createdAt, '');
+      const rightCreated = toSafeString(right.createdAt, '');
+      if (leftCreated && rightCreated) {
+        return left.date === right.date && left.time === right.time && leftCreated === rightCreated;
+      }
+
+      return (
+        left.date === right.date &&
+        left.time === right.time &&
+        left.clientName === right.clientName &&
+        toSafeString(left.tgId, '') === toSafeString(right.tgId, '')
+      );
+    };
+
+    const removeBookingFromList = (list, bookingToRemove) => {
+      return (list || []).filter(item => !isSameBookingRecord(item, bookingToRemove));
+    };
+
     const extractUsernameFromContact = (contact) => {
       const str = toSafeString(contact, '');
       const match = str.match(/@([a-zA-Z0-9_]+)/);
@@ -1447,7 +1474,8 @@
 
           const updatedB = normalizeBooking({ ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName, services: editBServices });
           
-          setBookingsList(prev => prev.map(b => String(b.id || '') === String(updatedB.id || '') ? updatedB : b));
+          const bookingsAfterEdit = (bookingsList || []).map(b => isSameBookingRecord(b, editingBooking) ? updatedB : b);
+          setBookingsList(bookingsAfterEdit);
 
           try {
             if(db && updatedB.id) await db.collection("bookings").doc(String(updatedB.id)).update({
@@ -1473,9 +1501,8 @@
                     );
                     restoredOldSlots = removeSlotsBlockedByBookings(
                       restoredOldSlots,
-                      bookingsList,
-                      editingBooking.date,
-                      editingBooking.id
+                      bookingsAfterEdit,
+                      editingBooking.date
                     );
                     newDates[oldDIdx].slots = restoredOldSlots;
                 }
@@ -1508,7 +1535,8 @@
           triggerHaptic();
           if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
           
-          setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
+          const remainingBookings = removeBookingFromList(bookingsList, booking);
+          setBookingsList(remainingBookings);
 
           try {
             if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
@@ -1531,9 +1559,8 @@
               );
               restoredSlots = removeSlotsBlockedByBookings(
                 restoredSlots,
-                bookingsList,
-                booking.date,
-                booking.id
+                remainingBookings,
+                booking.date
               );
               newDates[dIdx].slots = restoredSlots;
             } else {
@@ -1551,9 +1578,8 @@
                    );
                    restoredSlots = removeSlotsBlockedByBookings(
                      restoredSlots,
-                     bookingsList,
-                     booking.date,
-                     booking.id
+                     remainingBookings,
+                     booking.date
                    );
                    newDates.push({ date: booking.date, day: gDay.day, slots: restoredSlots });
                    newDates.sort((a, b) => {
@@ -2208,7 +2234,8 @@
 
             const updatedB = normalizeBooking({ ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName, services: editBServices });
             
-            setBookingsList(prev => prev.map(b => String(b.id || '') === String(updatedB.id || '') ? updatedB : b));
+            const bookingsAfterEdit = (bookingsList || []).map(b => isSameBookingRecord(b, editingBooking) ? updatedB : b);
+            setBookingsList(bookingsAfterEdit);
 
             try {
               if(db && updatedB.id) await db.collection("bookings").doc(String(updatedB.id)).update({
@@ -2234,9 +2261,8 @@
                       );
                       restoredOldSlots = removeSlotsBlockedByBookings(
                         restoredOldSlots,
-                        bookingsList,
-                        editingBooking.date,
-                        editingBooking.id
+                        bookingsAfterEdit,
+                        editingBooking.date
                       );
                       newDates[oldDIdx].slots = restoredOldSlots;
                   }
@@ -2269,7 +2295,8 @@
             triggerHaptic();
             if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
             
-            setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
+            const remainingBookings = removeBookingFromList(bookingsList, booking);
+            setBookingsList(remainingBookings);
 
             try {
               if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
@@ -2292,9 +2319,8 @@
                 );
                 restoredSlots = removeSlotsBlockedByBookings(
                   restoredSlots,
-                  bookingsList,
-                  booking.date,
-                  booking.id
+                  remainingBookings,
+                  booking.date
                 );
                 newDates[dIdx].slots = restoredSlots;
               } else {
@@ -2312,9 +2338,8 @@
                      );
                      restoredSlots = removeSlotsBlockedByBookings(
                        restoredSlots,
-                       bookingsList,
-                       booking.date,
-                       booking.id
+                       remainingBookings,
+                       booking.date
                      );
                      newDates.push({ date: booking.date, day: gDay.day, slots: restoredSlots });
                      newDates.sort((a, b) => {
