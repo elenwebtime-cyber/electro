@@ -1668,7 +1668,7 @@
                    newDates.sort((a, b) => {
                      const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
                      const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
-                     return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                     return (idxA !== -1 ? idxA : 9999) - (idxB !== -1 ? idxB : 9999);
                    });
                }
             }
@@ -2429,20 +2429,20 @@
                        workingSlots
                      );
                      restoredSlots = removeSlotsBlockedByBookings(
-                       restoredSlots,
-                       remainingBookings,
-                       booking.date
-                     );
-                     newDates.push({ date: booking.date, day: gDay.day, slots: restoredSlots });
-                     newDates.sort((a, b) => {
-                       const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
-                       const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
-                       return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
-                     });
-                 }
-              }
-              
-              const newData = {...(editData || appData), dates: newDates};
+                     restoredSlots,
+                     remainingBookings,
+                     booking.date
+                   );
+                   newDates.push({ date: booking.date, day: gDay.day, slots: restoredSlots });
+                   newDates.sort((a, b) => {
+                     const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                     const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                     return (idxA !== -1 ? idxA : 9999) - (idxB !== -1 ? idxB : 9999);
+                   });
+               }
+            }
+            
+            const newData = {...(editData || appData), dates: newDates};
               if (editData) setEditData(newData);
               if (appData) setAppData(newData);
               syncToFirebase(newData);
@@ -2659,7 +2659,7 @@
           setEditData(newEditData);
           setAppData(newEditData);
           
-          deleteClientFromFirebase(tgId);
+          await deleteClientFromFirebase(tgId);
           await syncToFirebase(newEditData);
           saveLocalCache(newEditData);
           showToast("Клиент удален! 🗑️");
