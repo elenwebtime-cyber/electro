@@ -1149,9 +1149,16 @@
           if (prev + 1 >= 5) {
             const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
             if (userTgId === ADMIN_TG_ID) {
-              setEditData(appData); 
-              setShowAdminGear(true);
-              triggerHaptic();
+              const currentUser = db ? firebase.auth().currentUser : null;
+              if (currentUser && currentUser.email === 'admin@electro.app') {
+                setEditData(appData); 
+                setShowAdminGear(true);
+                triggerHaptic();
+              } else {
+                skipAdminAuthRef.current = false;
+                setShowAdminAuthModal(true);
+                triggerHaptic();
+              }
             }
             return 0;
           }
