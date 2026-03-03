@@ -482,6 +482,7 @@
     const globalCalendarDays = generateCalendarDays();
     const dateOptions = globalCalendarDays.map(d => ({ value: d.date, label: d.date }));
     const defaultSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+    const REST_AFTER_CLIENT_MINS = 60;
 
     const initialMasterData = {
       name: "Твое Имя",
@@ -545,6 +546,52 @@
           const tMins = (th || 0) * 60 + (tm || 0);
           return tMins < startMins || tMins >= endMins;
       });
+    };
+
+    const timeToMinutes = (timeStr) => {
+      if (!timeStr) return null;
+      const [hRaw, mRaw] = String(timeStr).split(':');
+      const h = Number(hRaw);
+      const m = Number(mRaw);
+      if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+      if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+      return h * 60 + m;
+    };
+
+    const getSlotStepMins = (slots, fallback = 60) => {
+      const mins = (slots || [])
+        .map(timeToMinutes)
+        .filter(v => Number.isFinite(v))
+        .sort((a, b) => a - b);
+      let minDiff = Infinity;
+      for (let i = 1; i < mins.length; i++) {
+        const diff = mins[i] - mins[i - 1];
+        if (diff > 0 && diff < minDiff) minDiff = diff;
+      }
+      return Number.isFinite(minDiff) ? minDiff : fallback;
+    };
+
+    const hasEnoughContinuousTimeWindow = (availableSlots, startTime, procedureMins, restMins = REST_AFTER_CLIENT_MINS, workingSlots = []) => {
+      const startMins = timeToMinutes(startTime);
+      const procedure = Number(procedureMins);
+      const rest = Math.max(0, Number(restMins) || 0);
+      if (!Number.isFinite(startMins) || !Number.isFinite(procedure) || procedure <= 0) return false;
+
+      const availableMins = (availableSlots || []).map(timeToMinutes).filter(v => Number.isFinite(v));
+      const availableSet = new Set(availableMins);
+      if (!availableSet.has(startMins)) return false;
+
+      const workingMins = (workingSlots || []).map(timeToMinutes).filter(v => Number.isFinite(v));
+      const allKnownMins = [...availableMins, ...workingMins];
+      const maxWorkingMins = allKnownMins.length ? Math.max(...allKnownMins) : startMins;
+      const stepMins = getSlotStepMins(workingSlots && workingSlots.length ? workingSlots : availableSlots, 60);
+      const requiredUntil = startMins + procedure + rest;
+
+      for (let t = startMins; t < requiredUntil; t += stepMins) {
+        if (t > maxWorkingMins) break;
+        if (!availableSet.has(t)) return false;
+      }
+      return true;
     };
 
     const toSafeString = (v, fallback = '') => {
@@ -1073,7 +1120,22 @@
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
       const totalPrice = (selectedDuration * appData.pricePerMinute) + addonsPrice;
 
-      const handlePreBooking = () => setShowMemo(true);
+      const handlePreBooking = () => {
+        const dateEntry = (appData.dates || []).find(d => d.date === selectedDate);
+        const daySlots = dateEntry?.slots || [];
+        const fitsWindow = hasEnoughContinuousTimeWindow(
+          daySlots,
+          selectedTime,
+          selectedDuration,
+          REST_AFTER_CLIENT_MINS,
+          [...(appData.defaultSlots || []), ...daySlots]
+        );
+        if (!fitsWindow) {
+          alert("Недостаточно времени для проведения процедуры. Выберите другое время или уменьшите длительность.");
+          return;
+        }
+        setShowMemo(true);
+      };
 
       const isUserBlacklisted = () => {
         const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
@@ -1092,6 +1154,21 @@
         if (!isExistingClient() && (!clientPhone || !toSafeString(clientPhone, '').trim())) {
            alert("Пожалуйста, введите ваш номер телефона!");
            return;
+        }
+
+        const dateEntry = (appData.dates || []).find(d => d.date === selectedDate);
+        const daySlots = dateEntry?.slots || [];
+        const fitsWindow = hasEnoughContinuousTimeWindow(
+          daySlots,
+          selectedTime,
+          selectedDuration,
+          REST_AFTER_CLIENT_MINS,
+          [...(appData.defaultSlots || []), ...daySlots]
+        );
+        if (!fitsWindow) {
+          setShowMemo(false);
+          alert("Недостаточно времени для проведения процедуры. Выберите другое время или уменьшите длительность.");
+          return;
         }
 
         triggerHaptic();
@@ -1220,7 +1297,11 @@
             const updatedDates = [...(appData.dates || [])];
             const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
             if (targetDateIdx !== -1) {
-              updatedDates[targetDateIdx].slots = removeOverlappingSlots(updatedDates[targetDateIdx].slots, selectedTime, selectedDuration);
+              updatedDates[targetDateIdx].slots = removeOverlappingSlots(
+                updatedDates[targetDateIdx].slots,
+                selectedTime,
+                selectedDuration + REST_AFTER_CLIENT_MINS
+              );
               const newData = { ...appData, dates: updatedDates, clients: updatedClients };
               setAppData(newData);
               setEditData(newData);
@@ -1337,7 +1418,11 @@
             
             const newDIdx = newDates.findIndex(d => d.date === editBDate);
             if (newDIdx !== -1) {
-                newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
+                newDates[newDIdx].slots = removeOverlappingSlots(
+                  newDates[newDIdx].slots,
+                  editBTime,
+                  safeDuration + REST_AFTER_CLIENT_MINS
+                );
             }
 
             const newData = {...editData, dates: newDates};
@@ -1553,7 +1638,8 @@
           globalCalendarDays.some(g => g.date === item.date)
         );
 
-        let availableSlotsForDate = (appData.dates || []).find(d => d.date === selectedDate)?.slots || [];
+        const dateEntry = (appData.dates || []).find(d => d.date === selectedDate);
+        let availableSlotsForDate = dateEntry?.slots || [];
         
         if (selectedDate === globalCalendarDays[0].date) {
             const now = new Date();
@@ -1564,6 +1650,16 @@
                 return h > currentHour || (h === currentHour && m > currentMin);
             });
         }
+
+        const bookableSlotsForDate = availableSlotsForDate.filter(time =>
+          hasEnoughContinuousTimeWindow(
+            availableSlotsForDate,
+            time,
+            selectedDuration,
+            REST_AFTER_CLIENT_MINS,
+            [...(appData.defaultSlots || []), ...(dateEntry?.slots || [])]
+          )
+        );
 
         const handleDateScroll = (e) => {
             const container = e.target;
@@ -1634,11 +1730,11 @@
             {selectedDate && (
               <div className="animate-[fadeIn_0.3s_ease-out] px-4">
                 <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Свободные окошки</h3>
-                {availableSlotsForDate.length === 0 ? (
+                {bookableSlotsForDate.length === 0 ? (
                   <p className="text-gray-400 text-sm">На этот день нет свободных окошек.</p>
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
-                    {availableSlotsForDate.map((time, idx) => (
+                    {bookableSlotsForDate.map((time, idx) => (
                       <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3.5 rounded-xl text-center font-medium cursor-pointer transition-all duration-200 border ${selectedTime === time ? 'bg-[#2A2A2A] text-[#C89D7C] border-[#C89D7C] shadow-[0_0_10px_rgba(200,157,124,0.2)] scale-105' : 'glass-card-dark text-gray-400 border-white/5 hover:bg-white/5'}`}>
                         {time}
                       </div>
@@ -1885,7 +1981,11 @@
             const newDates = [...(editData.dates || [])];
             const dIdx = newDates.findIndex(d => d.date === manualDate);
             if (dIdx !== -1) {
-              newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
+              newDates[dIdx].slots = removeOverlappingSlots(
+                newDates[dIdx].slots,
+                manualTime,
+                60 + REST_AFTER_CLIENT_MINS
+              );
               const newData = {...editData, dates: newDates};
               setEditData(newData);
               setAppData(newData);
@@ -2029,7 +2129,11 @@
               
               const newDIdx = newDates.findIndex(d => d.date === editBDate);
               if (newDIdx !== -1) {
-                  newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
+                  newDates[newDIdx].slots = removeOverlappingSlots(
+                    newDates[newDIdx].slots,
+                    editBTime,
+                    safeDuration + REST_AFTER_CLIENT_MINS
+                  );
               }
 
               const newData = {...editData, dates: newDates};
