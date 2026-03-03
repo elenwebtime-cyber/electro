@@ -1281,10 +1281,13 @@
                      deleteClientFromFirebase(oldTgId);
                 }
 
-                updatedClients[cIdx].tgId = tgUser.id; 
-                updatedClients[cIdx].visits = (updatedClients[cIdx].visits || 0) + 1;
-                if (clientUsername && !updatedClients[cIdx].username) updatedClients[cIdx].username = clientUsername;
-                if (clientPhone && !updatedClients[cIdx].phone) updatedClients[cIdx].phone = clientPhone;
+                updatedClients[cIdx] = {
+                    ...updatedClients[cIdx],
+                    tgId: tgUser.id,
+                    visits: (updatedClients[cIdx].visits || 0) + 1,
+                    username: clientUsername && !updatedClients[cIdx].username ? clientUsername : updatedClients[cIdx].username,
+                    phone: clientPhone && !updatedClients[cIdx].phone ? clientPhone : updatedClients[cIdx].phone
+                };
 
                 finalClientName = updatedClients[cIdx].customName || updatedClients[cIdx].originalName || clientName;
                 finalClientObj = updatedClients[cIdx];
@@ -1371,11 +1374,14 @@
             const updatedDates = [...(appData.dates || [])];
             const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
             if (targetDateIdx !== -1) {
-              updatedDates[targetDateIdx].slots = removeOverlappingSlots(
-                updatedDates[targetDateIdx].slots,
-                selectedTime,
-                selectedDuration + REST_AFTER_CLIENT_MINS
-              );
+              updatedDates[targetDateIdx] = {
+                ...updatedDates[targetDateIdx],
+                slots: removeOverlappingSlots(
+                  updatedDates[targetDateIdx].slots,
+                  selectedTime,
+                  selectedDuration + REST_AFTER_CLIENT_MINS
+                )
+              };
               const newData = { ...appData, dates: updatedDates, clients: updatedClients };
               setAppData(newData);
               setEditData(newData);
@@ -1504,17 +1510,20 @@
                       bookingsAfterEdit,
                       editingBooking.date
                     );
-                    newDates[oldDIdx].slots = restoredOldSlots;
+                    newDates[oldDIdx] = { ...newDates[oldDIdx], slots: restoredOldSlots };
                 }
             }
             
             const newDIdx = newDates.findIndex(d => d.date === editBDate);
             if (newDIdx !== -1) {
-                newDates[newDIdx].slots = removeOverlappingSlots(
-                  newDates[newDIdx].slots,
-                  editBTime,
-                  safeDuration + REST_AFTER_CLIENT_MINS
-                );
+                newDates[newDIdx] = {
+                  ...newDates[newDIdx],
+                  slots: removeOverlappingSlots(
+                    newDates[newDIdx].slots,
+                    editBTime,
+                    safeDuration + REST_AFTER_CLIENT_MINS
+                  )
+                };
             }
 
             const newData = {...editData, dates: newDates};
@@ -1562,7 +1571,7 @@
                 remainingBookings,
                 booking.date
               );
-              newDates[dIdx].slots = restoredSlots;
+              newDates[dIdx] = { ...newDates[dIdx], slots: restoredSlots };
             } else {
                const gDay = globalCalendarDays.find(g => g.date === booking.date);
                if(gDay) {
@@ -2104,11 +2113,14 @@
             const newDates = [...(editData.dates || [])];
             const dIdx = newDates.findIndex(d => d.date === manualDate);
             if (dIdx !== -1) {
-              newDates[dIdx].slots = removeOverlappingSlots(
-                newDates[dIdx].slots,
-                manualTime,
-                60 + REST_AFTER_CLIENT_MINS
-              );
+              newDates[dIdx] = {
+                ...newDates[dIdx],
+                slots: removeOverlappingSlots(
+                  newDates[dIdx].slots,
+                  manualTime,
+                  60 + REST_AFTER_CLIENT_MINS
+                )
+              };
               const newData = {...editData, dates: newDates};
               setEditData(newData);
               setAppData(newData);
@@ -2149,7 +2161,10 @@
             const newDates = [...(editData.dates || [])];
             const dIdx = newDates.findIndex(d => d.date === manualDate);
             if (dIdx !== -1) {
-              newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
+              newDates[dIdx] = {
+                ...newDates[dIdx],
+                slots: removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60)
+              };
               const newData = {...editData, dates: newDates};
               setEditData(newData);
               setAppData(newData);
@@ -2264,17 +2279,20 @@
                         bookingsAfterEdit,
                         editingBooking.date
                       );
-                      newDates[oldDIdx].slots = restoredOldSlots;
+                      newDates[oldDIdx] = { ...newDates[oldDIdx], slots: restoredOldSlots };
                   }
               }
               
               const newDIdx = newDates.findIndex(d => d.date === editBDate);
               if (newDIdx !== -1) {
-                  newDates[newDIdx].slots = removeOverlappingSlots(
-                    newDates[newDIdx].slots,
-                    editBTime,
-                    safeDuration + REST_AFTER_CLIENT_MINS
-                  );
+                  newDates[newDIdx] = {
+                    ...newDates[newDIdx],
+                    slots: removeOverlappingSlots(
+                      newDates[newDIdx].slots,
+                      editBTime,
+                      safeDuration + REST_AFTER_CLIENT_MINS
+                    )
+                  };
               }
 
               const newData = {...editData, dates: newDates};
@@ -2322,7 +2340,7 @@
                   remainingBookings,
                   booking.date
                 );
-                newDates[dIdx].slots = restoredSlots;
+                newDates[dIdx] = { ...newDates[dIdx], slots: restoredSlots };
               } else {
                  const gDay = globalCalendarDays.find(g => g.date === booking.date);
                  if(gDay) {
@@ -2454,7 +2472,7 @@
 
         const handleServiceChange = (index, field, value) => {
           const newServices = [...(editData.services || [])];
-          newServices[index][field] = value;
+          newServices[index] = { ...newServices[index], [field]: value };
           setEditData({...editData, services: newServices});
         };
 
@@ -2482,7 +2500,7 @@
 
         const handleAddonChange = (index, field, value) => {
           const newAddons = [...(editData.addons || [])];
-          newAddons[index][field] = value;
+          newAddons[index] = { ...newAddons[index], [field]: value };
           setEditData({...editData, addons: newAddons});
         };
         const addAddon = () => {
