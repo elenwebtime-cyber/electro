@@ -836,7 +836,7 @@
       const [selectedDuration, setSelectedDuration] = useState(30); 
       const [selectedAddons, setSelectedAddons] = useState([]); 
       const [tapCount, setTapCount] = useState(0);
-      const [clientPhone, setClientPhone] = useState(''); 
+      const [clientPhone, setClientPhone] = useState('+7'); 
       const [dbConnected, setDbConnected] = useState(false);
       const [showAdminGear, setShowAdminGear] = useState(false);
       const [toastMsg, setToastMsg] = useState('');
@@ -866,7 +866,7 @@
       const [manualDate, setManualDate] = useState('');
       const [manualTime, setManualTime] = useState('');
       const [manualService, setManualService] = useState('');
-      const [manualPhone, setManualPhone] = useState(''); 
+      const [manualPhone, setManualPhone] = useState('+7'); 
 
       const [adminCalendarDate, setAdminCalendarDate] = useState(globalCalendarDays[0].date);
       const [settingsCalendarMonth, setSettingsCalendarMonth] = useState(new Date());
@@ -884,7 +884,7 @@
       const [showAddClient, setShowAddClient] = useState(false);
       const [newClientName, setNewClientName] = useState('');
       const [newClientContact, setNewClientContact] = useState('');
-      const [newClientPhone, setNewClientPhone] = useState(''); 
+      const [newClientPhone, setNewClientPhone] = useState('+7'); 
       const [clientSearch, setClientSearch] = useState(''); 
       const [clientListTab, setClientListTab] = useState('active'); // 'active' | 'archive'
       
@@ -1084,27 +1084,31 @@
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
             if (userTgId === ADMIN_TG_ID) {
               if (!user || user.email !== 'admin@electro.app') {
-                try {
-                  if (user) await auth.signOut();
-                  // Пароль храним только в памяти сессии (без localStorage)
-                  let pwd = adminPasswordRef.current;
-                  if (!pwd) {
-                      pwd = prompt("🔒 Введите пароль администратора базы данных (из правил Firebase):");
-                      pwd = pwd ? String(pwd) : '';
+                const authenticateAdmin = async () => {
+                  try {
+                    if (auth.currentUser) await auth.signOut();
+                    // Пароль храним только в памяти сессии (без localStorage)
+                    let pwd = adminPasswordRef.current;
+                    if (!pwd) {
+                        pwd = prompt("🔒 Введите пароль администратора базы данных (из правил Firebase):");
+                        pwd = pwd ? String(pwd) : '';
+                    }
+                    if (pwd) {
+                        adminPasswordRef.current = pwd;
+                        await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), pwd);
+                        return; 
+                    } else {
+                        await auth.signInAnonymously();
+                        return;
+                    }
+                  } catch (e) {
+                    console.error("Auth admin error:", e);
+                    alert("❌ Неверный пароль! Попробуйте еще раз.");
+                    adminPasswordRef.current = '';
+                    authenticateAdmin(); // Шаг 5: Вызываем заново без перезагрузки приложения
                   }
-                  if (pwd) {
-                      adminPasswordRef.current = pwd;
-                      await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), pwd);
-                      return; 
-                  } else {
-                      await auth.signInAnonymously();
-                      return;
-                  }
-                } catch (e) {
-                  console.error("Auth admin error:", e);
-                  adminPasswordRef.current = '';
-                  loadDatabase(); 
-                }
+                };
+                authenticateAdmin();
               } else {
                 loadDatabase();
               }
