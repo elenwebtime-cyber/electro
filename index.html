@@ -469,7 +469,7 @@
       const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
       const weekDays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
       const today = new Date();
-      for(let i=0; i<42; i++) {
+      for(let i=0; i<1460; i++) {
          const d = new Date(today);
          d.setDate(today.getDate() + i);
          days.push({
@@ -761,6 +761,7 @@
       const [manualPhone, setManualPhone] = useState(''); 
 
       const [adminCalendarDate, setAdminCalendarDate] = useState(globalCalendarDays[0].date);
+      const [settingsCalendarMonth, setSettingsCalendarMonth] = useState(new Date());
       const [calendarMonth, setCalendarMonth] = useState(new Date()); 
       const hoursList = Array.from({length: 13}, (_, i) => i + 9); 
       
@@ -2627,20 +2628,69 @@
                       <label className="block text-sm font-bold text-white mb-1">Свободные даты и окошки</label>
                       <p className="text-xs text-gray-400 mb-4">Нажми на день, чтобы настроить его время.</p>
                       
-                      <div className="grid grid-cols-7 gap-1 mb-4">
-                        {globalCalendarDays.map((item, idx) => {
-                          const isSelected = (editData.dates || []).some(d => d.date === item.date);
-                          const isEditingThis = adminSelectedDateObj?.date === item.date;
-                          return (
-                            <div key={idx} onClick={() => { triggerHaptic(); setAdminSelectedDateObj(item); setNewTimeVal(''); }} 
-                                 className={`flex flex-col items-center justify-center py-2 rounded-lg cursor-pointer transition-colors border-2 
-                                 ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C]' : 'bg-[#1A1A1A] text-gray-500 border-gray-800'}
-                                 ${isEditingThis ? 'ring-2 ring-white scale-105' : ''}`}>
-                              <span className="text-[10px] leading-none mb-1 opacity-80">{item.day}</span>
-                              <span className="text-sm font-bold leading-none">{item.date.split(' ')[0]}</span>
-                            </div>
-                          );
-                        })}
+                      <div className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 mb-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <h4 className="text-sm font-bold text-white capitalize">
+                            {settingsCalendarMonth.toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
+                          </h4>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => { triggerHaptic(); setSettingsCalendarMonth(new Date(settingsCalendarMonth.getFullYear(), settingsCalendarMonth.getMonth() - 1, 1)); }}
+                              className="text-[#C89D7C] hover:text-white px-2 py-1 text-xl leading-none transition-colors"
+                            >
+                              ‹
+                            </button>
+                            <button
+                              onClick={() => { triggerHaptic(); setSettingsCalendarMonth(new Date(settingsCalendarMonth.getFullYear(), settingsCalendarMonth.getMonth() + 1, 1)); }}
+                              className="text-[#C89D7C] hover:text-white px-2 py-1 text-xl leading-none transition-colors"
+                            >
+                              ›
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-7 mb-2 text-center text-[10px] text-gray-500 font-bold uppercase">
+                          <div>П</div><div>В</div><div>С</div><div>Ч</div><div>П</div><div>С</div><div>В</div>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-y-2 text-center">
+                          {getMonthGrid(settingsCalendarMonth).map((cell, idx) => {
+                            const dateStr = formatDateStr(cell.dateObj);
+                            const weekDays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+                            const item = { date: dateStr, day: weekDays[cell.dateObj.getDay()] };
+                            const isSelected = (editData.dates || []).some(d => d.date === dateStr);
+                            const isEditingThis = adminSelectedDateObj?.date === dateStr;
+                            const isFutureAllowed = globalCalendarDays.some(g => g.date === dateStr);
+                            const dayDate = new Date(cell.dateObj);
+                            dayDate.setHours(0, 0, 0, 0);
+                            const todayDate = new Date();
+                            todayDate.setHours(0, 0, 0, 0);
+                            const isPast = dayDate < todayDate;
+                            const isDisabled = !cell.isCurrentMonth || isPast || !isFutureAllowed;
+
+                            return (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  if (isDisabled) return;
+                                  triggerHaptic();
+                                  setAdminSelectedDateObj(item);
+                                  setNewTimeVal('');
+                                }}
+                                className="flex flex-col items-center justify-start relative h-12 pt-1 mb-1"
+                              >
+                                <div className={`w-8 h-8 flex items-center justify-center rounded-full transition-all z-10 border
+                                  ${isDisabled ? 'cursor-not-allowed text-gray-600 border-transparent opacity-60' : 'cursor-pointer'}
+                                  ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C] font-bold shadow-[0_0_10px_rgba(200,157,124,0.35)]' : 'bg-transparent border-transparent'}
+                                  ${!isSelected && !isDisabled ? 'hover:bg-white/10 text-white' : ''}
+                                  ${isEditingThis ? 'ring-2 ring-white/80 scale-105' : ''}`}
+                                >
+                                  <span className="text-sm">{cell.dateObj.getDate()}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       {adminSelectedDateObj && (() => {
