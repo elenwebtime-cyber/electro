@@ -482,7 +482,7 @@
     const globalCalendarDays = generateCalendarDays();
     const dateOptions = globalCalendarDays.map(d => ({ value: d.date, label: d.date }));
     const defaultSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
-    const REST_AFTER_CLIENT_MINS = 60;
+    const REST_AFTER_CLIENT_MINS = 0; // Перерыв полностью отключен по твоему указанию
 
     const initialMasterData = {
       name: "Твое Имя",
@@ -540,12 +540,40 @@
       const startMins = h * 60 + m;
       const endMins = startMins + durationMins;
       
-      return (slots || []).filter(time => {
+      const newSlots = (slots || []).filter(time => {
           if (!time || typeof time !== 'string') return false;
           const [th, tm] = time.split(':').map(Number);
           const tMins = (th || 0) * 60 + (tm || 0);
           return tMins < startMins || tMins >= endMins;
       });
+
+      // БРОНЯ (Шаг 3): Возвращаем остаток времени мастеру.
+      // Если процедура с перерывом закончилась между слотами (например в 15:15), 
+      // добавляем этот слот, чтобы мастер не терял остаток рабочего часа.
+      const originalMins = (slots || []).map(t => {
+         if (!t || typeof t !== 'string') return null;
+         const [th, tm] = t.split(':').map(Number);
+         return (th || 0) * 60 + (tm || 0);
+      }).filter(v => v !== null && Number.isFinite(v));
+
+      const maxOriginal = originalMins.length > 0 ? Math.max(...originalMins) : 0;
+      const minOriginal = originalMins.length > 0 ? Math.min(...originalMins) : 0;
+      
+      const endH = Math.floor(endMins / 60);
+      const endM = endMins % 60;
+      const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+      // Добавляем хвостик, только если его еще нет и он не выходит за пределы рабочего дня
+      if (endStr && !newSlots.includes(endStr) && endMins <= maxOriginal && endMins >= minOriginal) {
+          newSlots.push(endStr);
+          newSlots.sort((a, b) => {
+             const [ah, am] = a.split(':').map(Number);
+             const [bh, bm] = b.split(':').map(Number);
+             return ((ah || 0) * 60 + (am || 0)) - ((bh || 0) * 60 + (bm || 0));
+          });
+      }
+
+      return newSlots;
     };
 
     const timeToMinutes = (timeStr) => {
