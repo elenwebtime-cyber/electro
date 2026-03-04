@@ -702,7 +702,7 @@
       const fetchBookings = async () => {
         if (!db) return;
         const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-        const isAdminEmail = firebase.auth().currentUser?.email === 'admin@electro.app';
+        const isAdminEmail = firebase.auth().currentUser?.email === 'boss@electro.app';
         
         // ИСПРАВЛЕНИЕ: Пускаем админа и через ТГ, и через обычный браузер
         if (userTgId !== ADMIN_TG_ID && !isAdminEmail) return;
