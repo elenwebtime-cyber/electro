@@ -923,7 +923,7 @@
               setLoadingBookings(false);
             },
             (error) => {
-              console.error("Ошибка слушателя записей:", error);
+              consoleerror("Ошибка слушателя записей:", error);
               setLoadingBookings(false);
             }
           );
@@ -1963,8 +1963,50 @@
       };
 
       const renderAdminPanel = () => {
+        // Функция отправки напоминалки перенесена наверх, чтобы кнопка её "видела"
+        const sendReminder = async (booking) => {
+          triggerHaptic();
+          if (!booking.tgId || String(booking.tgId).startsWith('manual_')) {
+            showToast("У клиента нет Telegram ID для отправки СМС 😔");
+            return;
+          }
+          if (GOOGLE_SCRIPT_URL) {
+             const escapeMD = (str) => String(str || '').replace(/([_*\[\]`\\])/g, '\\$1');
+             const safeBooking = normalizeBooking(booking);
+             const shortName = safeBooking.clientName.split(' ')[0];
+             const safeName = escapeMD(shortName);
+             const text = `Привет, *${safeName}*! Завтра жду тебя на электро в ${safeBooking.time}! 🤗\n\nЕсли планы изменились, пожалуйста, предупреди меня заранее.`;
+             
+             const adminUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username || "";
+             const confirmText = encodeURIComponent(`Привет! Я буду на процедуре завтра в ${safeBooking.time} ✅`);
+             const cancelText = encodeURIComponent(`Привет! К сожалению, мне нужно перенести запись ❌`);
+             
+             const reply_markup = adminUsername ? {
+                 inline_keyboard: [
+                     [{ text: "✅ Буду", url: `https://t.me/${adminUsername}?text=${confirmText}` }],
+                     [{ text: "❌ Не смогу / Перенос", url: `https://t.me/${adminUsername}?text=${cancelText}` }]
+                 ]
+             } : undefined;
+
+             try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                  method: 'POST',
+                  keepalive: true,
+                  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                  body: JSON.stringify({ chat_id: safeBooking.tgId, text: text, reply_markup: reply_markup, app_secret: GOOGLE_SCRIPT_SECRET })
+                });
+                showToast("Напоминание отправлено! 💌");
+             } catch(e) {
+                console.error(e);
+                showToast("Ошибка отправки 😔");
+             }
+          } else {
+             showToast("Бот не настроен 😔");
+          }
+        };
+
         // =========================================================================
-        // ВНУТРЕННЯЯ СТРАНИЦА ЗАПИСИ (iOS STYLE)
+        // ВНУТРЕННЯЯ СТРАНИЦА ЗАПИСИ (iOS STYLE) - Сделана статичной через fixed
         // =========================================================================
         if (adminTab === 'calendar' && viewingBookingDetails) {
             const b = viewingBookingDetails;
@@ -1988,40 +2030,55 @@
             const fullDateStr = `${dayOfWeekStr ? dayOfWeekStr + ', ' : ''}${dateParts[0]} ${fullMonth} ${year} г.`;
 
             return (
-                <div className="animate-[slideIn_0.3s_ease-out] pb-28 min-h-[100dvh] flex flex-col bg-black">
-                   {/* ВЕРХНЕЕ МЕНЮ */}
-                   <div className="flex justify-between items-center mb-6 pt-2 px-2">
-                     <button onClick={() => { triggerHaptic(); setViewingBookingDetails(null); }} className="flex items-center gap-1 text-[#C89D7C] bg-[#1A1A1A] px-4 py-2 rounded-full border border-gray-800 hover:bg-[#333] transition-colors shadow-sm">
-                        <Icon name="ChevronLeft" className="w-5 h-5 -ml-1" />
-                        <span className="font-medium">{monthNom}</span>
-                     </button>
-                     <button onClick={() => { triggerHaptic(); openEditBooking(b); }} className="text-[#C89D7C] bg-[#1A1A1A] px-5 py-2 rounded-full border border-gray-800 font-medium hover:bg-[#333] transition-colors shadow-sm">
-                        Править
-                     </button>
-                   </div>
+                <div className="fixed inset-0 z-[200] bg-black w-full max-w-md mx-auto flex flex-col animate-[slideIn_0.3s_ease-out] overflow-hidden">
+                   <div className="flex-1 overflow-y-auto pb-32 pt-4 px-2 overscroll-none">
+                     {/* ВЕРХНЕЕ МЕНЮ */}
+                     <div className="flex justify-between items-center mb-6">
+                       <button onClick={() => { triggerHaptic(); setViewingBookingDetails(null); }} className="flex items-center gap-1 text-[#C89D7C] bg-[#1A1A1A] px-4 py-2 rounded-full border border-gray-800 hover:bg-[#333] transition-colors shadow-sm">
+                          <Icon name="ChevronLeft" className="w-5 h-5 -ml-1" />
+                          <span className="font-medium">{monthNom}</span>
+                       </button>
+                       <button onClick={() => { triggerHaptic(); openEditBooking(b); }} className="text-[#C89D7C] bg-[#1A1A1A] px-5 py-2 rounded-full border border-gray-800 font-medium hover:bg-[#333] transition-colors shadow-sm">
+                          Править
+                       </button>
+                     </div>
 
-                   {/* ИНФА О КЛИЕНТЕ И ВРЕМЕНИ */}
-                   <div className="px-3 mb-6">
-                     <h2 className="text-3xl font-bold text-white mb-2 leading-tight">{b.clientName}</h2>
-                     <p className="text-gray-400 text-sm mb-0.5">{fullDateStr}</p>
-                     <p className="text-gray-400 text-sm">{b.time} — {endTimeStr}</p>
-                   </div>
+                     {/* ИНФА О КЛИЕНТЕ И ВРЕМЕНИ */}
+                     <div className="px-1 mb-6">
+                       <h2 className="text-3xl font-bold text-white mb-2 leading-tight">{b.clientName}</h2>
+                       <p className="text-gray-400 text-sm mb-0.5">{fullDateStr}</p>
+                       <p className="text-gray-400 text-sm">{b.time} — {endTimeStr}</p>
+                     </div>
 
-                   {/* ВИЗУАЛЬНЫЙ БЛОК (Скрин 2) */}
-                   <div className="bg-[#1C1C1E] rounded-3xl p-4 mx-2 border border-white/5 relative overflow-hidden">
-                      <div className="relative border-l border-gray-800/50 pl-4 py-2" style={{ height: '90px' }}>
-                          <div className="absolute top-1 -left-3 text-[9px] text-gray-500 font-medium bg-[#1C1C1E] py-1 z-10">{b.time}</div>
-                          <div className="absolute bottom-1 -left-3 text-[9px] text-gray-500 font-medium bg-[#1C1C1E] py-1 z-10">{endTimeStr}</div>
-                          
-                          <div className="h-full w-full bg-[#C89D7C] rounded-xl p-3 flex flex-col justify-center shadow-sm">
-                              <div className="text-black font-bold text-sm drop-shadow-sm truncate">{b.clientName}</div>
-                              <div className="text-black/70 text-xs flex items-center gap-1 mt-0.5 opacity-80"><Icon name="Clock" className="w-3 h-3"/> {b.time} — {endTimeStr}</div>
-                          </div>
-                      </div>
+                     {/* ВИЗУАЛЬНЫЙ БЛОК (Скрин 2) */}
+                     <div className="bg-[#1C1C1E] rounded-3xl p-4 mx-1 border border-white/5 relative overflow-hidden">
+                        <div className="relative border-l border-gray-800/50 pl-4 py-2" style={{ height: '90px' }}>
+                            <div className="absolute top-1 -left-3 text-[9px] text-gray-500 font-medium bg-[#1C1C1E] py-1 z-10">{b.time}</div>
+                            <div className="absolute bottom-1 -left-3 text-[9px] text-gray-500 font-medium bg-[#1C1C1E] py-1 z-10">{endTimeStr}</div>
+                            
+                            <div className="h-full w-full bg-[#C89D7C] rounded-xl p-3 flex flex-col justify-center shadow-sm">
+                                <div className="text-black font-bold text-sm drop-shadow-sm truncate">{b.clientName}</div>
+                                <div className="text-black/70 text-xs flex items-center gap-1 mt-0.5 opacity-80"><Icon name="Clock" className="w-3 h-3"/> {b.time} — {endTimeStr}</div>
+                            </div>
+                        </div>
+                     </div>
+
+                     {/* НОВЫЙ БЛОК: Услуги и цена */}
+                     <div className="bg-[#1C1C1E] rounded-3xl p-4 mx-1 mt-4 border border-white/5">
+                         <h4 className="text-gray-400 text-xs uppercase tracking-wider font-bold mb-3">Детали процедуры</h4>
+                         <div className="flex items-start gap-3 mb-4">
+                             <span className="text-xl">🌸</span>
+                             <span className="text-white text-sm font-medium leading-relaxed">{b.services || "Не указано"}</span>
+                         </div>
+                         <div className="flex justify-between items-center pt-3 border-t border-gray-800">
+                             <span className="text-gray-400 text-xs">Примерная стоимость:</span>
+                             <span className="text-[#C89D7C] font-bold text-lg">~ {b.actualPrice ?? b.price ?? 0} ₽</span>
+                         </div>
+                     </div>
                    </div>
 
                    {/* КНОПКИ ВНИЗУ (STICKY) КАК В АДМИНКЕ */}
-                   <div className="fixed bottom-0 left-0 right-0 p-3 bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-white/5 max-w-md mx-auto z-50 flex gap-2 pb-6">
+                   <div className="absolute bottom-0 left-0 right-0 p-3 bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-white/5 z-50 flex gap-2 pb-6">
                       <button onClick={() => sendReminder(b)} className="flex-[2] bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-2.5 text-sm rounded-xl shadow-md hover:opacity-90 transition-opacity">
                           Напоминалка
                       </button>
@@ -2174,47 +2231,6 @@
           } catch(e) {
              showToast("Ошибка ❌");
              console.error(e);
-          }
-        };
-
-        const sendReminder = async (booking) => {
-          triggerHaptic();
-          if (!booking.tgId || String(booking.tgId).startsWith('manual_')) {
-            showToast("У клиента нет Telegram ID для отправки СМС 😔");
-            return;
-          }
-          if (GOOGLE_SCRIPT_URL) {
-             const escapeMD = (str) => String(str || '').replace(/([_*\[\]`\\])/g, '\\$1');
-             const safeBooking = normalizeBooking(booking);
-             const shortName = safeBooking.clientName.split(' ')[0];
-             const safeName = escapeMD(shortName);
-             const text = `Привет, *${safeName}*! Завтра жду тебя на электро в ${safeBooking.time}! 🤗\n\nЕсли планы изменились, пожалуйста, предупреди меня заранее.`;
-             
-             const adminUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username || "";
-             const confirmText = encodeURIComponent(`Привет! Я буду на процедуре завтра в ${safeBooking.time} ✅`);
-             const cancelText = encodeURIComponent(`Привет! К сожалению, мне нужно перенести запись ❌`);
-             
-             const reply_markup = adminUsername ? {
-                 inline_keyboard: [
-                     [{ text: "✅ Буду", url: `https://t.me/${adminUsername}?text=${confirmText}` }],
-                     [{ text: "❌ Не смогу / Перенос", url: `https://t.me/${adminUsername}?text=${cancelText}` }]
-                 ]
-             } : undefined;
-
-             try {
-                await fetch(GOOGLE_SCRIPT_URL, {
-                  method: 'POST',
-                  keepalive: true,
-                  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                  body: JSON.stringify({ chat_id: safeBooking.tgId, text: text, reply_markup: reply_markup, app_secret: GOOGLE_SCRIPT_SECRET })
-                });
-                showToast("Напоминание отправлено! 💌");
-             } catch(e) {
-                console.error(e);
-                showToast("Ошибка отправки 😔");
-             }
-          } else {
-             showToast("Бот не настроен 😔");
           }
         };
 
