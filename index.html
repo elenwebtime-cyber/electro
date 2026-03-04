@@ -861,7 +861,7 @@
           const diffY = adminCalendarSwipeRef.current.y - swipeEndY;
 
           // Строгая проверка: свайп должен быть горизонтальным, без сильного смещения по вертикали
-          if (Math.abs(diffX) > 40 && Math.abs(diffY) < 50) {
+          if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 2) {
               if (diffX > 0) {
                   triggerHaptic();
                   setMonthFunc(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
@@ -1475,7 +1475,7 @@
       // =========================================================================
       const handleDeleteBookingGlobal = async (booking) => {
           triggerHaptic();
-          if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
+          if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return false;
           
           setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
 
@@ -1517,9 +1517,11 @@
             
             fetchBookings();
             showToast("Бронь отменена, слоты возвращены. 🔄");
+            return true;
           } catch(e) {
              showToast("Ошибка удаления ❌");
              console.error(e);
+             return false;
           }
       };
 
@@ -1988,7 +1990,7 @@
             return (
                 <div className="animate-[slideIn_0.3s_ease-out] pb-28 min-h-[100dvh] flex flex-col bg-black">
                    {/* ВЕРХНЕЕ МЕНЮ */}
-                   <div className="flex justify-between items-center mb-6 pt-2">
+                   <div className="flex justify-between items-center mb-6 pt-2 px-2">
                      <button onClick={() => { triggerHaptic(); setViewingBookingDetails(null); }} className="flex items-center gap-1 text-[#C89D7C] bg-[#1A1A1A] px-4 py-2 rounded-full border border-gray-800 hover:bg-[#333] transition-colors shadow-sm">
                         <Icon name="ChevronLeft" className="w-5 h-5 -ml-1" />
                         <span className="font-medium">{monthNom}</span>
@@ -1999,14 +2001,14 @@
                    </div>
 
                    {/* ИНФА О КЛИЕНТЕ И ВРЕМЕНИ */}
-                   <div className="px-2 mb-6">
+                   <div className="px-3 mb-6">
                      <h2 className="text-3xl font-bold text-white mb-2 leading-tight">{b.clientName}</h2>
                      <p className="text-gray-400 text-sm mb-0.5">{fullDateStr}</p>
                      <p className="text-gray-400 text-sm">{b.time} — {endTimeStr}</p>
                    </div>
 
                    {/* ВИЗУАЛЬНЫЙ БЛОК (Скрин 2) */}
-                   <div className="bg-[#1C1C1E] rounded-3xl p-4 mb-6 border border-white/5 relative overflow-hidden">
+                   <div className="bg-[#1C1C1E] rounded-3xl p-4 mx-2 border border-white/5 relative overflow-hidden">
                       <div className="relative border-l border-gray-800/50 pl-4 py-2" style={{ height: '90px' }}>
                           <div className="absolute top-1 -left-3 text-[9px] text-gray-500 font-medium bg-[#1C1C1E] py-1 z-10">{b.time}</div>
                           <div className="absolute bottom-1 -left-3 text-[9px] text-gray-500 font-medium bg-[#1C1C1E] py-1 z-10">{endTimeStr}</div>
@@ -2018,15 +2020,15 @@
                       </div>
                    </div>
 
-                   {/* КНОПКИ УДАЛЕНИЯ И НАПОМИНАЛКИ ВНИЗУ */}
-                   <div className="flex gap-3 justify-center mt-auto pb-8 px-4">
-                      <button onClick={() => sendReminder(b)} className="flex-1 bg-[#C89D7C] text-black font-bold py-3.5 rounded-full shadow-sm hover:opacity-90 transition-opacity">
+                   {/* КНОПКИ ВНИЗУ (STICKY) КАК В АДМИНКЕ */}
+                   <div className="fixed bottom-0 left-0 right-0 p-3 bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-white/5 max-w-md mx-auto z-50 flex gap-2 pb-6">
+                      <button onClick={() => sendReminder(b)} className="flex-[2] bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-2.5 text-sm rounded-xl shadow-md hover:opacity-90 transition-opacity">
                           Напоминалка
                       </button>
-                      <button onClick={() => {
-                          handleDeleteBookingGlobal(b);
-                          setViewingBookingDetails(null);
-                      }} className="flex-1 bg-[#1C1C1E] border border-white/5 text-red-500 font-bold py-3.5 rounded-full hover:bg-red-500/10 transition-colors shadow-sm">
+                      <button onClick={async () => {
+                          const success = await handleDeleteBookingGlobal(b);
+                          if (success) setViewingBookingDetails(null);
+                      }} className="flex-[1] bg-red-500/10 text-red-400 font-bold py-2.5 text-sm rounded-xl border border-red-500/20 hover:bg-red-500/20 transition-colors shadow-sm">
                           Удалить запись
                       </button>
                    </div>
@@ -2178,7 +2180,7 @@
         const sendReminder = async (booking) => {
           triggerHaptic();
           if (!booking.tgId || String(booking.tgId).startsWith('manual_')) {
-            showToast("Невозможно отправить: ручная запись (нет ТГ) 😔");
+            showToast("У клиента нет Telegram ID для отправки СМС 😔");
             return;
           }
           if (GOOGLE_SCRIPT_URL) {
@@ -2647,11 +2649,11 @@
                                  className="flex flex-col items-center justify-center relative h-10"
                             >
                               <div className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition-all border-2 z-10
-                                ${!cell.isCurrentMonth ? 'text-gray-600 border-transparent' : 'border-transparent'}
-                                ${isSelected && cell.isCurrentMonth ? '!bg-[#C89D7C] !text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)] scale-110 !border-[#C89D7C]' : ''}
-                                ${isWorkingDay && !isSelected && cell.isCurrentMonth ? '!border-[#C89D7C] !text-[#C89D7C]' : ''}
-                                ${!isWorkingDay && !isSelected && cell.isCurrentMonth ? 'text-white hover:bg-white/10' : ''}
-                                ${isToday && !isSelected && !isWorkingDay && cell.isCurrentMonth ? 'bg-white/5' : ''}`}>
+                               ${!cell.isCurrentMonth ? 'text-gray-600 border-transparent' : 'text-white border-transparent'}
+                               ${isSelected && cell.isCurrentMonth ? '!bg-[#C89D7C] !text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)] scale-110 !border-[#C89D7C]' : ''}
+                               ${isWorkingDay && !isSelected && cell.isCurrentMonth ? '!border-[#C89D7C] !text-[#C89D7C]' : ''}
+                               ${!isWorkingDay && !isSelected && cell.isCurrentMonth ? 'hover:bg-white/10' : ''}
+                               ${isToday && !isSelected && !isWorkingDay && cell.isCurrentMonth ? 'bg-white/5' : ''}`}>
                                 <span className="text-sm font-bold leading-none">{cell.dateObj.getDate()}</span>
                               </div>
                             </div>
@@ -3106,9 +3108,9 @@
                                  onClick={() => { triggerHaptic(); setAdminCalendarDate(dateStr); }}
                                  className="flex flex-col items-center justify-start relative h-10"
                             >
-                              <div className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition-all z-10
-                                ${!cell.isCurrentMonth ? 'text-gray-600' : 'text-white'}
-                                ${isSelected && cell.isCurrentMonth ? 'bg-[#C89D7C] text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)] scale-110' : ''}
+                              <div className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition-all z-10 border-2
+                                ${!cell.isCurrentMonth ? 'text-gray-600 border-transparent' : 'text-white border-transparent'}
+                                ${isSelected && cell.isCurrentMonth ? '!bg-[#C89D7C] !text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)] scale-110 !border-[#C89D7C]' : ''}
                                 ${isToday && !isSelected && cell.isCurrentMonth ? 'text-[#C89D7C]' : ''}`}
                               >
                                 <span className="text-[17px] font-medium leading-none">{cell.dateObj.getDate()}</span>
@@ -3135,8 +3137,31 @@
                              const endM = endTotal % 60;
                              const endTimeStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
 
+                             // Для красивого отображения ищем ТГ ID вручную, если его нет
+                             let realTgId = b.tgId;
+                             if (!realTgId || String(realTgId).startsWith('manual_')) {
+                                 const allClients = editData?.clients || appData?.clients || [];
+                                 const matchedClient = allClients.find(c => {
+                                     const cUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                     const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                     const matchUsername = cUser.length > 2 && bUser.length > 2 && (bUser.includes(cUser) || cUser.includes(bUser));
+                                     
+                                     const cPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
+                                     const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
+                                     const matchPhone = cPhone.length > 6 && bPhone.length > 6 && cPhone === bPhone;
+                                     
+                                     const matchName = b.clientName && b.clientName.length > 2 && ((b.clientName === c.customName) || (b.clientName === c.originalName));
+                                     
+                                     return matchUsername || matchPhone || matchName;
+                                 });
+                                 if (matchedClient && matchedClient.tgId && !String(matchedClient.tgId).startsWith('manual_')) {
+                                     realTgId = matchedClient.tgId;
+                                 }
+                             }
+                             const enhancedBooking = { ...b, tgId: realTgId };
+
                              return (
-                                 <div key={b.id} onClick={() => { triggerHaptic(); setViewingBookingDetails(b); }} className="flex items-center justify-between py-3.5 border-b border-gray-800/60 last:border-0 cursor-pointer active:bg-white/5 transition-colors pl-2 pr-1">
+                                 <div key={b.id} onClick={() => { triggerHaptic(); setViewingBookingDetails(enhancedBooking); }} className="flex items-center justify-between py-3.5 border-b border-gray-800/60 last:border-0 cursor-pointer active:bg-white/5 transition-colors pl-2 pr-1">
                                      <div className="flex items-center gap-3">
                                          <div className="w-[3px] h-10 bg-[#C89D7C] rounded-full"></div>
                                          <span className="text-white font-medium text-[16px] truncate max-w-[180px]">{b.clientName}</span>
@@ -3189,8 +3214,8 @@
               </div>
             )}
 
-            {/* НИЖНЯЯ ПАНЕЛЬ АДМИНКИ (STICKY BAR) */}
-            {(!viewingBookingDetails || adminSubView !== 'main') && (
+            {/* НИЖНЯЯ ПАНЕЛЬ АДМИНКИ (STICKY BAR) - СКРЫВАЕТСЯ ПРИ ПРОСМОТРЕ ДЕТАЛЕЙ ЗАПИСИ */}
+            {(!viewingBookingDetails) && (
                 <div className="fixed bottom-0 left-0 right-0 p-3 bg-[#1A1A1A]/80 backdrop-blur-xl border-t border-white/5 max-w-md mx-auto z-50 flex gap-2">
                   {adminSubView === 'main' ? (
                     <React.Fragment>
