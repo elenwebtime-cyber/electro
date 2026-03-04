@@ -702,7 +702,10 @@
       const fetchBookings = async () => {
         if (!db) return;
         const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-        if (userTgId !== ADMIN_TG_ID) return;
+        const isAdminEmail = firebase.auth().currentUser?.email === 'admin@electro.app';
+        
+        // ИСПРАВЛЕНИЕ: Пускаем админа и через ТГ, и через обычный браузер
+        if (userTgId !== ADMIN_TG_ID && !isAdminEmail) return;
 
         setLoadingBookings(true);
         try {
@@ -730,8 +733,26 @@
         setLoadingBookings(false);
       };
 
+      // ИСПРАВЛЕНИЕ: Включаем Real-Time обновления для календаря админа
       useEffect(() => {
-        if (adminTab === 'calendar' || adminTab === 'clients') fetchBookings();
+        let unsubscribe = null;
+        if (adminTab === 'calendar' || adminTab === 'clients') {
+          fetchBookings(); // Первичная загрузка
+          
+          if (db) {
+            const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+            const isAdminEmail = firebase.auth().currentUser?.email === 'admin@electro.app';
+            if (userTgId === ADMIN_TG_ID || isAdminEmail) {
+                // Подписываемся на изменения в фоне (Real-Time)
+                unsubscribe = db.collection("bookings").onSnapshot(() => {
+                   fetchBookings();
+                }, (err) => console.log("Слушатель скрыт:", err));
+            }
+          }
+        }
+        return () => {
+           if (unsubscribe) unsubscribe();
+        };
       }, [adminTab]);
 
       useEffect(() => {
@@ -816,7 +837,7 @@
 
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
             if (userTgId === ADMIN_TG_ID) {
-              if (!user || user.email !== 'boss@electro.app') {
+              if (!user || user.email !== 'admin@electro.app') {
                 try {
                   if (user) await auth.signOut();
                   await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), atob("U3VwZXJBZG1pbjEyMyE="));
@@ -981,7 +1002,7 @@
         
         if (tgUser.id) {
             const cleanTgUsername = clientUsername ? clientUsername.replace(/[@()]/g, '').trim().toLowerCase() : '';
-            const cleanTgPhone = clientPhone ? clientPhone.replace(/[^\d]/g, '') : '';
+            const cleanTgPhone = clientPhone ? clientPhone.replace(/[^\d]/g) : '';
 
             let cIdx = updatedClients.findIndex(c => c.tgId === tgUser.id);
 
@@ -990,7 +1011,7 @@
                  cIdx = updatedClients.findIndex(c => {
                     if (!String(c.tgId).startsWith('manual_')) return false;
                     const dbUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
-                    const dbPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
+                    const dbPhone = c.phone ? c.phone.replace(/[^\d]/g) : '';
                     return (cleanTgUsername && dbUser === cleanTgUsername) || (cleanTgPhone && dbPhone === cleanTgPhone);
                  });
             }
@@ -1093,6 +1114,9 @@
           setAppData(newData);
           setEditData(newData);
           localStorage.setItem('electroAppData', JSON.stringify(newData));
+          
+          // ИСПРАВЛЕНИЕ: Синхронизируем занятые окошки с базой данных!
+          syncToFirebase(newData);
         }
       };
 
@@ -2091,7 +2115,7 @@
           triggerHaptic();
           const newServices = [...(editData.services || [])];
           if (direction === 'up' && index > 0) {
-            [newServices[index - 1], newServices[index]] = [newServices[index], newServices[index - 1]];
+            [newStories[index - 1], newStories[index]] = [newStories[index], newStories[index - 1]];
           } else if (direction === 'down' && index < newServices.length - 1) {
             [newServices[index + 1], newServices[index]] = [newServices[index], newServices[index + 1]];
           }
@@ -2580,7 +2604,7 @@
                           Добавить клиента вручную {showAddClient ? <span className="text-[#C89D7C] text-lg">−</span> : <span className="text-[#C89D7C] text-lg">+</span>}
                        </button>
                        {showAddClient && (
-                          <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
+                          <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-out]">
                              <input value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Имя клиента" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                              <input value={newClientContact} onChange={e=>setNewClientContact(e.target.value)} placeholder="Контакт (Ник в ТГ)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                              <input type="tel" inputMode="tel" value={newClientPhone} onChange={e=>setNewClientPhone(e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]" />
@@ -2830,7 +2854,7 @@
                       </button>
                       
                       {showManualBooking && (
-                        <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
+                        <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-out]">
                           <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Имя клиентки (или контакт)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                           <input value={manualContact} onChange={e=>setManualContact(e.target.value)} placeholder="Ник в ТГ (необязательно, @...)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                           <input value={manualService} onChange={e=>setManualService(e.target.value)} placeholder="Услуга (напр. Бикини 60 мин)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
