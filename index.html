@@ -271,7 +271,7 @@
         Heart: <g><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></g>,
         Sparkles: <g><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></g>,
         AlertCircle: <g><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></g>,
-        Settings: <g><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></g>
+        Settings: <g><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51-1Z"/></g>
       };
       const style = name === 'Heart' ? { fill: 'currentColor' } : {};
       return (
@@ -469,7 +469,7 @@
       const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
       const weekDays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
       const today = new Date();
-      for(let i=0; i<1460; i++) {
+      for(let i=0; i<42; i++) {
          const d = new Date(today);
          d.setDate(today.getDate() + i);
          days.push({
@@ -482,7 +482,6 @@
     const globalCalendarDays = generateCalendarDays();
     const dateOptions = globalCalendarDays.map(d => ({ value: d.date, label: d.date }));
     const defaultSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
-    const REST_AFTER_CLIENT_MINS = 0; // Перерыв полностью отключен по твоему указанию
 
     const initialMasterData = {
       name: "Твое Имя",
@@ -529,7 +528,7 @@
     };
 
     // ==========================================
-    // УМНОЕ УДАЛЕНИЕ ПЕРЕКРЫВАЮЩИХСЯ СЛОТОВ
+    // УМНОЕ УДАЛЕНИЕ ПЕРЕКРЫВАЮЩИХСЯ СЛОТОВ (АЛГОРИТМ ИЗ ОБРАЗЦА)
     // ==========================================
     const removeOverlappingSlots = (slots, startTime, durationMins) => {
       if (!startTime || typeof startTime !== 'string') return slots || [];
@@ -540,93 +539,12 @@
       const startMins = h * 60 + m;
       const endMins = startMins + durationMins;
       
-      const newSlots = (slots || []).filter(time => {
+      return (slots || []).filter(time => {
           if (!time || typeof time !== 'string') return false;
           const [th, tm] = time.split(':').map(Number);
           const tMins = (th || 0) * 60 + (tm || 0);
           return tMins < startMins || tMins >= endMins;
       });
-
-      // БРОНЯ (Шаг 3): Возвращаем остаток времени мастеру.
-      // Если процедура с перерывом закончилась между слотами (например в 15:15), 
-      // добавляем этот слот, чтобы мастер не терял остаток рабочего часа.
-      const originalMins = (slots || []).map(t => {
-         if (!t || typeof t !== 'string') return null;
-         const [th, tm] = t.split(':').map(Number);
-         return (th || 0) * 60 + (tm || 0);
-      }).filter(v => v !== null && Number.isFinite(v));
-
-      const maxOriginal = originalMins.length > 0 ? Math.max(...originalMins) : 0;
-      const minOriginal = originalMins.length > 0 ? Math.min(...originalMins) : 0;
-      
-      const endH = Math.floor(endMins / 60);
-      const endM = endMins % 60;
-      const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-
-      // Добавляем хвостик, только если его еще нет и он не выходит за пределы рабочего дня
-      if (endStr && !newSlots.includes(endStr) && endMins <= maxOriginal && endMins >= minOriginal) {
-          newSlots.push(endStr);
-          newSlots.sort((a, b) => {
-             const [ah, am] = a.split(':').map(Number);
-             const [bh, bm] = b.split(':').map(Number);
-             return ((ah || 0) * 60 + (am || 0)) - ((bh || 0) * 60 + (bm || 0));
-          });
-      }
-
-      return newSlots;
-    };
-
-    const timeToMinutes = (timeStr) => {
-      if (!timeStr) return null;
-      const [hRaw, mRaw] = String(timeStr).split(':');
-      const h = Number(hRaw);
-      const m = Number(mRaw);
-      if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-      if (h < 0 || h > 23 || m < 0 || m > 59) return null;
-      return h * 60 + m;
-    };
-
-    const getSlotStepMins = (slots, fallback = 60) => {
-      const mins = (slots || [])
-        .map(timeToMinutes)
-        .filter(v => Number.isFinite(v))
-        .sort((a, b) => a - b);
-      let minDiff = Infinity;
-      for (let i = 1; i < mins.length; i++) {
-        const diff = mins[i] - mins[i - 1];
-        if (diff > 0 && diff < minDiff) minDiff = diff;
-      }
-      
-      // БРОНЯ: Если разница слишком большая (например 6 часов дыры в расписании),
-      // не позволяем алгоритму прыгать огромными кусками, возвращаем fallback (обычно 60).
-      if (!Number.isFinite(minDiff) || minDiff > fallback) {
-        return fallback;
-      }
-      
-      return minDiff;
-    };
-
-    const hasEnoughContinuousTimeWindow = (availableSlots, startTime, procedureMins, restMins = REST_AFTER_CLIENT_MINS, workingSlots = []) => {
-      const startMins = timeToMinutes(startTime);
-      const procedure = Number(procedureMins);
-      const rest = Math.max(0, Number(restMins) || 0);
-      if (!Number.isFinite(startMins) || !Number.isFinite(procedure) || procedure <= 0) return false;
-
-      const availableMins = (availableSlots || []).map(timeToMinutes).filter(v => Number.isFinite(v));
-      const availableSet = new Set(availableMins);
-      if (!availableSet.has(startMins)) return false;
-
-      const workingMins = (workingSlots || []).map(timeToMinutes).filter(v => Number.isFinite(v));
-      const allKnownMins = [...availableMins, ...workingMins];
-      const maxWorkingMins = allKnownMins.length ? Math.max(...allKnownMins) : startMins;
-      const stepMins = getSlotStepMins(workingSlots && workingSlots.length ? workingSlots : availableSlots, 60);
-      const requiredUntil = startMins + procedure + rest;
-
-      for (let t = startMins; t < requiredUntil; t += stepMins) {
-        if (t > maxWorkingMins) break;
-        if (!availableSet.has(t)) return false;
-      }
-      return true;
     };
 
     const toSafeString = (v, fallback = '') => {
@@ -651,79 +569,6 @@
         clientName: toSafeString(raw.clientName, 'Без имени'),
         services: toSafeString(raw.services, '')
       };
-    };
-
-    const minutesToTime = (mins) => {
-      if (!Number.isFinite(mins)) return '';
-      const h = Math.floor(mins / 60);
-      const m = mins % 60;
-      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    };
-
-    const getBookingBlockedMins = (bookingObj) => {
-      const safeBooking = normalizeBooking(bookingObj);
-      const baseDuration = Number(safeBooking.duration) || 60;
-      const isBreak = safeBooking.clientName === "Перерыв";
-      return baseDuration + (isBreak ? 0 : REST_AFTER_CLIENT_MINS);
-    };
-
-    const restoreBlockedWindowSlots = (slots, startTime, blockedMins, workingSlots = []) => {
-      const startMins = timeToMinutes(startTime);
-      const duration = Number(blockedMins);
-      if (!Number.isFinite(startMins) || !Number.isFinite(duration) || duration <= 0) return [...(slots || [])];
-
-      const baseSlots = [...(slots || [])];
-      const stepMins = getSlotStepMins((workingSlots && workingSlots.length) ? workingSlots : baseSlots, 60);
-      const workingMins = (workingSlots || []).map(timeToMinutes).filter(v => Number.isFinite(v));
-      const maxWorkingMins = workingMins.length ? Math.max(...workingMins) : (startMins + duration);
-
-      const restoredSet = new Set(baseSlots);
-      const untilMins = startMins + duration;
-      for (let t = startMins; t < untilMins; t += stepMins) {
-        if (t > maxWorkingMins) break;
-        restoredSet.add(minutesToTime(t));
-      }
-
-      return Array.from(restoredSet).sort((a, b) => (timeToMinutes(a) || 0) - (timeToMinutes(b) || 0));
-    };
-
-    const removeSlotsBlockedByBookings = (slots, bookings, dateStr, excludedBookingId = null) => {
-      let result = [...(slots || [])];
-      (bookings || []).forEach(raw => {
-        const safeBooking = normalizeBooking(raw);
-        if (!safeBooking.date || safeBooking.date !== dateStr) return;
-        if (excludedBookingId !== null && String(safeBooking.id || '') === String(excludedBookingId)) return;
-        const blockedMins = getBookingBlockedMins(safeBooking);
-        result = removeOverlappingSlots(result, safeBooking.time, blockedMins);
-      });
-      return result;
-    };
-
-    const isSameBookingRecord = (a, b) => {
-      if (!a || !b) return false;
-      const left = normalizeBooking(a);
-      const right = normalizeBooking(b);
-
-      const leftId = toSafeString(left.id, '');
-      const rightId = toSafeString(right.id, '');
-      if (leftId && rightId) return leftId === rightId;
-
-      const leftCreated = toSafeString(left.createdAt, '');
-      const rightCreated = toSafeString(right.createdAt, '');
-      if (leftCreated && rightCreated) {
-        return left.date === right.date && left.time === right.time && leftCreated === rightCreated;
-      }
-
-      return (
-        left.date === right.date &&
-        left.time === right.time &&
-        left.clientName === right.clientName &&
-        toSafeString(left.tgId, '') === toSafeString(right.tgId, '')
-      );
-    };
-
-    const removeBookingFromList = (list, bookingToRemove) => {
-      return (list || []).filter(item => !isSameBookingRecord(item, bookingToRemove));
     };
 
     const extractUsernameFromContact = (contact) => {
@@ -756,12 +601,12 @@
          const tgIdStr = String(b.tgId);
          
          if (!isManualBooking) {
-             const cleanUser = b.clientContact ? String(b.clientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
+             const cleanUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
              const cleanPhone = toSafeString(b.phone, '').replace(/[^\d]/g, '');
              
              const mIdx = manualClients.findIndex(mc => {
-                const dbUser = mc.username ? String(mc.username).replace(/[@()]/g, '').trim().toLowerCase() : '';
-                const dbPhone = mc.phone ? String(mc.phone).replace(/[^\d]/g, '') : '';
+                const dbUser = mc.username ? mc.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                const dbPhone = mc.phone ? mc.phone.replace(/[^\d]/g, '') : '';
                 return (cleanUser && dbUser === cleanUser) || (cleanPhone && dbPhone === cleanPhone);
              });
              
@@ -836,7 +681,7 @@
       const [selectedDuration, setSelectedDuration] = useState(30); 
       const [selectedAddons, setSelectedAddons] = useState([]); 
       const [tapCount, setTapCount] = useState(0);
-      const [clientPhone, setClientPhone] = useState('+7'); 
+      const [clientPhone, setClientPhone] = useState(''); 
       const [dbConnected, setDbConnected] = useState(false);
       const [showAdminGear, setShowAdminGear] = useState(false);
       const [toastMsg, setToastMsg] = useState('');
@@ -866,10 +711,9 @@
       const [manualDate, setManualDate] = useState('');
       const [manualTime, setManualTime] = useState('');
       const [manualService, setManualService] = useState('');
-      const [manualPhone, setManualPhone] = useState('+7'); 
+      const [manualPhone, setManualPhone] = useState(''); 
 
       const [adminCalendarDate, setAdminCalendarDate] = useState(globalCalendarDays[0].date);
-      const [settingsCalendarMonth, setSettingsCalendarMonth] = useState(new Date());
       const [calendarMonth, setCalendarMonth] = useState(new Date()); 
       const hoursList = Array.from({length: 13}, (_, i) => i + 9); 
       
@@ -884,16 +728,11 @@
       const [showAddClient, setShowAddClient] = useState(false);
       const [newClientName, setNewClientName] = useState('');
       const [newClientContact, setNewClientContact] = useState('');
-      const [newClientPhone, setNewClientPhone] = useState('+7'); 
+      const [newClientPhone, setNewClientPhone] = useState(''); 
       const [clientSearch, setClientSearch] = useState(''); 
       const [clientListTab, setClientListTab] = useState('active'); // 'active' | 'archive'
       
-      const [showAdminAuthModal, setShowAdminAuthModal] = useState(false);
-      const [adminAuthInput, setAdminAuthInput] = useState('');
-      const skipAdminAuthRef = useRef(false);
-
       let tapTimeout = useRef(null);
-      const adminPasswordRef = useRef('');
 
       // Refs для свайпа назад
       const activeTabRef = useRef(activeTab);
@@ -954,18 +793,6 @@
         setTimeout(() => setToastMsg(''), 3000);
       };
 
-      const saveLocalCache = (dataObj) => {
-        try {
-          if (!dataObj || typeof dataObj !== 'object') return;
-          const cacheData = { ...dataObj };
-          // Персональные данные клиентов не сохраняем в localStorage
-          delete cacheData.clients;
-          localStorage.setItem('electroAppData', JSON.stringify(cacheData));
-        } catch (e) {
-          console.error("Local cache error:", e);
-        }
-      };
-
       const fetchBookings = async () => {
         if (!db) return;
         const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
@@ -1016,11 +843,7 @@
           const saved = localStorage.getItem('electroAppData');
           if (saved) {
             try {
-              const parsedCache = JSON.parse(saved);
-              if (parsedCache && typeof parsedCache === 'object') {
-                delete parsedCache.clients;
-              }
-              finalData = { ...initialMasterData, ...(parsedCache || {}) };
+              finalData = { ...initialMasterData, ...JSON.parse(saved) };
             } catch (e) {}
           }
 
@@ -1086,16 +909,20 @@
           const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
 
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
-            if (userTgId === ADMIN_TG_ID && !skipAdminAuthRef.current) {
-              if (!user || user.email !== 'boss@electro.app') {
-                if (auth.currentUser) auth.signOut().catch(e => console.error(e));
-                setShowAdminAuthModal(true);
+            if (userTgId === ADMIN_TG_ID) {
+              if (!user || user.email !== 'admin@electro.app') {
+                try {
+                  if (user) await auth.signOut();
+                  await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), atob("U3VwZXJBZG1pbjEyMyE="));
+                  return; 
+                } catch (e) {
+                  console.error("Auth admin error:", e);
+                  loadDatabase(); 
+                }
               } else {
-                setShowAdminAuthModal(false);
                 loadDatabase();
               }
             } else {
-              // Если зашел Клиент
               if (!user) {
                 try {
                   await auth.signInAnonymously();
@@ -1105,7 +932,6 @@
                   loadDatabase(); 
                 }
               } else {
-                setShowAdminAuthModal(false);
                 loadDatabase();
               }
             }
@@ -1148,17 +974,10 @@
         setTapCount(prev => {
           if (prev + 1 >= 5) {
             const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-            if (userTgId === ADMIN_TG_ID) {
-              const currentUser = db ? firebase.auth().currentUser : null;
-              if (currentUser && currentUser.email === 'boss@electro.app') {
-                setEditData(appData); 
-                setShowAdminGear(true);
-                triggerHaptic();
-              } else {
-                skipAdminAuthRef.current = false;
-                setShowAdminAuthModal(true);
-                triggerHaptic();
-              }
+            if (userTgId === ADMIN_TG_ID || !window.Telegram?.WebApp?.initDataUnsafe?.user) {
+              setEditData(appData); 
+              setShowAdminGear(true);
+              triggerHaptic();
             }
             return 0;
           }
@@ -1206,51 +1025,6 @@
           setSelectedTime(timeStr); 
       };
 
-      if (showAdminAuthModal) {
-        return (
-          <div className="min-h-[100dvh] bg-[#0a0a0a] flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
-            <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 p-6 rounded-3xl w-full max-w-sm shadow-[0_0_40px_rgba(200,157,124,0.15)] text-center">
-              <div className="w-16 h-16 bg-[#C89D7C]/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-[#C89D7C]/30 shadow-inner">
-                <Icon name="Settings" className="w-8 h-8 text-[#C89D7C]" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Доступ администратора</h3>
-              <p className="text-sm text-gray-400 mb-6">Введите пароль для управления базой и расписанием</p>
-              
-              <input 
-                type="password" 
-                value={adminAuthInput} 
-                onChange={e => setAdminAuthInput(e.target.value)}
-                placeholder="••••••••" 
-                className="w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-4 text-white text-center tracking-[0.3em] text-xl mb-6 focus:outline-none focus:border-[#C89D7C] shadow-inner"
-              />
-              
-              <div className="flex gap-3">
-                <button onClick={async () => {
-                  triggerHaptic();
-                  skipAdminAuthRef.current = true;
-                  setShowAdminAuthModal(false);
-                  try { await firebase.auth().signInAnonymously(); } catch(e) {}
-                }} className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:bg-gray-800 transition-colors">
-                  Как клиент
-                </button>
-                <button onClick={async () => {
-                  triggerHaptic();
-                  try {
-                    await firebase.auth().signInWithEmailAndPassword(atob("Ym9zc0BlbGVjdHJvLmFwcA=="), adminAuthInput);
-                    setAdminAuthInput('');
-                  } catch(e) {
-                    alert("❌ Неверный пароль! Попробуйте еще раз.");
-                    setAdminAuthInput('');
-                  }
-                }} className="flex-[1.5] py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">
-                  Войти
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      }
-
       if (!isAppReady || !appData) {
         return (
           <div className="boot-loader-shell">
@@ -1268,22 +1042,7 @@
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
       const totalPrice = (selectedDuration * appData.pricePerMinute) + addonsPrice;
 
-      const handlePreBooking = () => {
-        const dateEntry = (appData.dates || []).find(d => d.date === selectedDate);
-        const daySlots = dateEntry?.slots || [];
-        const fitsWindow = hasEnoughContinuousTimeWindow(
-          daySlots,
-          selectedTime,
-          selectedDuration,
-          REST_AFTER_CLIENT_MINS,
-          [...(appData.defaultSlots || []), ...daySlots]
-        );
-        if (!fitsWindow) {
-          alert("Недостаточно времени для проведения процедуры. Выберите другое время или уменьшите длительность.");
-          return;
-        }
-        setShowMemo(true);
-      };
+      const handlePreBooking = () => setShowMemo(true);
 
       const isUserBlacklisted = () => {
         const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
@@ -1298,28 +1057,18 @@
         return (appData.clients || []).some(c => c.tgId === tgUser.id);
       };
 
+      // =========================================================================
+      // АЛГОРИТМ ЗАПИСИ ИЗ ВАШЕГО ОБРАЗЦА
+      // =========================================================================
       const handleFinalBooking = async () => {
-        if (!isExistingClient() && (!clientPhone || !toSafeString(clientPhone, '').trim())) {
+        if (!isExistingClient() && (!clientPhone || !clientPhone.trim())) {
            alert("Пожалуйста, введите ваш номер телефона!");
            return;
         }
 
-        const dateEntry = (appData.dates || []).find(d => d.date === selectedDate);
-        const daySlots = dateEntry?.slots || [];
-        const fitsWindow = hasEnoughContinuousTimeWindow(
-          daySlots,
-          selectedTime,
-          selectedDuration,
-          REST_AFTER_CLIENT_MINS,
-          [...(appData.defaultSlots || []), ...daySlots]
-        );
-        if (!fitsWindow) {
-          setShowMemo(false);
-          alert("Недостаточно времени для проведения процедуры. Выберите другое время или уменьшите длительность.");
-          return;
-        }
-
         triggerHaptic();
+        setShowMemo(false); 
+        setActiveTab('success'); 
 
         const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
         const clientName = tgUser.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : "Неизвестный клиент";
@@ -1334,17 +1083,16 @@
         
         if (tgUser.id) {
             const cleanTgUsername = clientUsername ? clientUsername.replace(/[@()]/g, '').trim().toLowerCase() : '';
-            const cleanTgPhone = clientPhone ? toSafeString(clientPhone).replace(/[^\d]/g, '') : '';
+            const cleanTgPhone = clientPhone ? clientPhone.replace(/[^\d]/g, '') : '';
 
             let cIdx = updatedClients.findIndex(c => c.tgId === tgUser.id);
 
-            // ИЩЕМ РУЧНУЮ ЗАПИСЬ (СЛИЯНИЕ КАРТОЧЕК)
             if (cIdx === -1) {
                  cIdx = updatedClients.findIndex(c => {
                     if (!String(c.tgId).startsWith('manual_')) return false;
-                    const dbUser = c.username ? String(c.username).replace(/[@()]/g, '').trim().toLowerCase() : '';
-                    const dbPhone = c.phone ? String(c.phone).replace(/[^\d]/g, '') : '';
-                    return (cleanTgUsername && dbUser === cleanTgUsername) || (cleanTgPhone && dbPhone === cleanTgPhone);
+                    const dbUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                    const dbPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
+                    return (cleanTgUsername && dbUser === cleanTgUsername) || (cleanTgPhone && dbPhone === cleanPhone);
                  });
             }
 
@@ -1354,14 +1102,10 @@
                 if (String(oldTgId).startsWith('manual_') && oldTgId !== tgUser.id) {
                      deleteClientFromFirebase(oldTgId);
                 }
-
-                updatedClients[cIdx] = {
-                    ...updatedClients[cIdx],
-                    tgId: tgUser.id,
-                    visits: (updatedClients[cIdx].visits || 0) + 1,
-                    username: clientUsername && !updatedClients[cIdx].username ? clientUsername : updatedClients[cIdx].username,
-                    phone: clientPhone && !updatedClients[cIdx].phone ? clientPhone : updatedClients[cIdx].phone
-                };
+                updatedClients[cIdx].tgId = tgUser.id; 
+                updatedClients[cIdx].visits = (updatedClients[cIdx].visits || 0) + 1;
+                if (clientUsername && !updatedClients[cIdx].username) updatedClients[cIdx].username = clientUsername;
+                if (clientPhone && !updatedClients[cIdx].phone) updatedClients[cIdx].phone = clientPhone;
 
                 finalClientName = updatedClients[cIdx].customName || updatedClients[cIdx].originalName || clientName;
                 finalClientObj = updatedClients[cIdx];
@@ -1383,9 +1127,7 @@
             saveClientToFirebase(finalClientObj);
         }
         
-        // ФУНКЦИЯ ЭКРАНИРОВАНИЯ (БРОНЯ ОТ ПАДЕНИЯ ТЕЛЕГРАМА ИЗ-ЗА _ В НИКАХ)
         const escapeMD = (str) => String(str || '').replace(/([_*\[\]`\\])/g, '\\$1');
-        
         const safeName = escapeMD(finalClientName);
         const safeUsername = escapeMD(clientUsername);
         const safePhone = escapeMD(clientPhone);
@@ -1400,13 +1142,28 @@
                         `⏳ Забронировано: ${selectedDuration} мин\n` +
                         `💰 Ожидаемая сумма: ~${totalPrice} ₽`;
 
-        // БРОНЯ (Шаг 4): Детерминированный ID на основе даты и времени
-        const safeDateStr = String(selectedDate).replace(/\s+/g, '_');
-        const safeTimeStr = String(selectedTime).replace(':', '_');
-        const deterministicId = `b_${safeDateStr}_${safeTimeStr}`;
+        if (GOOGLE_SCRIPT_URL) {
+          const fetchOpts = (payload) => ({
+            method: 'POST',
+            keepalive: true, 
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({...payload, app_secret: GOOGLE_SCRIPT_SECRET})
+          });
+
+          fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: CHAT_ID, text: messageToAdmin }))
+             .catch(error => console.error("Ошибка отправки админу", error));
+
+          if (tgUser.id) {
+            const safeAddress = escapeMD(appData.address);
+            const safeNote = escapeMD(appData.addressNote);
+            const messageToClient = `✨ *${safeName}, ваша запись подтверждена!*\n\n📅 Дата: ${selectedDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${safeServices}${safeAddons}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${safeAddress}\n_${safeNote}_\n\nЖду вас! ❤️`;
+            fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: tgUser.id, text: messageToClient }))
+               .catch(error => console.error("Ошибка отправки клиенту", error));
+          }
+        }
 
         const newBooking = {
-          id: deterministicId,
+          id: 'b' + Date.now(),
           date: selectedDate,
           time: selectedTime,
           clientName: finalClientName,
@@ -1419,89 +1176,18 @@
           createdAt: new Date().toISOString()
         };
 
-        try {
-            if (db) {
-                // 1. Предварительная проверка на перекрытия времени (защита от "нахлеста" процедур)
-                const snapshot = await db.collection("bookings").where("date", "==", selectedDate).get();
-                const existingDayBookings = [];
-                snapshot.forEach(doc => existingDayBookings.push(normalizeBooking(doc.data(), doc.id)));
-                
-                let freshAvailableSlots = [...daySlots];
-                existingDayBookings.forEach(eb => {
-                    freshAvailableSlots = removeOverlappingSlots(freshAvailableSlots, eb.time, getBookingBlockedMins(eb));
-                });
+        if (db) {
+          db.collection("bookings").doc(newBooking.id).set(newBooking).catch(err => console.error("Firebase booking error:", err));
+        }
 
-                const stillFits = hasEnoughContinuousTimeWindow(
-                  freshAvailableSlots,
-                  selectedTime,
-                  selectedDuration,
-                  REST_AFTER_CLIENT_MINS,
-                  [...(appData.defaultSlots || []), ...daySlots]
-                );
-
-                if (!stillFits) throw new Error("OVERLAP");
-
-                // 2. Атомарная транзакция: защита от записи миллисекунда в миллисекунду
-                const bookingRef = db.collection("bookings").doc(deterministicId);
-                await db.runTransaction(async (transaction) => {
-                    const doc = await transaction.get(bookingRef);
-                    if (doc.exists) {
-                        throw new Error("SLOT_TAKEN");
-                    }
-                    transaction.set(bookingRef, newBooking);
-                });
-            }
-
-            // Только после успеха показываем экран
-            setShowMemo(false); 
-            setActiveTab('success'); 
-
-            if (GOOGLE_SCRIPT_URL) {
-              const fetchOpts = (payload) => ({
-                method: 'POST',
-                keepalive: true, 
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ ...payload, app_secret: GOOGLE_SCRIPT_SECRET })
-              });
-
-              fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: CHAT_ID, text: messageToAdmin }))
-                 .catch(error => console.error("Ошибка отправки админу", error));
-
-              if (tgUser.id) {
-                const safeAddress = escapeMD(appData.address);
-                const safeNote = escapeMD(appData.addressNote);
-                const messageToClient = `✨ *${safeName}, ваша запись подтверждена!*\n\n📅 Дата: ${selectedDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${safeServices}${safeAddons}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${safeAddress}\n_${safeNote}_\n\nЖду вас! ❤️`;
-                
-                fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: tgUser.id, text: messageToClient }))
-                   .catch(error => console.error("Ошибка отправки клиенту", error));
-              }
-            }
-
-            const updatedDates = [...(appData.dates || [])];
-            const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
-            if (targetDateIdx !== -1) {
-              updatedDates[targetDateIdx] = {
-                ...updatedDates[targetDateIdx],
-                slots: removeOverlappingSlots(
-                  updatedDates[targetDateIdx].slots,
-                  selectedTime,
-                  selectedDuration + REST_AFTER_CLIENT_MINS
-                )
-              };
-              const newData = { ...appData, dates: updatedDates, clients: updatedClients };
-              setAppData(newData);
-              setEditData(newData);
-              saveLocalCache(newData);
-            }
-
-        } catch (err) {
-            console.error("Firebase booking error:", err);
-            setShowMemo(false); // Прячем памятку
-            if (err.message === "SLOT_TAKEN" || err.message === "OVERLAP") {
-                alert("Ой! Кажется, это окошко только что заняли 😔 Пожалуйста, выберите другое время.");
-            } else {
-                alert("К сожалению, произошла ошибка сети. Пожалуйста, попробуйте еще раз.");
-            }
+        const updatedDates = [...(appData.dates || [])];
+        const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
+        if (targetDateIdx !== -1) {
+          updatedDates[targetDateIdx].slots = removeOverlappingSlots(updatedDates[targetDateIdx].slots, selectedTime, selectedDuration);
+          const newData = { ...appData, dates: updatedDates, clients: updatedClients };
+          setAppData(newData);
+          setEditData(newData);
+          localStorage.setItem('electroAppData', JSON.stringify(newData));
         }
       };
 
@@ -1513,7 +1199,7 @@
         setSelectedTime(null);
         setSelectedDuration(30);
         setSelectedAddons([]);
-        setClientPhone('+7');
+        setClientPhone('');
       };
 
       const submitClientReview = () => {
@@ -1538,7 +1224,7 @@
         setAppData(newData);
         setEditData(newData);
         
-        saveLocalCache(newData);
+        localStorage.setItem('electroAppData', JSON.stringify(newData));
         
         showToast("Спасибо! Отзыв отправлен на модерацию. 💖");
         setRevName('');
@@ -1581,6 +1267,9 @@
           }
       };
 
+      // =========================================================================
+      // АЛГОРИТМ РЕДАКТИРОВАНИЯ (ОТРАБОТКА СЛОТОВ ИЗ ОБРАЗЦА)
+      // =========================================================================
       const confirmEditBooking = async () => {
           if(!editingBooking) return;
           const safeDuration = Number(editBDuration);
@@ -1591,8 +1280,7 @@
 
           const updatedB = normalizeBooking({ ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName, services: editBServices });
           
-          const bookingsAfterEdit = (bookingsList || []).map(b => isSameBookingRecord(b, editingBooking) ? updatedB : b);
-          setBookingsList(bookingsAfterEdit);
+          setBookingsList(prev => prev.map(b => String(b.id || '') === String(updatedB.id || '') ? updatedB : b));
 
           try {
             if(db && updatedB.id) await db.collection("bookings").doc(String(updatedB.id)).update({
@@ -1602,46 +1290,22 @@
             const newDates = [...(editData.dates || [])];
             if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
                 const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                if (oldDIdx !== -1) {
-                    const currentOldSlots = [...(newDates[oldDIdx].slots || [])];
-                    const workingSlots = Array.from(new Set([
-                      ...(editData.defaultSlots || []),
-                      ...currentOldSlots,
-                      toSafeString(editingBooking.time, '')
-                    ].filter(Boolean)));
-
-                    let restoredOldSlots = restoreBlockedWindowSlots(
-                      currentOldSlots,
-                      editingBooking.time,
-                      getBookingBlockedMins(editingBooking),
-                      workingSlots
-                    );
-                    restoredOldSlots = removeSlotsBlockedByBookings(
-                      restoredOldSlots,
-                      bookingsAfterEdit,
-                      editingBooking.date
-                    );
-                    newDates[oldDIdx] = { ...newDates[oldDIdx], slots: restoredOldSlots };
+                if (oldDIdx !== -1 && newDates[oldDIdx].slots && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                    newDates[oldDIdx].slots.push(editingBooking.time);
+                    newDates[oldDIdx].slots.sort();
                 }
             }
             
             const newDIdx = newDates.findIndex(d => d.date === editBDate);
             if (newDIdx !== -1) {
-                newDates[newDIdx] = {
-                  ...newDates[newDIdx],
-                  slots: removeOverlappingSlots(
-                    newDates[newDIdx].slots,
-                    editBTime,
-                    safeDuration + REST_AFTER_CLIENT_MINS
-                  )
-                };
+                newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
             }
 
             const newData = {...editData, dates: newDates};
             setEditData(newData);
             setAppData(newData);
             syncToFirebase(newData);
-            saveLocalCache(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
 
             setEditingBooking(null);
             showToast("Запись успешно обновлена! ✏️");
@@ -1651,12 +1315,14 @@
           }
       };
 
+      // =========================================================================
+      // АЛГОРИТМ ОТМЕНЫ И ВОЗВРАТА ВРЕМЕНИ (ИЗ ОБРАЗЦА)
+      // =========================================================================
       const handleDeleteBookingGlobal = async (booking) => {
           triggerHaptic();
           if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
           
-          const remainingBookings = removeBookingFromList(bookingsList, booking);
-          setBookingsList(remainingBookings);
+          setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
 
           try {
             if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
@@ -1664,48 +1330,18 @@
             const newDates = [...(editData?.dates || appData?.dates || [])];
             const dIdx = newDates.findIndex(d => d.date === booking.date);
             if (dIdx !== -1) {
-              const currentSlots = [...(newDates[dIdx].slots || [])];
-              const workingSlots = Array.from(new Set([
-                ...(editData?.defaultSlots || appData?.defaultSlots || []),
-                ...currentSlots,
-                toSafeString(booking.time, '')
-              ].filter(Boolean)));
-
-              let restoredSlots = restoreBlockedWindowSlots(
-                currentSlots,
-                booking.time,
-                getBookingBlockedMins(booking),
-                workingSlots
-              );
-              restoredSlots = removeSlotsBlockedByBookings(
-                restoredSlots,
-                remainingBookings,
-                booking.date
-              );
-              newDates[dIdx] = { ...newDates[dIdx], slots: restoredSlots };
+              if(!newDates[dIdx].slots.includes(booking.time)){
+                  newDates[dIdx].slots.push(booking.time);
+                  newDates[dIdx].slots.sort();
+              }
             } else {
                const gDay = globalCalendarDays.find(g => g.date === booking.date);
                if(gDay) {
-                   const workingSlots = Array.from(new Set([
-                     ...(editData?.defaultSlots || appData?.defaultSlots || []),
-                     toSafeString(booking.time, '')
-                   ].filter(Boolean)));
-                   let restoredSlots = restoreBlockedWindowSlots(
-                     [],
-                     booking.time,
-                     getBookingBlockedMins(booking),
-                     workingSlots
-                   );
-                   restoredSlots = removeSlotsBlockedByBookings(
-                     restoredSlots,
-                     remainingBookings,
-                     booking.date
-                   );
-                   newDates.push({ date: booking.date, day: gDay.day, slots: restoredSlots });
+                   newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
                    newDates.sort((a, b) => {
                      const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
                      const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
-                     return (idxA !== -1 ? idxA : 9999) - (idxB !== -1 ? idxB : 9999);
+                     return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
                    });
                }
             }
@@ -1714,7 +1350,7 @@
             if (editData) setEditData(newData);
             if (appData) setAppData(newData);
             syncToFirebase(newData);
-            saveLocalCache(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
             
             fetchBookings();
             showToast("Бронь отменена, слот возвращен. 🔄");
@@ -1881,8 +1517,7 @@
           globalCalendarDays.some(g => g.date === item.date)
         );
 
-        const dateEntry = (appData.dates || []).find(d => d.date === selectedDate);
-        let availableSlotsForDate = dateEntry?.slots || [];
+        let availableSlotsForDate = (appData.dates || []).find(d => d.date === selectedDate)?.slots || [];
         
         if (selectedDate === globalCalendarDays[0].date) {
             const now = new Date();
@@ -1893,16 +1528,6 @@
                 return h > currentHour || (h === currentHour && m > currentMin);
             });
         }
-
-        const bookableSlotsForDate = availableSlotsForDate.filter(time =>
-          hasEnoughContinuousTimeWindow(
-            availableSlotsForDate,
-            time,
-            selectedDuration,
-            REST_AFTER_CLIENT_MINS,
-            [...(appData.defaultSlots || []), ...(dateEntry?.slots || [])]
-          )
-        );
 
         const handleDateScroll = (e) => {
             const container = e.target;
@@ -1973,11 +1598,11 @@
             {selectedDate && (
               <div className="animate-[fadeIn_0.3s_ease-out] px-4">
                 <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Свободные окошки</h3>
-                {bookableSlotsForDate.length === 0 ? (
+                {availableSlotsForDate.length === 0 ? (
                   <p className="text-gray-400 text-sm">На этот день нет свободных окошек.</p>
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
-                    {bookableSlotsForDate.map((time, idx) => (
+                    {availableSlotsForDate.map((time, idx) => (
                       <div key={idx} onClick={() => selectTimeSlot(time)} className={`py-3.5 rounded-xl text-center font-medium cursor-pointer transition-all duration-200 border ${selectedTime === time ? 'bg-[#2A2A2A] text-[#C89D7C] border-[#C89D7C] shadow-[0_0_10px_rgba(200,157,124,0.2)] scale-105' : 'glass-card-dark text-gray-400 border-white/5 hover:bg-white/5'}`}>
                         {time}
                       </div>
@@ -2065,7 +1690,7 @@
                 type="tel" 
                 inputMode="tel"
                 value={clientPhone} 
-                onChange={e => setClientPhone(toSafeString(e.target.value).replace(/[^\d\+\-\(\)\s]/g, ''))}
+                onChange={e => setClientPhone(e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))}
                 placeholder="Ваш телефон (обязательно)" 
                 className="w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm mb-6 focus:outline-none focus:border-[#C89D7C]"
               />
@@ -2224,22 +1849,15 @@
             const newDates = [...(editData.dates || [])];
             const dIdx = newDates.findIndex(d => d.date === manualDate);
             if (dIdx !== -1) {
-              newDates[dIdx] = {
-                ...newDates[dIdx],
-                slots: removeOverlappingSlots(
-                  newDates[dIdx].slots,
-                  manualTime,
-                  60 + REST_AFTER_CLIENT_MINS
-                )
-              };
+              newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
               const newData = {...editData, dates: newDates};
               setEditData(newData);
               setAppData(newData);
               syncToFirebase(newData);
-              saveLocalCache(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
             }
 
-            setManualName(''); setManualContact(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('+7');
+            setManualName(''); setManualContact(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
             fetchBookings();
             setShowManualBooking(false);
             setAdminCalendarDate(manualDate);
@@ -2272,18 +1890,15 @@
             const newDates = [...(editData.dates || [])];
             const dIdx = newDates.findIndex(d => d.date === manualDate);
             if (dIdx !== -1) {
-              newDates[dIdx] = {
-                ...newDates[dIdx],
-                slots: removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60)
-              };
+              newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
               const newData = {...editData, dates: newDates};
               setEditData(newData);
               setAppData(newData);
               syncToFirebase(newData);
-              saveLocalCache(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
             }
 
-            setManualName(''); setManualContact(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('+7');
+            setManualName(''); setManualContact(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
             fetchBookings();
             setShowManualBooking(false);
             setAdminCalendarDate(manualDate);
@@ -2333,134 +1948,6 @@
           } else {
              showToast("Бот не настроен 😔");
           }
-        };
-
-        const openEditBooking = (b) => {
-            try {
-              triggerHaptic();
-              const safeB = normalizeBooking(b);
-              setEditBDate(safeB.date || "");
-              setEditBTime(safeB.time || "14:00");
-              setEditBDuration(Number(safeB.duration) || 60);
-              setEditBName(toSafeString(safeB.clientName, "")); 
-              setEditBServices(toSafeString(safeB.services, "")); 
-              setEditingBooking(safeB);
-            } catch(err) {
-              console.error("Ошибка при открытии окна редактирования:", err);
-            }
-        };
-
-        const confirmEditBooking = async () => {
-            if(!editingBooking) return;
-            const safeDuration = Number(editBDuration);
-            if(!editBDate || !editBTime || !Number.isFinite(safeDuration) || safeDuration <= 0 || !toSafeString(editBName, '').trim()) {
-                return alert("Заполните все поля: имя, дату, время и длительность!");
-            }
-            triggerHaptic();
-
-            const updatedB = normalizeBooking({ ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName, services: editBServices });
-            
-            const bookingsAfterEdit = (bookingsList || []).map(b => isSameBookingRecord(b, editingBooking) ? updatedB : b);
-            setBookingsList(bookingsAfterEdit);
-
-            try {
-              if(db && updatedB.id) await db.collection("bookings").doc(String(updatedB.id)).update({
-                  date: updatedB.date, time: updatedB.time, duration: updatedB.duration, clientName: updatedB.clientName, services: updatedB.services
-              });
-
-              const newDates = [...(editData.dates || [])];
-              if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
-                  const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                  if (oldDIdx !== -1) {
-                      const currentOldSlots = [...(newDates[oldDIdx].slots || [])];
-                      const workingSlots = Array.from(new Set([
-                        ...(editData.defaultSlots || []),
-                        ...currentOldSlots,
-                        toSafeString(editingBooking.time, '')
-                      ].filter(Boolean)));
-
-                      let restoredOldSlots = restoreBlockedWindowSlots(
-                        currentOldSlots,
-                        editingBooking.time,
-                        getBookingBlockedMins(editingBooking),
-                        workingSlots
-                      );
-                      restoredOldSlots = removeSlotsBlockedByBookings(
-                        restoredOldSlots,
-                        bookingsAfterEdit,
-                        editingBooking.date
-                      );
-                      newDates[oldDIdx] = { ...newDates[oldDIdx], slots: restoredOldSlots };
-                  }
-              }
-              
-              const newDIdx = newDates.findIndex(d => d.date === editBDate);
-              if (newDIdx !== -1) {
-                  newDates[newDIdx] = {
-                    ...newDates[newDIdx],
-                    slots: removeOverlappingSlots(
-                      newDates[newDIdx].slots,
-                      editBTime,
-                      safeDuration + REST_AFTER_CLIENT_MINS
-                    )
-                  };
-              }
-
-              const newData = {...editData, dates: newDates};
-              setEditData(newData);
-              setAppData(newData);
-              syncToFirebase(newData);
-              saveLocalCache(newData);
-
-              setEditingBooking(null);
-              showToast("Запись успешно обновлена! ✏️");
-            } catch(e) {
-              showToast("Ошибка сохранения ❌");
-              console.error(e);
-            }
-        };
-
-        const handleDeleteBookingGlobal = async (booking) => {
-            triggerHaptic();
-            if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
-            
-            const remainingBookings = removeBookingFromList(bookingsList, booking);
-            setBookingsList(remainingBookings);
-
-            try {
-              if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
-
-              const newDates = [...(editData?.dates || appData?.dates || [])];
-              const dIdx = newDates.findIndex(d => d.date === booking.date);
-              if (dIdx !== -1) {
-                if(!newDates[dIdx].slots.includes(booking.time)){
-                    newDates[dIdx].slots.push(booking.time);
-                    newDates[dIdx].slots.sort();
-                }
-              } else {
-                 const gDay = globalCalendarDays.find(g => g.date === booking.date);
-                 if(gDay) {
-                     newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
-                     newDates.sort((a, b) => {
-                       const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
-                       const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
-                       return (idxA !== -1 ? idxA : 9999) - (idxB !== -1 ? idxB : 9999);
-                     });
-                 }
-              }
-            
-              const newData = {...(editData || appData), dates: newDates};
-              if (editData) setEditData(newData);
-              if (appData) setAppData(newData);
-              syncToFirebase(newData);
-              saveLocalCache(newData);
-              
-              fetchBookings();
-              showToast("Бронь отменена, слот возвращен. 🔄");
-            } catch(e) {
-               showToast("Ошибка удаления ❌");
-               console.error(e);
-            }
         };
 
         const getMonthGrid = (date) => {
@@ -2553,7 +2040,7 @@
 
         const handleServiceChange = (index, field, value) => {
           const newServices = [...(editData.services || [])];
-          newServices[index] = { ...newServices[index], [field]: value };
+          newServices[index][field] = value;
           setEditData({...editData, services: newServices});
         };
 
@@ -2581,7 +2068,7 @@
 
         const handleAddonChange = (index, field, value) => {
           const newAddons = [...(editData.addons || [])];
-          newAddons[index] = { ...newAddons[index], [field]: value };
+          newAddons[index][field] = value;
           setEditData({...editData, addons: newAddons});
         };
         const addAddon = () => {
@@ -2605,7 +2092,7 @@
           setEditData(newEditData);
           setAppData(newEditData);
           await syncToFirebase(newEditData);
-          saveLocalCache(newEditData);
+          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
           showToast("Отзыв успешно опубликован! ✅");
         };
 
@@ -2618,7 +2105,7 @@
           setEditData(newEditData);
           setAppData(newEditData);
           await syncToFirebase(newEditData);
-          saveLocalCache(newEditData);
+          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
           showToast("Отзыв удален. 🗑️");
         };
 
@@ -2641,12 +2128,12 @@
              if (!clientObj) return false;
              const matchTgId = clientObj.tgId && String(b.tgId) === String(clientObj.tgId);
              
-             const cUser = clientObj.username ? String(clientObj.username).replace(/[@()]/g, '').trim().toLowerCase() : '';
-             const bUser = b.clientContact ? String(b.clientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
+             const cUser = clientObj.username ? clientObj.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+             const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
              const matchUsername = cUser && bUser && bUser.includes(cUser);
              
-             const cPhone = clientObj.phone ? String(clientObj.phone).replace(/[^\d]/g, '') : '';
-             const bPhone = b.phone ? String(b.phone).replace(/[^\d]/g, '') : '';
+             const cPhone = clientObj.phone ? clientObj.phone.replace(/[^\d]/g, '') : '';
+             const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
              const matchPhone = cPhone && bPhone && bPhone === cPhone;
              
              const matchName = (b.clientName === clientObj.customName) || (b.clientName === clientObj.originalName);
@@ -2666,9 +2153,9 @@
           setEditData(newEditData);
           setAppData(newEditData);
           
-          await deleteClientFromFirebase(tgId);
+          deleteClientFromFirebase(tgId);
           await syncToFirebase(newEditData);
-          saveLocalCache(newEditData);
+          localStorage.setItem('electroAppData', JSON.stringify(newEditData));
           showToast("Клиент удален! 🗑️");
         };
 
@@ -2677,12 +2164,12 @@
            triggerHaptic();
 
            const matches = bookingsList.filter(b => {
-               const cUser = newClientContact ? String(newClientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
-               const bUser = b.clientContact ? String(b.clientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
+               const cUser = newClientContact ? newClientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
+               const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
                const matchUsername = cUser && bUser && bUser.includes(cUser);
                
-               const cPhone = newClientPhone ? String(newClientPhone).replace(/[^\d]/g, '') : '';
-               const bPhone = b.phone ? String(b.phone).replace(/[^\d]/g, '') : '';
+               const cPhone = newClientPhone ? newClientPhone.replace(/[^\d]/g, '') : '';
+               const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
                const matchPhone = cPhone && bPhone && bPhone === cPhone;
                
                const matchName = newClientName && b.clientName === newClientName;
@@ -2711,11 +2198,11 @@
            
            saveClientToFirebase(client);
            await syncToFirebase(newEditData);
-           saveLocalCache(newEditData);
+           localStorage.setItem('electroAppData', JSON.stringify(newEditData));
 
            setNewClientName('');
            setNewClientContact('');
-           setNewClientPhone('+7');
+           setNewClientPhone('');
            setShowAddClient(false);
            showToast("Клиент успешно добавлен в базу! ✅");
         };
@@ -2725,7 +2212,7 @@
           setIsSaving(true);
           setAppData(editData);
           await syncToFirebase(editData);
-          saveLocalCache(editData);
+          localStorage.setItem('electroAppData', JSON.stringify(editData));
           setIsSaving(false);
           showToast("Настройки успешно сохранены! ✓");
         };
@@ -2734,10 +2221,10 @@
         const allClients = [...(editData.clients || [])].sort((a,b) => (b.totalSpent || 0) - (a.totalSpent || 0));
         
         const filteredClients = allClients.filter(c =>
-            (toSafeString(c.customName).toLowerCase().includes(clientSearch.toLowerCase())) ||
-            (toSafeString(c.originalName).toLowerCase().includes(clientSearch.toLowerCase())) ||
-            (toSafeString(c.username).toLowerCase().includes(clientSearch.toLowerCase())) ||
-            (toSafeString(c.phone).includes(clientSearch))
+            (c.customName && c.customName.toLowerCase().includes(clientSearch.toLowerCase())) ||
+            (c.originalName && c.originalName.toLowerCase().includes(clientSearch.toLowerCase())) ||
+            (c.username && c.username.toLowerCase().includes(clientSearch.toLowerCase())) ||
+            (c.phone && c.phone.includes(clientSearch))
         );
 
         const activeClients = filteredClients.filter(c => !c.isArchived);
@@ -2898,69 +2385,20 @@
                       <label className="block text-sm font-bold text-white mb-1">Свободные даты и окошки</label>
                       <p className="text-xs text-gray-400 mb-4">Нажми на день, чтобы настроить его время.</p>
                       
-                      <div className="bg-[#1A1A1A] border border-gray-700 rounded-xl p-3 mb-4">
-                        <div className="flex justify-between items-center mb-3">
-                          <h4 className="text-sm font-bold text-white capitalize">
-                            {settingsCalendarMonth.toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
-                          </h4>
-                          <div className="flex gap-3">
-                            <button
-                              onClick={() => { triggerHaptic(); setSettingsCalendarMonth(new Date(settingsCalendarMonth.getFullYear(), settingsCalendarMonth.getMonth() - 1, 1)); }}
-                              className="text-[#C89D7C] hover:text-white px-2 py-1 text-xl leading-none transition-colors"
-                            >
-                              ‹
-                            </button>
-                            <button
-                              onClick={() => { triggerHaptic(); setSettingsCalendarMonth(new Date(settingsCalendarMonth.getFullYear(), settingsCalendarMonth.getMonth() + 1, 1)); }}
-                              className="text-[#C89D7C] hover:text-white px-2 py-1 text-xl leading-none transition-colors"
-                            >
-                              ›
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-7 mb-2 text-center text-[10px] text-gray-500 font-bold uppercase">
-                          <div>П</div><div>В</div><div>С</div><div>Ч</div><div>П</div><div>С</div><div>В</div>
-                        </div>
-
-                        <div className="grid grid-cols-7 gap-y-2 text-center">
-                          {getMonthGrid(settingsCalendarMonth).map((cell, idx) => {
-                            const dateStr = formatDateStr(cell.dateObj);
-                            const weekDays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-                            const item = { date: dateStr, day: weekDays[cell.dateObj.getDay()] };
-                            const isSelected = (editData.dates || []).some(d => d.date === dateStr);
-                            const isEditingThis = adminSelectedDateObj?.date === dateStr;
-                            const isFutureAllowed = globalCalendarDays.some(g => g.date === dateStr);
-                            const dayDate = new Date(cell.dateObj);
-                            dayDate.setHours(0, 0, 0, 0);
-                            const todayDate = new Date();
-                            todayDate.setHours(0, 0, 0, 0);
-                            const isPast = dayDate < todayDate;
-                            const isDisabled = !cell.isCurrentMonth || isPast || !isFutureAllowed;
-
-                            return (
-                              <div
-                                key={idx}
-                                onClick={() => {
-                                  if (isDisabled) return;
-                                  triggerHaptic();
-                                  setAdminSelectedDateObj(item);
-                                  setNewTimeVal('');
-                                }}
-                                className="flex flex-col items-center justify-start relative h-12 pt-1 mb-1"
-                              >
-                                <div className={`w-8 h-8 flex items-center justify-center rounded-full transition-all z-10 border
-                                  ${isDisabled ? 'cursor-not-allowed text-gray-600 border-transparent opacity-60' : 'cursor-pointer'}
-                                  ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C] font-bold shadow-[0_0_10px_rgba(200,157,124,0.35)]' : 'bg-transparent border-transparent'}
-                                  ${!isSelected && !isDisabled ? 'hover:bg-white/10 text-white' : ''}
-                                  ${isEditingThis ? 'ring-2 ring-white/80 scale-105' : ''}`}
-                                >
-                                  <span className="text-sm">{cell.dateObj.getDate()}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                      <div className="grid grid-cols-7 gap-1 mb-4">
+                        {globalCalendarDays.map((item, idx) => {
+                          const isSelected = (editData.dates || []).some(d => d.date === item.date);
+                          const isEditingThis = adminSelectedDateObj?.date === item.date;
+                          return (
+                            <div key={idx} onClick={() => { triggerHaptic(); setAdminSelectedDateObj(item); setNewTimeVal(''); }} 
+                                 className={`flex flex-col items-center justify-center py-2 rounded-lg cursor-pointer transition-colors border-2 
+                                 ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C]' : 'bg-[#1A1A1A] text-gray-500 border-gray-800'}
+                                 ${isEditingThis ? 'ring-2 ring-white scale-105' : ''}`}>
+                              <span className="text-[10px] leading-none mb-1 opacity-80">{item.day}</span>
+                              <span className="text-sm font-bold leading-none">{item.date.split(' ')[0]}</span>
+                            </div>
+                          );
+                        })}
                       </div>
 
                       {adminSelectedDateObj && (() => {
@@ -3102,7 +2540,7 @@
                           <div className="mt-4 pt-4 border-t border-white/10 animate-[fadeIn_0.3s_ease-in-out]">
                              <input value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Имя клиента" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                              <input value={newClientContact} onChange={e=>setNewClientContact(e.target.value)} placeholder="Контакт (Ник в ТГ)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
-                             <input type="tel" inputMode="tel" value={newClientPhone} onChange={e=>setNewClientPhone(toSafeString(e.target.value).replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]" />
+                             <input type="tel" inputMode="tel" value={newClientPhone} onChange={e=>setNewClientPhone(e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-3 focus:outline-none focus:border-[#C89D7C]" />
                              <button onClick={handleAddManualClient} className="w-full bg-[#2A2A2A] text-[#C89D7C] hover:bg-[#C89D7C] hover:text-black py-3 rounded-xl font-bold transition-colors border border-[#C89D7C]/30 shadow-lg">
                                 + Сохранить клиента
                              </button>
@@ -3188,12 +2626,12 @@
                                      if (!client) return false;
                                      const matchTgId = client.tgId && String(b.tgId) === String(client.tgId);
                                      
-                                     const cUser = client.username ? String(client.username).replace(/[@()]/g, '').trim().toLowerCase() : '';
-                                     const bUser = b.clientContact ? String(b.clientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                     const cUser = client.username ? client.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                     const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
                                      const matchUsername = cUser && bUser && bUser.includes(cUser);
                                      
-                                     const cPhone = client.phone ? String(client.phone).replace(/[^\d]/g, '') : '';
-                                     const bPhone = b.phone ? String(b.phone).replace(/[^\d]/g, '') : '';
+                                     const cPhone = client.phone ? client.phone.replace(/[^\d]/g, '') : '';
+                                     const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
                                      const matchPhone = cPhone && bPhone && bPhone === cPhone;
                                      
                                      const matchName = (b.clientName === client.customName) || (b.clientName === client.originalName);
@@ -3243,7 +2681,7 @@
                                         <div className="flex flex-col gap-1.5">
                                           <div className="text-xs text-gray-400">
                                             ТГ: {client.username ? (
-                                              <a href={`https://t.me/${String(client.username).replace('@', '')}`} target="_blank" className="text-[#C89D7C] hover:text-white transition-colors font-medium ml-1">
+                                              <a href={`https://t.me/${client.username.replace('@', '')}`} target="_blank" className="text-[#C89D7C] hover:text-white transition-colors font-medium ml-1">
                                                 {client.username}
                                               </a>
                                             ) : (
@@ -3251,7 +2689,7 @@
                                             )}
                                           </div>
                                           <div className="text-xs text-gray-400 flex items-center">
-                                            Тел: <input type="tel" inputMode="tel" value={client.phone || ''} onChange={(e) => handleClientChange(client.tgId, 'phone', toSafeString(e.target.value).replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Не указан" className="ml-1 bg-transparent border-b border-gray-700 focus:border-[#C89D7C] text-white w-24 focus:outline-none px-1 py-0.5 placeholder-gray-600 transition-colors" />
+                                            Тел: <input type="tel" inputMode="tel" value={client.phone || ''} onChange={(e) => handleClientChange(client.tgId, 'phone', e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Не указан" className="ml-1 bg-transparent border-b border-gray-700 focus:border-[#C89D7C] text-white w-24 focus:outline-none px-1 py-0.5 placeholder-gray-600 transition-colors" />
                                           </div>
                                         </div>
                                         <div className="text-xs text-gray-400 bg-black/30 px-2 py-1 rounded-md border border-white/5">
@@ -3353,7 +2791,7 @@
                           <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Имя клиентки (или контакт)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                           <input value={manualContact} onChange={e=>setManualContact(e.target.value)} placeholder="Ник в ТГ (необязательно, @...)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                           <input value={manualService} onChange={e=>setManualService(e.target.value)} placeholder="Услуга (напр. Бикини 60 мин)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
-                          <input type="tel" inputMode="tel" value={manualPhone} onChange={e=>setManualPhone(toSafeString(e.target.value).replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
+                          <input type="tel" inputMode="tel" value={manualPhone} onChange={e=>setManualPhone(e.target.value.replace(/[^\d\+\-\(\)\s]/g, ''))} placeholder="Телефон (необязательно)" className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-white text-sm mb-2 focus:outline-none focus:border-[#C89D7C]" />
                           
                           <div className="flex gap-2 mb-3">
                             <GlassSelect value={manualDate} options={dateOptions} onChange={(val) => { setManualDate(val); setManualTime(''); }} placeholder="Дата" />
@@ -3441,12 +2879,12 @@
                                   if (!realTgId || String(realTgId).startsWith('manual_')) {
                                       const allClients = editData?.clients || appData?.clients || [];
                                       const matchedClient = allClients.find(c => {
-                                          const cUser = c.username ? String(c.username).replace(/[@()]/g, '').trim().toLowerCase() : '';
-                                          const bUser = b.clientContact ? String(b.clientContact).replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                          const cUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
+                                          const bUser = b.clientContact ? b.clientContact.replace(/[@()]/g, '').trim().toLowerCase() : '';
                                           const matchUsername = cUser.length > 2 && bUser.length > 2 && (bUser.includes(cUser) || cUser.includes(bUser));
                                           
-                                          const cPhone = c.phone ? String(c.phone).replace(/[^\d]/g, '') : '';
-                                          const bPhone = b.phone ? String(b.phone).replace(/[^\d]/g, '') : '';
+                                          const cPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
+                                          const bPhone = b.phone ? b.phone.replace(/[^\d]/g, '') : '';
                                           const matchPhone = cPhone.length > 6 && bPhone.length > 6 && cPhone === bPhone;
                                           
                                           const matchName = b.clientName && b.clientName.length > 2 && ((b.clientName === c.customName) || (b.clientName === c.originalName));
@@ -3572,7 +3010,7 @@
           {/* ВСПЛЫВАЮЩАЯ ГАЛЕРЕЯ (МОДАЛЬНОЕ ОКНО) */}
           {viewingStory && viewingStory.type === 'gallery' && (
             <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
-              <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-w-sm overflow-hidden relative shadow-2xl">
+              <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-sm overflow-hidden relative shadow-2xl">
                 <button onClick={() => { triggerHaptic(); setViewingStory(null); }} className="absolute top-3 right-3 z-10 w-8 h-8 bg-black/50 rounded-full text-white flex items-center justify-center font-bold text-xl pb-1">×</button>
                 <div className="w-full aspect-[3/4] max-h-[70vh] bg-black relative">
                   {viewingStory.images[storyImageIdx] ? (
