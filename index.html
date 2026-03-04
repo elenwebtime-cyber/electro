@@ -850,19 +850,25 @@
       // ==========================================
       // СИСТЕМА СВАЙПОВ КАЛЕНДАРЯ АДМИНА
       // ==========================================
-      const adminCalendarSwipeRef = useRef(0);
+      const adminCalendarSwipeRef = useRef({ x: 0, y: 0 });
       const handleCalendarSwipeStart = (e) => {
-          adminCalendarSwipeRef.current = e.changedTouches[0].clientX;
+          adminCalendarSwipeRef.current = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
       };
       const handleCalendarSwipeEnd = (e, currentMonth, setMonthFunc) => {
-          const swipeEnd = e.changedTouches[0].clientX;
-          const diff = adminCalendarSwipeRef.current - swipeEnd;
-          if (diff > 40) {
-              triggerHaptic();
-              setMonthFunc(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-          } else if (diff < -40) {
-              triggerHaptic();
-              setMonthFunc(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+          const swipeEndX = e.changedTouches[0].clientX;
+          const swipeEndY = e.changedTouches[0].clientY;
+          const diffX = adminCalendarSwipeRef.current.x - swipeEndX;
+          const diffY = adminCalendarSwipeRef.current.y - swipeEndY;
+
+          // Строгая проверка: свайп должен быть горизонтальным, без сильного смещения по вертикали
+          if (Math.abs(diffX) > 40 && Math.abs(diffY) < 50) {
+              if (diffX > 0) {
+                  triggerHaptic();
+                  setMonthFunc(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+              } else {
+                  triggerHaptic();
+                  setMonthFunc(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+              }
           }
       };
 
@@ -2012,31 +2018,16 @@
                       </div>
                    </div>
 
-                   {/* БЛОК НАСТРОЕК (Календарь / СМС) */}
-                   <div className="bg-[#1C1C1E] rounded-3xl mb-10 border border-white/5 overflow-hidden divide-y divide-gray-800/50">
-                      <div className="flex justify-between items-center p-4">
-                          <span className="text-white font-medium text-sm">Календарь</span>
-                          <div className="flex items-center gap-2">
-                              <div className="w-2.5 h-2.5 rounded-full bg-[#C89D7C]"></div>
-                              <span className="text-gray-400 text-sm">электро</span>
-                          </div>
-                      </div>
-                      <div className="flex justify-between items-center p-4 cursor-pointer hover:bg-white/5 transition-colors" onClick={() => sendReminder(b)}>
-                          <span className="text-white font-medium text-sm">Уведомление (СМС)</span>
-                          <div className="flex items-center gap-1 text-gray-400 text-sm">
-                              <span>Отправить</span>
-                              <Icon name="ChevronLeft" className="w-4 h-4 rotate-180" />
-                          </div>
-                      </div>
-                   </div>
-
-                   {/* КНОПКА УДАЛЕНИЯ ВНИЗУ */}
-                   <div className="flex justify-center mt-auto pb-8">
+                   {/* КНОПКИ УДАЛЕНИЯ И НАПОМИНАЛКИ ВНИЗУ */}
+                   <div className="flex gap-3 justify-center mt-auto pb-8 px-4">
+                      <button onClick={() => sendReminder(b)} className="flex-1 bg-[#C89D7C] text-black font-bold py-3.5 rounded-full shadow-sm hover:opacity-90 transition-opacity">
+                          Напоминалка
+                      </button>
                       <button onClick={() => {
                           handleDeleteBookingGlobal(b);
                           setViewingBookingDetails(null);
-                      }} className="bg-[#1C1C1E] border border-white/5 text-red-500 font-medium px-8 py-3.5 rounded-full hover:bg-red-500/10 transition-colors shadow-sm w-max min-w-[200px]">
-                          Удалить событие
+                      }} className="flex-1 bg-[#1C1C1E] border border-white/5 text-red-500 font-bold py-3.5 rounded-full hover:bg-red-500/10 transition-colors shadow-sm">
+                          Удалить запись
                       </button>
                    </div>
                 </div>
@@ -2656,11 +2647,11 @@
                                  className="flex flex-col items-center justify-center relative h-10"
                             >
                               <div className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition-all border-2 z-10
-                               ${!cell.isCurrentMonth ? 'text-gray-600 border-transparent' : 'text-white border-transparent'}
-                               ${isSelected && cell.isCurrentMonth ? '!bg-[#C89D7C] !text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)] scale-110 !border-[#C89D7C]' : ''}
-                               ${isWorkingDay && !isSelected && cell.isCurrentMonth ? '!border-[#C89D7C]' : ''}
-                               ${!isWorkingDay && !isSelected && cell.isCurrentMonth ? 'hover:bg-white/10' : ''}
-                               ${isToday && !isSelected && !isWorkingDay && cell.isCurrentMonth ? 'bg-white/5' : ''}`}>
+                                ${!cell.isCurrentMonth ? 'text-gray-600 border-transparent' : 'border-transparent'}
+                                ${isSelected && cell.isCurrentMonth ? '!bg-[#C89D7C] !text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)] scale-110 !border-[#C89D7C]' : ''}
+                                ${isWorkingDay && !isSelected && cell.isCurrentMonth ? '!border-[#C89D7C] !text-[#C89D7C]' : ''}
+                                ${!isWorkingDay && !isSelected && cell.isCurrentMonth ? 'text-white hover:bg-white/10' : ''}
+                                ${isToday && !isSelected && !isWorkingDay && cell.isCurrentMonth ? 'bg-white/5' : ''}`}>
                                 <span className="text-sm font-bold leading-none">{cell.dateObj.getDate()}</span>
                               </div>
                             </div>
@@ -3100,7 +3091,6 @@
                           const isToday = cell.dateObj.toDateString() === new Date().toDateString();
                           
                           const dayBookingsCount = bookingsList.filter(b => b.date === dateStr).length;
-                          const isWorkingDay = (editData?.dates || appData?.dates || []).some(d => d.date === dateStr);
 
                           let dotIndicator = null;
                           if (dayBookingsCount === 1) {
@@ -3116,12 +3106,10 @@
                                  onClick={() => { triggerHaptic(); setAdminCalendarDate(dateStr); }}
                                  className="flex flex-col items-center justify-start relative h-10"
                             >
-                              <div className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition-all z-10 border-2
-                                ${!cell.isCurrentMonth ? 'text-gray-600 border-transparent' : 'text-white border-transparent'}
-                                ${isSelected && cell.isCurrentMonth ? '!bg-[#C89D7C] !text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)] scale-110 !border-[#C89D7C]' : ''}
-                                ${isWorkingDay && !isSelected && cell.isCurrentMonth ? '!border-[#C89D7C]' : ''}
-                                ${!isWorkingDay && !isSelected && cell.isCurrentMonth ? 'hover:bg-white/10' : ''}
-                                ${isToday && !isSelected && !isWorkingDay && cell.isCurrentMonth ? 'bg-white/5' : ''}`}
+                              <div className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition-all z-10
+                                ${!cell.isCurrentMonth ? 'text-gray-600' : 'text-white'}
+                                ${isSelected && cell.isCurrentMonth ? 'bg-[#C89D7C] text-black font-bold shadow-[0_0_10px_rgba(200,157,124,0.5)] scale-110' : ''}
+                                ${isToday && !isSelected && cell.isCurrentMonth ? 'text-[#C89D7C]' : ''}`}
                               >
                                 <span className="text-[17px] font-medium leading-none">{cell.dateObj.getDate()}</span>
                               </div>
