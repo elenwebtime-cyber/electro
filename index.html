@@ -706,6 +706,8 @@
       const [loadingBookings, setLoadingBookings] = useState(false);
       const [showManualBooking, setShowManualBooking] = useState(false);
       
+      const unsubscribeBookingsRef = useRef(null);
+      
       const [manualName, setManualName] = useState('');
       const [manualContact, setManualContact] = useState('');
       const [manualDate, setManualDate] = useState('');
@@ -793,35 +795,54 @@
         setTimeout(() => setToastMsg(''), 3000);
       };
 
-      const fetchBookings = async () => {
+      const fetchBookings = () => {
         if (!db) return;
         const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
         if (userTgId !== ADMIN_TG_ID) return;
 
+        if (unsubscribeBookingsRef.current) return; // Защита от двойного запуска
+
         setLoadingBookings(true);
         try {
-          const snap = await db.collection("bookings").get();
-          let b = [];
-          snap.forEach(doc => b.push(normalizeBooking(doc.data(), doc.id)));
-          setBookingsList(b);
+          unsubscribeBookingsRef.current = db.collection("bookings").onSnapshot(
+            (snap) => {
+              let b = [];
+              snap.forEach(doc => b.push(normalizeBooking(doc.data(), doc.id)));
+              setBookingsList(b);
 
-          // Автосинхронизация CRM из фактических записей
-          const baseClients = (editData?.clients || appData?.clients || []);
-          const mergedClients = buildClientsFromBookings(b, baseClients);
-          setAppData(prev => prev ? { ...prev, clients: mergedClients } : prev);
-          setEditData(prev => prev ? { ...prev, clients: mergedClients } : prev);
+              // Автосинхронизация CRM в реальном времени, всегда берем самый свежий стейт
+              setEditData(prevEdit => {
+                const baseClients = prevEdit?.clients || [];
+                const mergedClients = buildClientsFromBookings(b, baseClients);
+                
+                const baseIds = new Set(baseClients.map(c => String(c.tgId)));
+                mergedClients.forEach(c => {
+                  if (!c || c.tgId === undefined || c.tgId === null) return;
+                  const id = String(c.tgId);
+                  if (baseIds.has(id)) return;
+                  db.collection("clients").doc(id).set(c).catch(console.error);
+                });
 
-          const baseIds = new Set((baseClients || []).map(c => String(c.tgId)));
-          mergedClients.forEach(c => {
-            if (!c || c.tgId === undefined || c.tgId === null) return;
-            const id = String(c.tgId);
-            if (baseIds.has(id)) return;
-            db.collection("clients").doc(id).set(c).catch(console.error);
-          });
+                return prevEdit ? { ...prevEdit, clients: mergedClients } : prevEdit;
+              });
+
+              setAppData(prevApp => {
+                const baseClients = prevApp?.clients || [];
+                const mergedClients = buildClientsFromBookings(b, baseClients);
+                return prevApp ? { ...prevApp, clients: mergedClients } : prevApp;
+              });
+
+              setLoadingBookings(false);
+            },
+            (error) => {
+              console.error("Ошибка слушателя записей:", error);
+              setLoadingBookings(false);
+            }
+          );
         } catch(e) { 
-          console.error("Ошибка загрузки записей:", e); 
+          console.error("Ошибка запуска onSnapshot:", e); 
+          setLoadingBookings(false);
         }
-        setLoadingBookings(false);
       };
 
       useEffect(() => {
