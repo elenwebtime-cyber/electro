@@ -76,17 +76,7 @@
 </head>
 <body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30">
   
-  <div id="root">
-    <!-- Идеальный нативный кружок загрузки, который появляется моментально -->
-    <div style="max-width: 28rem; margin: 0 auto; min-height: 100dvh; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #0a0a0a; position: relative; overflow: hidden;">
-       <div style="width: 3rem; height: 3rem; border-width: 4px; border-style: solid; border-color: rgba(200, 157, 124, 0.2); border-top-color: #C89D7C; border-radius: 50%; margin-bottom: 1rem; animation: spin 1s linear infinite; box-sizing: border-box;"></div>
-       <p style="color: #C89D7C; font-size: 0.75rem; font-weight: bold; letter-spacing: 0.2em; margin: 0; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">ЗАГРУЗКА...</p>
-    </div>
-    <style>
-      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-    </style>
-  </div>
+  <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
@@ -572,7 +562,8 @@
               customName: toSafeString(base.customName, stat.customName || stat.originalName),
               username: toSafeString(base.username, stat.username),
               phone: toSafeString(base.phone, stat.phone),
-              isBlacklisted: !!base.isBlacklisted
+              isBlacklisted: !!base.isBlacklisted,
+              isArchived: !!base.isArchived
           });
       });
 
@@ -645,6 +636,7 @@
       const [newClientContact, setNewClientContact] = useState('');
       const [newClientPhone, setNewClientPhone] = useState(''); 
       const [clientSearch, setClientSearch] = useState(''); 
+      const [clientListTab, setClientListTab] = useState('active'); // 'active' | 'archive'
       
       let tapTimeout = useRef(null);
 
@@ -940,7 +932,12 @@
       };
 
       if (!isAppReady || !appData) {
-        return null; // Родной HTML лоадер всё красиво крутит и показывает
+        return (
+          <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
+             <div className="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4"></div>
+             <p className="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
+          </div>
+        );
       }
 
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
@@ -1022,6 +1019,7 @@
                     visits: 1,
                     totalSpent: totalPrice,
                     isBlacklisted: false,
+                    isArchived: false,
                     firstVisit: new Date().toISOString()
                 };
                 updatedClients.push(finalClientObj);
@@ -1483,7 +1481,7 @@
                            e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
                            selectDateSlot(item); 
                        }} 
-                       className={`snap-start flex flex-col items-center justify-center min-w-[70px] h-20 rounded-2xl cursor-pointer transition-all border shrink-0 ${selectedDate === item.date ? 'bg-gradient-to-b from-[#C89D7C] to-[#9A6A45] text-black shadow-[0_5px_15px_rgba(200,157,124,0.3)] border-transparent scale-105' : 'glass-card-dark text-gray-300 border-white/5 opacity-80'}`}
+                       className={`snap-start flex flex-col items-center justify-center min-w-[70px] h-20 rounded-2xl cursor-pointer transition-all border shrink-0 ${selectedDate === item.date ? 'bg-[#C89D7C] text-black border-transparent scale-105 shadow-[0_5px_15px_rgba(200,157,124,0.3)]' : 'glass-card-dark text-gray-300 border-white/5 opacity-80'}`}
                   >
                     <span className="text-xs mb-1 opacity-80">{item.day}</span>
                     <span className="text-xl font-bold">{item.date.split(' ')[0]}</span>
@@ -1953,6 +1951,48 @@
             }
         };
 
+        const handleDeleteBookingGlobal = async (booking) => {
+            triggerHaptic();
+            if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
+            
+            setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
+
+            try {
+              if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
+
+              const newDates = [...(editData?.dates || appData?.dates || [])];
+              const dIdx = newDates.findIndex(d => d.date === booking.date);
+              if (dIdx !== -1) {
+                if(!newDates[dIdx].slots.includes(booking.time)){
+                    newDates[dIdx].slots.push(booking.time);
+                    newDates[dIdx].slots.sort();
+                }
+              } else {
+                 const gDay = globalCalendarDays.find(g => g.date === booking.date);
+                 if(gDay) {
+                     newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                     newDates.sort((a, b) => {
+                       const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                       const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                       return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                     });
+                 }
+              }
+              
+              const newData = {...(editData || appData), dates: newDates};
+              if (editData) setEditData(newData);
+              if (appData) setAppData(newData);
+              syncToFirebase(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
+              
+              fetchBookings();
+              showToast("Бронь отменена, слот возвращен. 🔄");
+            } catch(e) {
+               showToast("Ошибка удаления ❌");
+               console.error(e);
+            }
+        };
+
         const getMonthGrid = (date) => {
           const year = date.getFullYear();
           const month = date.getMonth();
@@ -2190,6 +2230,7 @@
                visits: calcVisits,
                totalSpent: calcSpent,
                isBlacklisted: false,
+               isArchived: false,
                firstVisit: new Date().toISOString()
            };
 
@@ -2228,6 +2269,10 @@
             (c.username && c.username.toLowerCase().includes(clientSearch.toLowerCase())) ||
             (c.phone && c.phone.includes(clientSearch))
         );
+
+        const activeClients = filteredClients.filter(c => !c.isArchived);
+        const archivedClients = filteredClients.filter(c => c.isArchived);
+        const displayedClients = clientListTab === 'active' ? activeClients : archivedClients;
 
         const unapprovedCount = allReviews.filter(r => !r.approved).length;
 
@@ -2594,8 +2639,8 @@
                      })()}
 
                      <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
-                       <h3 className="text-lg font-bold text-white mb-2">База клиентов ({allClients.length})</h3>
-                       <p className="text-xs text-gray-400 mb-4">Измени имя, чтобы оно отображалось в календаре. Отправь в ЧС, чтобы заблокировать возможность записи.</p>
+                       <h3 className="text-lg font-bold text-white mb-2">База клиентов</h3>
+                       <p className="text-xs text-gray-400 mb-4">Отправь в ЧС, чтобы заблокировать запись. Отправь в архив, чтобы скрыть редко ходящих.</p>
                        
                        <div className="relative mb-4">
                          <input 
@@ -2609,11 +2654,17 @@
                          </div>
                        </div>
 
-                       {filteredClients.length === 0 ? (
+                       {/* ВКЛАДКИ АКТИВНЫЕ / АРХИВ */}
+                       <div className="flex bg-[#1A1A1A] rounded-xl p-1 mb-4 border border-gray-700">
+                          <button onClick={() => {triggerHaptic(); setClientListTab('active');}} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${clientListTab === 'active' ? 'bg-[#C89D7C] text-black' : 'text-gray-400'}`}>Активные ({activeClients.length})</button>
+                          <button onClick={() => {triggerHaptic(); setClientListTab('archive');}} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${clientListTab === 'archive' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>Архив ({archivedClients.length})</button>
+                       </div>
+
+                       {displayedClients.length === 0 ? (
                           <p className="text-gray-500 text-center py-6 text-sm">Ничего не найдено.</p>
                        ) : (
                           <div className="space-y-3">
-                             {filteredClients.map((client, idx) => {
+                             {displayedClients.map((client, idx) => {
                                 const clientBookings = bookingsList.filter(b => {
                                      if (!client) return false;
                                      const matchTgId = client.tgId && String(b.tgId) === String(client.tgId);
@@ -2689,16 +2740,22 @@
                                         </div>
                                      </div>
 
-                                     <div className="flex gap-2">
+                                     <div className="flex flex-wrap gap-2">
+                                         <button 
+                                           onClick={() => { triggerHaptic(); handleClientChange(client.tgId, 'isArchived', !client.isArchived); }} 
+                                           className={`flex-1 py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all border ${client.isArchived ? 'bg-gray-600/50 text-white border-gray-500' : 'bg-[#2A2A2A] text-gray-400 border-transparent hover:text-white'}`}
+                                         >
+                                           {client.isArchived ? 'Из архива' : 'В архив'}
+                                         </button>
                                          <button 
                                            onClick={() => { triggerHaptic(); handleClientChange(client.tgId, 'isBlacklisted', !client.isBlacklisted); }} 
-                                           className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border ${client.isBlacklisted ? 'bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30' : 'bg-[#2A2A2A] text-gray-400 border-transparent hover:text-red-400'}`}
+                                           className={`flex-1 py-2 rounded-xl text-[10px] sm:text-xs font-bold transition-all border ${client.isBlacklisted ? 'bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30' : 'bg-[#2A2A2A] text-gray-400 border-transparent hover:text-red-400'}`}
                                          >
                                            {client.isBlacklisted ? 'Убрать из ЧС' : 'В ЧС'}
                                          </button>
                                          <button 
                                            onClick={() => { triggerHaptic(); setExpandedClientTgId(expandedClientTgId === client.tgId ? null : client.tgId); }} 
-                                           className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#C89D7C]/10 text-[#C89D7C] hover:bg-[#C89D7C]/20 border border-[#C89D7C]/30 transition-all flex items-center justify-center gap-1"
+                                           className="w-full sm:flex-1 py-2 rounded-xl text-[10px] sm:text-xs font-bold bg-[#C89D7C]/10 text-[#C89D7C] hover:bg-[#C89D7C]/20 border border-[#C89D7C]/30 transition-all flex items-center justify-center gap-1"
                                          >
                                            {expandedClientTgId === client.tgId ? 'Скрыть историю' : 'История визитов'}
                                            <Icon name="ChevronLeft" className={`w-3 h-3 transition-transform ${expandedClientTgId === client.tgId ? 'rotate-90' : '-rotate-90'}`} />
