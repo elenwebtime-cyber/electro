@@ -547,6 +547,34 @@
       });
     };
 
+    // ==========================================
+    // УМНОЕ ВОССТАНОВЛЕНИЕ СЛОТОВ ПРИ ОТМЕНЕ/РЕДАКТИРОВАНИИ
+    // ==========================================
+    const restoreOverlappingSlots = (currentSlots, startTime, durationMins, templateSlots) => {
+      if (!startTime || typeof startTime !== 'string') return currentSlots || [];
+      const parts = startTime.split(':');
+      if (parts.length !== 2) return currentSlots || [];
+      
+      const [h, m] = parts.map(Number);
+      const startMins = h * 60 + m;
+      const endMins = startMins + durationMins;
+      
+      const newSlots = new Set(currentSlots || []);
+      newSlots.add(startTime); // Обязательно возвращаем начальное время
+      
+      // Возвращаем слоты из шаблона, которые были "съедены" этой записью
+      (templateSlots || []).forEach(t => {
+          if (!t || typeof t !== 'string') return;
+          const [th, tm] = t.split(':').map(Number);
+          const tMins = (th || 0) * 60 + (tm || 0);
+          if (tMins > startMins && tMins < endMins) {
+              newSlots.add(t);
+          }
+      });
+      
+      return Array.from(newSlots).sort();
+    };
+
     const toSafeString = (v, fallback = '') => {
       if (v === null || v === undefined) return fallback;
       try {
@@ -1289,7 +1317,7 @@
       };
 
       // =========================================================================
-      // АЛГОРИТМ РЕДАКТИРОВАНИЯ (ОТРАБОТКА СЛОТОВ ИЗ ОБРАЗЦА)
+      // АЛГОРИТМ РЕДАКТИРОВАНИЯ С УМНЫМ ВОССТАНОВЛЕНИЕМ
       // =========================================================================
       const confirmEditBooking = async () => {
           if(!editingBooking) return;
@@ -1309,14 +1337,21 @@
             });
 
             const newDates = [...(editData.dates || [])];
-            if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+            
+            // Восстанавливаем старые слоты (все, которые были перекрыты до этого)
+            if (editingBooking.date !== editBDate || editingBooking.time !== editBTime || editingBooking.duration !== safeDuration) {
                 const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
-                if (oldDIdx !== -1 && newDates[oldDIdx].slots && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
-                    newDates[oldDIdx].slots.push(editingBooking.time);
-                    newDates[oldDIdx].slots.sort();
+                if (oldDIdx !== -1) {
+                    newDates[oldDIdx].slots = restoreOverlappingSlots(
+                        newDates[oldDIdx].slots,
+                        editingBooking.time,
+                        editingBooking.duration,
+                        editData.defaultSlots || appData.defaultSlots
+                    );
                 }
             }
             
+            // Вырезаем новые слоты на основе обновленного времени/длительности
             const newDIdx = newDates.findIndex(d => d.date === editBDate);
             if (newDIdx !== -1) {
                 newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
@@ -1337,7 +1372,7 @@
       };
 
       // =========================================================================
-      // АЛГОРИТМ ОТМЕНЫ И ВОЗВРАТА ВРЕМЕНИ (ИЗ ОБРАЗЦА)
+      // АЛГОРИТМ ОТМЕНЫ С УМНЫМ ВОССТАНОВЛЕНИЕМ СЛОТОВ
       // =========================================================================
       const handleDeleteBookingGlobal = async (booking) => {
           triggerHaptic();
@@ -1349,16 +1384,24 @@
             if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
 
             const newDates = [...(editData?.dates || appData?.dates || [])];
+            const templateSlots = editData?.defaultSlots || appData?.defaultSlots || [];
             const dIdx = newDates.findIndex(d => d.date === booking.date);
+            
             if (dIdx !== -1) {
-              if(!newDates[dIdx].slots.includes(booking.time)){
-                  newDates[dIdx].slots.push(booking.time);
-                  newDates[dIdx].slots.sort();
-              }
+                newDates[dIdx].slots = restoreOverlappingSlots(
+                    newDates[dIdx].slots,
+                    booking.time,
+                    booking.duration,
+                    templateSlots
+                );
             } else {
                const gDay = globalCalendarDays.find(g => g.date === booking.date);
                if(gDay) {
-                   newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                   newDates.push({ 
+                       date: booking.date, 
+                       day: gDay.day, 
+                       slots: restoreOverlappingSlots([], booking.time, booking.duration, templateSlots) 
+                   });
                    newDates.sort((a, b) => {
                      const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
                      const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
@@ -1374,7 +1417,7 @@
             localStorage.setItem('electroAppData', JSON.stringify(newData));
             
             fetchBookings();
-            showToast("Бронь отменена, слот возвращен. 🔄");
+            showToast("Бронь отменена, слоты возвращены. 🔄");
           } catch(e) {
              showToast("Ошибка удаления ❌");
              console.error(e);
