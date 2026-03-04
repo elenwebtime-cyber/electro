@@ -726,6 +726,7 @@
       const [selectedDate, setSelectedDate] = useState(null);
       const [selectedTime, setSelectedTime] = useState(null);
       const [showMemo, setShowMemo] = useState(false);
+      const [showOverlapModal, setShowOverlapModal] = useState(false);
       const [selectedDuration, setSelectedDuration] = useState(30); 
       const [selectedAddons, setSelectedAddons] = useState([]); 
       const [tapCount, setTapCount] = useState(0);
@@ -788,11 +789,13 @@
       const activeTabRef = useRef(activeTab);
       const adminSubViewRef = useRef(adminSubView);
       const showMemoRef = useRef(showMemo);
+      const showOverlapModalRef = useRef(showOverlapModal);
       const viewingStoryRef = useRef(viewingStory);
 
       useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
       useEffect(() => { adminSubViewRef.current = adminSubView; }, [adminSubView]);
       useEffect(() => { showMemoRef.current = showMemo; }, [showMemo]);
+      useEffect(() => { showOverlapModalRef.current = showOverlapModal; }, [showOverlapModal]);
       useEffect(() => { viewingStoryRef.current = viewingStory; }, [viewingStory]);
 
       // Фикс для скролла дат (вынесено на верхний уровень)
@@ -821,6 +824,7 @@
                       setActiveTab('main');
                   }
                   else if (viewingStoryRef.current) { triggerHaptic(); setViewingStory(null); }
+                  else if (showOverlapModalRef.current) { triggerHaptic(); setShowOverlapModal(false); }
                   else if (showMemoRef.current) { triggerHaptic(); setShowMemo(false); }
                   else if (activeTabRef.current === 'booking') { triggerHaptic(); setActiveTab('main'); }
                   else if (activeTabRef.current === 'reviews') { triggerHaptic(); setActiveTab('main'); }
@@ -1111,7 +1115,46 @@
       const addonsPrice = (selectedAddons || []).reduce((sum, addon) => sum + parseInt(addon.price), 0);
       const totalPrice = (selectedDuration * appData.pricePerMinute) + addonsPrice;
 
-      const handlePreBooking = () => setShowMemo(true);
+      // ==========================================
+      // ЗАЩИТА ОТ НАКЛАДОК ПЕРЕД ОКОНЧАТЕЛЬНОЙ ЗАПИСЬЮ
+      // ==========================================
+      const handlePreBooking = () => {
+        if (selectedDate && selectedTime) {
+            const targetDate = (appData.dates || []).find(d => d.date === selectedDate);
+            if (targetDate) {
+                const currentSlots = targetDate.slots || [];
+                const templateSlots = appData.defaultSlots || [];
+                
+                const [h, m] = selectedTime.split(':').map(Number);
+                const startMins = h * 60 + m;
+                const endMins = startMins + selectedDuration;
+                
+                let hasOverlap = false;
+                
+                // Проверяем: если системный слот попадает ВНУТРЬ нашей длительности, 
+                // но его УЖЕ НЕТ в списке свободных слотов - значит, он занят другой клиенткой!
+                for (let i = 0; i < templateSlots.length; i++) {
+                    const t = templateSlots[i];
+                    const [th, tm] = t.split(':').map(Number);
+                    const tMins = th * 60 + tm;
+                    
+                    if (tMins > startMins && tMins < endMins) {
+                        if (!currentSlots.includes(t)) {
+                            hasOverlap = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (hasOverlap) {
+                    triggerHaptic();
+                    setShowOverlapModal(true);
+                    return; // Блокируем переход к памятке
+                }
+            }
+        }
+        setShowMemo(true);
+      };
 
       const isUserBlacklisted = () => {
         const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
@@ -1753,6 +1796,26 @@
             <span className="relative z-10">Вернуться на главную</span>
             <div className="absolute inset-0 bg-[#C89D7C]/20 w-0 group-hover:w-full transition-all duration-300"></div>
           </button>
+        </div>
+      );
+
+      // ==========================================
+      // МОДАЛЬНОЕ ОКНО ПРИ НАКЛАДКЕ ВРЕМЕНИ
+      // ==========================================
+      const renderOverlapModal = () => (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]">
+          <div className="bg-[#1A1A1A] border border-red-500/30 p-6 rounded-3xl w-full max-w-sm shadow-[0_0_40px_rgba(239,68,68,0.15)] flex flex-col items-center text-center">
+            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4 border border-red-500/30">
+              <Icon name="AlertCircle" className="w-8 h-8 text-red-500" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Ой, накладка! 🥺</h3>
+            <p className="text-sm text-gray-300 mb-6">
+              Извините, недостаточно времени для процедуры (следующее окошко уже занято). Пожалуйста, выберите другое время или уменьшите количество зон!
+            </p>
+            <button onClick={() => { triggerHaptic(); setShowOverlapModal(false); }} className="w-full py-3 rounded-xl bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold shadow-lg">
+              Хорошо, сейчас выберу
+            </button>
+          </div>
         </div>
       );
 
@@ -3148,6 +3211,7 @@
             </div>
           )}
 
+          {showOverlapModal && renderOverlapModal()}
           {showMemo && renderMemoModal()}
 
           {/* ВСПЛЫВАЮЩЕЕ ОКНО РЕДАКТИРОВАНИЯ ЗАПИСИ */}
