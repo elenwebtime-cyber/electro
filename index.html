@@ -59,89 +59,6 @@
       animation-iteration-count: infinite;
       animation-fill-mode: both;
     }
-
-    @keyframes loaderSpin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-    @keyframes loaderSpinReverse {
-      from { transform: rotate(360deg); }
-      to { transform: rotate(0deg); }
-    }
-    @keyframes loaderPulse {
-      0%, 100% { opacity: 0.5; transform: scale(0.92); }
-      50% { opacity: 1; transform: scale(1); }
-    }
-    .boot-loader-shell {
-      max-width: 28rem;
-      margin: 0 auto;
-      min-height: 100dvh;
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background:
-        radial-gradient(120% 80% at 50% 0%, rgba(200, 157, 124, 0.16), rgba(10, 10, 10, 0.98) 58%),
-        #0a0a0a;
-      position: relative;
-      overflow: hidden;
-    }
-    .boot-loader {
-      position: relative;
-      width: 122px;
-      height: 122px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      filter: drop-shadow(0 0 26px rgba(200, 157, 124, 0.28));
-    }
-    .boot-loader__halo {
-      position: absolute;
-      inset: 0;
-      border-radius: 999px;
-      background: radial-gradient(circle, rgba(200, 157, 124, 0.18) 0%, rgba(200, 157, 124, 0.05) 38%, transparent 70%);
-      animation: loaderPulse 2.4s ease-in-out infinite;
-    }
-    .boot-loader__ring {
-      position: absolute;
-      border-radius: 999px;
-      box-sizing: border-box;
-      border: 3px solid transparent;
-    }
-    .boot-loader__ring--outer {
-      width: 108px;
-      height: 108px;
-      border-top-color: #e8cdb5;
-      border-right-color: #c89d7c;
-      animation: loaderSpin 1.05s linear infinite;
-    }
-    .boot-loader__ring--inner {
-      width: 72px;
-      height: 72px;
-      border-bottom-color: rgba(232, 205, 181, 0.95);
-      border-left-color: rgba(154, 106, 69, 0.95);
-      animation: loaderSpinReverse 1.35s linear infinite;
-    }
-    .boot-loader__core {
-      width: 22px;
-      height: 22px;
-      border-radius: 999px;
-      background: linear-gradient(135deg, #f0decf 0%, #c89d7c 55%, #9a6a45 100%);
-      box-shadow: 0 0 18px rgba(200, 157, 124, 0.55), inset 0 0 6px rgba(0, 0, 0, 0.3);
-    }
-    .boot-loader__text {
-      position: absolute;
-      bottom: -28px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: #c89d7c;
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.26em;
-      white-space: nowrap;
-      text-shadow: 0 0 12px rgba(200, 157, 124, 0.35);
-      animation: loaderPulse 2s ease-in-out infinite;
-    }
   </style>
   <script>
     // Броня от подглядывания и просмотра кода
@@ -159,17 +76,7 @@
 </head>
 <body class="bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#0a0a0a] to-black font-sans selection:bg-[#C89D7C]/30">
   
-  <div id="root">
-    <div class="boot-loader-shell">
-      <div class="boot-loader">
-        <div class="boot-loader__halo"></div>
-        <div class="boot-loader__ring boot-loader__ring--outer"></div>
-        <div class="boot-loader__ring boot-loader__ring--inner"></div>
-        <div class="boot-loader__core"></div>
-        <p class="boot-loader__text">ЗАГРУЗКА</p>
-      </div>
-    </div>
-  </div>
+  <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
@@ -182,7 +89,6 @@
     
     // 🔥 ВОТ ОНА НАША БРОНЯ! Ссылка на сервер Гугла, никаких токенов!
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxNGMR366TWwfE1iO7VvF8uGsCXRsDeHY9rt03EI_-OowgLxQ08omNQXJOi4stkRsFK/exec";
-    const GOOGLE_SCRIPT_SECRET = "ElectroEpil2026_Secure"; // Секретный ключ для защиты от спама
     
     const CHAT_ID = "758556732"; 
 
@@ -271,7 +177,7 @@
         Heart: <g><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></g>,
         Sparkles: <g><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></g>,
         AlertCircle: <g><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></g>,
-        Settings: <g><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51-1Z"/></g>
+        Settings: <g><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></g>
       };
       const style = name === 'Heart' ? { fill: 'currentColor' } : {};
       return (
@@ -528,7 +434,7 @@
     };
 
     // ==========================================
-    // УМНОЕ УДАЛЕНИЕ ПЕРЕКРЫВАЮЩИХСЯ СЛОТОВ (АЛГОРИТМ ИЗ ОБРАЗЦА)
+    // УМНОЕ УДАЛЕНИЕ ПЕРЕКРЫВАЮЩИХСЯ СЛОТОВ
     // ==========================================
     const removeOverlappingSlots = (slots, startTime, durationMins) => {
       if (!startTime || typeof startTime !== 'string') return slots || [];
@@ -1027,14 +933,9 @@
 
       if (!isAppReady || !appData) {
         return (
-          <div className="boot-loader-shell">
-            <div className="boot-loader">
-              <div className="boot-loader__halo"></div>
-              <div className="boot-loader__ring boot-loader__ring--outer"></div>
-              <div className="boot-loader__ring boot-loader__ring--inner"></div>
-              <div className="boot-loader__core"></div>
-              <p className="boot-loader__text">ЗАГРУЗКА</p>
-            </div>
+          <div className="max-w-md mx-auto min-h-[100dvh] w-full flex flex-col items-center justify-center bg-[#0a0a0a] shadow-2xl border-x border-white/5 relative overflow-hidden">
+             <div className="w-12 h-12 border-4 border-[#C89D7C]/20 border-t-[#C89D7C] rounded-full animate-spin mb-4"></div>
+             <p className="text-[#C89D7C] text-xs font-bold tracking-[0.2em] animate-pulse">ЗАГРУЗКА...</p>
           </div>
         );
       }
@@ -1057,9 +958,6 @@
         return (appData.clients || []).some(c => c.tgId === tgUser.id);
       };
 
-      // =========================================================================
-      // АЛГОРИТМ ЗАПИСИ ИЗ ВАШЕГО ОБРАЗЦА
-      // =========================================================================
       const handleFinalBooking = async () => {
         if (!isExistingClient() && (!clientPhone || !clientPhone.trim())) {
            alert("Пожалуйста, введите ваш номер телефона!");
@@ -1087,12 +985,13 @@
 
             let cIdx = updatedClients.findIndex(c => c.tgId === tgUser.id);
 
+            // ИЩЕМ РУЧНУЮ ЗАПИСЬ (СЛИЯНИЕ КАРТОЧЕК)
             if (cIdx === -1) {
                  cIdx = updatedClients.findIndex(c => {
                     if (!String(c.tgId).startsWith('manual_')) return false;
                     const dbUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
                     const dbPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
-                    return (cleanTgUsername && dbUser === cleanTgUsername) || (cleanTgPhone && dbPhone === cleanPhone);
+                    return (cleanTgUsername && dbUser === cleanTgUsername) || (cleanTgPhone && dbPhone === cleanTgPhone);
                  });
             }
 
@@ -1102,6 +1001,7 @@
                 if (String(oldTgId).startsWith('manual_') && oldTgId !== tgUser.id) {
                      deleteClientFromFirebase(oldTgId);
                 }
+
                 updatedClients[cIdx].tgId = tgUser.id; 
                 updatedClients[cIdx].visits = (updatedClients[cIdx].visits || 0) + 1;
                 if (clientUsername && !updatedClients[cIdx].username) updatedClients[cIdx].username = clientUsername;
@@ -1127,7 +1027,9 @@
             saveClientToFirebase(finalClientObj);
         }
         
+        // ФУНКЦИЯ ЭКРАНИРОВАНИЯ (БРОНЯ ОТ ПАДЕНИЯ ТЕЛЕГРАМА ИЗ-ЗА _ В НИКАХ)
         const escapeMD = (str) => String(str || '').replace(/([_*\[\]`\\])/g, '\\$1');
+        
         const safeName = escapeMD(finalClientName);
         const safeUsername = escapeMD(clientUsername);
         const safePhone = escapeMD(clientPhone);
@@ -1147,16 +1049,19 @@
             method: 'POST',
             keepalive: true, 
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({...payload, app_secret: GOOGLE_SCRIPT_SECRET})
+            body: JSON.stringify(payload)
           });
 
+          // Отправка админу 
           fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: CHAT_ID, text: messageToAdmin }))
              .catch(error => console.error("Ошибка отправки админу", error));
 
+          // Отправка клиенту
           if (tgUser.id) {
             const safeAddress = escapeMD(appData.address);
             const safeNote = escapeMD(appData.addressNote);
             const messageToClient = `✨ *${safeName}, ваша запись подтверждена!*\n\n📅 Дата: ${selectedDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${safeServices}${safeAddons}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${safeAddress}\n_${safeNote}_\n\nЖду вас! ❤️`;
+            
             fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: tgUser.id, text: messageToClient }))
                .catch(error => console.error("Ошибка отправки клиенту", error));
           }
@@ -1267,9 +1172,6 @@
           }
       };
 
-      // =========================================================================
-      // АЛГОРИТМ РЕДАКТИРОВАНИЯ (ОТРАБОТКА СЛОТОВ ИЗ ОБРАЗЦА)
-      // =========================================================================
       const confirmEditBooking = async () => {
           if(!editingBooking) return;
           const safeDuration = Number(editBDuration);
@@ -1315,9 +1217,6 @@
           }
       };
 
-      // =========================================================================
-      // АЛГОРИТМ ОТМЕНЫ И ВОЗВРАТА ВРЕМЕНИ (ИЗ ОБРАЗЦА)
-      // =========================================================================
       const handleDeleteBookingGlobal = async (booking) => {
           triggerHaptic();
           if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
@@ -1938,7 +1837,7 @@
                   method: 'POST',
                   keepalive: true,
                   headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                  body: JSON.stringify({ chat_id: safeBooking.tgId, text: text, reply_markup: reply_markup, app_secret: GOOGLE_SCRIPT_SECRET })
+                  body: JSON.stringify({ chat_id: safeBooking.tgId, text: text, reply_markup: reply_markup })
                 });
                 showToast("Напоминание отправлено! 💌");
              } catch(e) {
@@ -1948,6 +1847,150 @@
           } else {
              showToast("Бот не настроен 😔");
           }
+        };
+
+        const cancelBooking = async (booking) => {
+          triggerHaptic();
+          if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
+          
+          setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
+
+          try {
+            if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
+
+            const newDates = [...(editData?.dates || appData?.dates || [])];
+            const dIdx = newDates.findIndex(d => d.date === booking.date);
+            if (dIdx !== -1) {
+              if(!newDates[dIdx].slots.includes(booking.time)){
+                  newDates[dIdx].slots.push(booking.time);
+                  newDates[dIdx].slots.sort();
+              }
+            } else {
+               const gDay = globalCalendarDays.find(g => g.date === booking.date);
+               if(gDay) {
+                   newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                   newDates.sort((a, b) => {
+                     const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                     const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                     return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                   });
+               }
+            }
+            
+            const newData = {...(editData || appData), dates: newDates};
+            if (editData) setEditData(newData);
+            if (appData) setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
+            
+            fetchBookings();
+            showToast("Бронь отменена, слот возвращен. 🔄");
+          } catch(e) {
+             showToast("Ошибка удаления ❌");
+             console.error(e);
+          }
+        };
+
+        const openEditBooking = (b) => {
+            try {
+              triggerHaptic();
+              const safeB = normalizeBooking(b);
+              setEditBDate(safeB.date || "");
+              setEditBTime(safeB.time || "14:00");
+              setEditBDuration(Number(safeB.duration) || 60);
+              setEditBName(toSafeString(safeB.clientName, "")); 
+              setEditBServices(toSafeString(safeB.services, "")); 
+              setEditingBooking(safeB);
+            } catch(err) {
+              console.error("Ошибка при открытии окна редактирования:", err);
+            }
+        };
+
+        const confirmEditBooking = async () => {
+            if(!editingBooking) return;
+            const safeDuration = Number(editBDuration);
+            if(!editBDate || !editBTime || !Number.isFinite(safeDuration) || safeDuration <= 0 || !toSafeString(editBName, '').trim()) {
+                return alert("Заполните все поля: имя, дату, время и длительность!");
+            }
+            triggerHaptic();
+
+            const updatedB = normalizeBooking({ ...editingBooking, date: editBDate, time: editBTime, duration: safeDuration, clientName: editBName, services: editBServices });
+            
+            setBookingsList(prev => prev.map(b => String(b.id || '') === String(updatedB.id || '') ? updatedB : b));
+
+            try {
+              if(db && updatedB.id) await db.collection("bookings").doc(String(updatedB.id)).update({
+                  date: updatedB.date, time: updatedB.time, duration: updatedB.duration, clientName: updatedB.clientName, services: updatedB.services
+              });
+
+              const newDates = [...(editData.dates || [])];
+              if (editingBooking.date !== editBDate || editingBooking.time !== editBTime) {
+                  const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
+                  if (oldDIdx !== -1 && newDates[oldDIdx].slots && !newDates[oldDIdx].slots.includes(editingBooking.time)) {
+                      newDates[oldDIdx].slots.push(editingBooking.time);
+                      newDates[oldDIdx].slots.sort();
+                  }
+              }
+              
+              const newDIdx = newDates.findIndex(d => d.date === editBDate);
+              if (newDIdx !== -1) {
+                  newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
+              }
+
+              const newData = {...editData, dates: newDates};
+              setEditData(newData);
+              setAppData(newData);
+              syncToFirebase(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
+
+              setEditingBooking(null);
+              showToast("Запись успешно обновлена! ✏️");
+            } catch(e) {
+              showToast("Ошибка сохранения ❌");
+              console.error(e);
+            }
+        };
+
+        const handleDeleteBookingGlobal = async (booking) => {
+            triggerHaptic();
+            if(!confirm(`Отменить запись ${booking.clientName} на ${booking.date} ${booking.time}?`)) return;
+            
+            setBookingsList(prev => prev.filter(b => String(b.id) !== String(booking.id)));
+
+            try {
+              if(db && booking.id) await db.collection("bookings").doc(String(booking.id)).delete();
+
+              const newDates = [...(editData?.dates || appData?.dates || [])];
+              const dIdx = newDates.findIndex(d => d.date === booking.date);
+              if (dIdx !== -1) {
+                if(!newDates[dIdx].slots.includes(booking.time)){
+                    newDates[dIdx].slots.push(booking.time);
+                    newDates[dIdx].slots.sort();
+                }
+              } else {
+                 const gDay = globalCalendarDays.find(g => g.date === booking.date);
+                 if(gDay) {
+                     newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                     newDates.sort((a, b) => {
+                       const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                       const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                       return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
+                     });
+                 }
+              }
+              
+              const newData = {...(editData || appData), dates: newDates};
+              if (editData) setEditData(newData);
+              if (appData) setAppData(newData);
+              syncToFirebase(newData);
+              localStorage.setItem('electroAppData', JSON.stringify(newData));
+              
+              fetchBookings();
+              showToast("Бронь отменена, слот возвращен. 🔄");
+            } catch(e) {
+               showToast("Ошибка удаления ❌");
+               console.error(e);
+            }
         };
 
         const getMonthGrid = (date) => {
@@ -3010,7 +3053,7 @@
           {/* ВСПЛЫВАЮЩАЯ ГАЛЕРЕЯ (МОДАЛЬНОЕ ОКНО) */}
           {viewingStory && viewingStory.type === 'gallery' && (
             <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.3s_ease-out]">
-              <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-sm overflow-hidden relative shadow-2xl">
+              <div className="bg-[#1A1A1A] border border-[#C89D7C]/30 rounded-3xl w-full max-w-sm overflow-hidden relative shadow-2xl">
                 <button onClick={() => { triggerHaptic(); setViewingStory(null); }} className="absolute top-3 right-3 z-10 w-8 h-8 bg-black/50 rounded-full text-white flex items-center justify-center font-bold text-xl pb-1">×</button>
                 <div className="w-full aspect-[3/4] max-h-[70vh] bg-black relative">
                   {viewingStory.images[storyImageIdx] ? (
