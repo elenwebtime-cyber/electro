@@ -2433,53 +2433,23 @@
               const newDates = [...(editData?.dates || appData?.dates || [])];
               const dIdx = newDates.findIndex(d => d.date === booking.date);
               if (dIdx !== -1) {
-                const currentSlots = [...(newDates[dIdx].slots || [])];
-                const workingSlots = Array.from(new Set([
-                  ...(editData?.defaultSlots || appData?.defaultSlots || []),
-                  ...currentSlots,
-                  toSafeString(booking.time, '')
-                ].filter(Boolean)));
-
-                let restoredSlots = restoreBlockedWindowSlots(
-                  currentSlots,
-                  booking.time,
-                  getBookingBlockedMins(booking),
-                  workingSlots
-                );
-                restoredSlots = removeSlotsBlockedByBookings(
-                  restoredSlots,
-                  remainingBookings,
-                  booking.date
-                );
-                newDates[dIdx] = { ...newDates[dIdx], slots: restoredSlots };
+                if(!newDates[dIdx].slots.includes(booking.time)){
+                    newDates[dIdx].slots.push(booking.time);
+                    newDates[dIdx].slots.sort();
+                }
               } else {
                  const gDay = globalCalendarDays.find(g => g.date === booking.date);
                  if(gDay) {
-                     const workingSlots = Array.from(new Set([
-                       ...(editData?.defaultSlots || appData?.defaultSlots || []),
-                       toSafeString(booking.time, '')
-                     ].filter(Boolean)));
-                     let restoredSlots = restoreBlockedWindowSlots(
-                       [],
-                       booking.time,
-                       getBookingBlockedMins(booking),
-                       workingSlots
-                     );
-                     restoredSlots = removeSlotsBlockedByBookings(
-                     restoredSlots,
-                     remainingBookings,
-                     booking.date
-                   );
-                   newDates.push({ date: booking.date, day: gDay.day, slots: restoredSlots });
-                   newDates.sort((a, b) => {
-                     const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
-                     const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
-                     return (idxA !== -1 ? idxA : 9999) - (idxB !== -1 ? idxB : 9999);
-                   });
-               }
-            }
+                     newDates.push({ date: booking.date, day: gDay.day, slots: [booking.time] });
+                     newDates.sort((a, b) => {
+                       const idxA = globalCalendarDays.findIndex(c => c.date === a.date);
+                       const idxB = globalCalendarDays.findIndex(c => c.date === b.date);
+                       return (idxA !== -1 ? idxA : 9999) - (idxB !== -1 ? idxB : 9999);
+                     });
+                 }
+              }
             
-            const newData = {...(editData || appData), dates: newDates};
+              const newData = {...(editData || appData), dates: newDates};
               if (editData) setEditData(newData);
               if (appData) setAppData(newData);
               syncToFirebase(newData);
