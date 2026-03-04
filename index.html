@@ -271,7 +271,7 @@
         Heart: <g><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></g>,
         Sparkles: <g><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L12 3Z"/></g>,
         AlertCircle: <g><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></g>,
-        Settings: <g><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51-1Z"/></g>
+        Settings: <g><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51-1Z"/></g>
       };
       const style = name === 'Heart' ? { fill: 'currentColor' } : {};
       return (
@@ -297,8 +297,8 @@
                 </div>
                 
                 {isOpen && (
-                    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
-                        <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-[#C89D7C]/30 rounded-t-3xl p-2 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] max-h-[60vh] flex flex-col animate-[slideInUp_0.3s_ease-out]">
+                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
+                        <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border border-[#C89D7C]/30 rounded-3xl p-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] max-h-[60vh] flex flex-col">
                             <div className="flex justify-between items-center mb-2 mt-2 px-4">
                                 <span className="text-gray-400 text-sm font-bold">{placeholder}</span>
                                 <button onClick={() => setIsOpen(false)} className="w-8 h-8 bg-black/50 rounded-full text-white font-bold pb-1 flex items-center justify-center">×</button>
@@ -361,8 +361,8 @@
           </div>
           
           {isOpen && (
-            <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
-              <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-[#C89D7C]/30 rounded-t-3xl p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] animate-[slideInUp_0.3s_ease-out]">
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
+              <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border border-[#C89D7C]/30 rounded-3xl p-6 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
                 <div className="flex justify-between items-center mb-6">
                   <button onClick={() => { setIsOpen(false); triggerHaptic(); }} className="text-gray-400 font-medium px-2 py-1">Отмена</button>
                   <h3 className="text-white font-bold text-lg">Выбор времени</h3>
@@ -433,8 +433,8 @@
           </div>
           
           {isOpen && (
-            <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
-              <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border-t border-[#C89D7C]/30 rounded-t-3xl p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] animate-[slideInUp_0.3s_ease-out]">
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
+              <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border border-[#C89D7C]/30 rounded-3xl p-6 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
                 <div className="flex justify-between items-center mb-6">
                   <button onClick={() => { setIsOpen(false); triggerHaptic(); }} className="text-gray-400 font-medium px-2 py-1">Отмена</button>
                   <h3 className="text-white font-bold text-lg">Длительность</h3>
@@ -1535,13 +1535,6 @@
         <div className="pb-64 animate-[fadeIn_0.5s_ease-in-out]">
           <div className="flex flex-col items-center text-center mt-6 mb-8 relative">
             
-            {showAdminGear && (
-              <div onClick={() => { triggerHaptic(); setActiveTab('admin'); setShowAdminGear(false); }} 
-                   className="absolute top-0 left-6 bg-[#1A1A1A] p-2.5 rounded-full border border-[#C89D7C] cursor-pointer shadow-[0_0_15px_rgba(200,157,124,0.4)] animate-[zoomIn_0.3s_ease-out] z-50">
-                <Icon name="Settings" className="w-6 h-6 text-[#C89D7C] animate-[spin_3s_linear_infinite]" />
-              </div>
-            )}
-
             <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-[#C89D7C] to-[#E8CDB5] p-1 shadow-[0_0_20px_rgba(200,157,124,0.3)] mb-4">
               <div className="w-full h-full rounded-full bg-[#121212] flex items-center justify-center overflow-hidden relative">
                 <img src={appData.photoUrl} alt="Master" className="object-cover w-full h-full opacity-90" />
@@ -2112,8 +2105,14 @@
           }
 
           let text = "🌸 Свободные окошки:\n\n";
+          const mMap = {'Янв':'01', 'Фев':'02', 'Мар':'03', 'Апр':'04', 'Май':'05', 'Июн':'06', 'Июл':'07', 'Авг':'08', 'Сен':'09', 'Окт':'10', 'Ноя':'11', 'Дек':'12'};
+          
           availableDates.forEach(d => {
-            text += `📅 ${d.date} (${d.day}): ${d.slots.join(', ')}\n`;
+            const parts = d.date.split(' ');
+            const day = parts[0];
+            const mText = parts[1];
+            const mNum = mMap[mText] || mText;
+            text += `${day}.${mNum} - ${d.slots.join(', ')}\n`;
           });
           text += "\nЗапись по ссылке в профиле! ✨";
 
@@ -2846,34 +2845,32 @@
                                  totalRevenueAllTime += Number(b.actualPrice);
                              }
                          });
-                         
-                         const sortedRev = shortMonthNames.map((shortM, idx) => ({
-                             short: shortM,
-                             full: fullMonthNames[idx],
-                             total: revenueByMonth[shortM] || 0
-                         })).filter(item => item.total > 0 || item.full.toLowerCase() === currentMonthName.toLowerCase());
 
                          return (
                              <div className="glass-card-dark p-3 rounded-2xl border border-white/10 mb-4 shadow-sm">
                                 <h3 className="text-xs font-bold text-white mb-2 flex items-center gap-1.5">
                                    <span className="text-sm">📊</span> Доходы
                                 </h3>
-                                <div className="flex gap-2 overflow-x-auto hide-scrollbar snap-x snap-mandatory pb-1">
+                                <div className="flex gap-2 pb-1">
                                    {/* ИТОГОВЫЙ БЛОК (СТАТИЧНЫЙ СЛЕВА) */}
-                                   <div className="snap-start min-w-[90px] py-1.5 px-2.5 rounded-lg border border-[#C89D7C]/40 bg-[#C89D7C]/10 flex flex-col justify-center shrink-0">
+                                   <div className="min-w-[90px] py-1.5 px-2.5 rounded-lg border border-[#C89D7C]/40 bg-[#C89D7C]/10 flex flex-col justify-center shrink-0 shadow-sm">
                                        <span className="text-[9px] uppercase font-bold text-[#C89D7C] tracking-wider mb-0.5">Всего</span>
                                        <span className="text-sm font-bold text-white drop-shadow-sm">{totalRevenueAllTime.toLocaleString('ru-RU')} ₽</span>
                                    </div>
-                                   {/* МЕСЯЦА */}
-                                   {sortedRev.map((item, idx) => {
-                                      const isCurrent = item.full.toLowerCase() === currentMonthName.toLowerCase();
-                                      return (
-                                          <div key={idx} className={`snap-start min-w-[80px] py-1.5 px-2.5 rounded-lg border flex flex-col justify-center shrink-0 transition-all ${isCurrent ? 'bg-green-500/10 border-green-500/30' : 'bg-[#1A1A1A] border-white/5'}`}>
-                                              <span className={`text-[9px] uppercase font-bold tracking-wider mb-0.5 ${isCurrent ? 'text-green-500' : 'text-gray-500'}`}>{item.full}</span>
-                                              <span className={`text-sm font-bold drop-shadow-sm ${isCurrent ? 'text-green-400' : 'text-gray-300'}`}>{item.total.toLocaleString('ru-RU')} ₽</span>
-                                          </div>
-                                      );
-                                   })}
+                                   {/* МЕСЯЦА (Листаются) */}
+                                   <div className="flex gap-2 overflow-x-auto hide-scrollbar snap-x snap-mandatory flex-1">
+                                       {shortMonthNames.map((shortM, idx) => {
+                                          const fullM = fullMonthNames[idx];
+                                          const total = revenueByMonth[shortM] || 0;
+                                          const isCurrent = fullM.toLowerCase() === currentMonthName.toLowerCase();
+                                          return (
+                                              <div key={idx} className={`snap-start min-w-[80px] py-1.5 px-2.5 rounded-lg border flex flex-col justify-center shrink-0 transition-all ${isCurrent ? 'bg-green-500/10 border-green-500/30' : 'bg-[#1A1A1A] border-white/5'}`}>
+                                                  <span className={`text-[9px] uppercase font-bold tracking-wider mb-0.5 ${isCurrent ? 'text-green-500' : 'text-gray-500'}`}>{fullM}</span>
+                                                  <span className={`text-sm font-bold drop-shadow-sm ${isCurrent ? 'text-green-400' : 'text-gray-300'}`}>{total.toLocaleString('ru-RU')} ₽</span>
+                                              </div>
+                                          );
+                                       })}
+                                   </div>
                                 </div>
                              </div>
                          );
@@ -2973,7 +2970,7 @@
                                             )}
                                           </div>
                                           <div className="text-xs text-gray-400 flex items-center">
-                                            Тел: <input type="tel" inputMode="tel" value={client.phone || ''} onChange={(e) => handleClientChange(client.tgId, 'phone', formatPhoneNumber(e.target.value))} placeholder="Не указан" className="ml-1 bg-transparent border-b border-gray-700 focus:border-[#C89D7C] text-white w-28 focus:outline-none px-1 py-0.5 placeholder-gray-600 transition-colors" />
+                                            Тел: <input type="tel" inputMode="tel" value={client.phone || ''} onChange={(e) => handleClientChange(client.tgId, 'phone', formatPhoneNumber(e.target.value))} placeholder="Не указан" className="ml-1 bg-transparent border-b border-gray-700 focus:border-[#C89D7C] text-white w-36 focus:outline-none px-1 py-0.5 placeholder-gray-600 transition-colors" />
                                           </div>
                                         </div>
                                         <div className="text-xs text-gray-400 bg-black/30 px-2 py-1 rounded-md border border-white/5">
@@ -3283,6 +3280,14 @@
             className={`fixed top-4 right-4 w-2.5 h-2.5 rounded-full z-[60] transition-colors duration-500 ${dbConnected ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`} 
             title={dbConnected ? "Облако подключено" : "Нет связи с облаком"}
           ></div>
+
+          {/* ШЕСТЕРЕНКА АДМИНА */}
+          {showAdminGear && (
+            <div onClick={() => { triggerHaptic(); setActiveTab('admin'); setShowAdminGear(false); }} 
+                 className="fixed top-4 left-4 bg-[#1A1A1A] p-3 rounded-full border border-[#C89D7C] cursor-pointer shadow-[0_0_20px_rgba(200,157,124,0.6)] animate-[zoomIn_0.3s_ease-out] z-[9999] flex items-center justify-center">
+              <Icon name="Settings" className="w-7 h-7 text-[#C89D7C] animate-[spin_3s_linear_infinite]" />
+            </div>
+          )}
 
           {/* ВСПЛЫВАЮЩИЕ УВЕДОМЛЕНИЯ (TOAST) */}
           {toastMsg && (
