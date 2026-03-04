@@ -275,19 +275,37 @@
       };
       const style = name === 'Heart' ? { fill: 'currentColor' } : {};
       return (
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${className} overflow-visible`} style={style}>
           {icons[name]}
         </svg>
       );
     };
 
     // =========================================================================
-    // КАСТОМНЫЕ ПРЕМИУМ КОМПОНЕНТЫ
+    // КАСТОМНЫЕ ПРЕМИУМ КОМПОНЕНТЫ С PORTAL (для точного центрирования)
     // =========================================================================
 
     const GlassSelect = ({ value, options, onChange, placeholder, disabled }) => {
         const [isOpen, setIsOpen] = useState(false);
         const selectedLabel = options.find(o => o.value === value)?.label || value;
+
+        const modalContent = isOpen && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
+                <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border border-[#C89D7C]/30 rounded-3xl p-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] max-h-[60vh] flex flex-col">
+                    <div className="flex justify-between items-center mb-2 mt-2 px-4">
+                        <span className="text-gray-400 text-sm font-bold">{placeholder}</span>
+                        <button onClick={() => setIsOpen(false)} className="w-8 h-8 bg-black/50 rounded-full text-white font-bold pb-1 flex items-center justify-center">×</button>
+                    </div>
+                    <div className="overflow-y-auto hide-scrollbar flex-1 pb-4 px-2 space-y-2 mt-2" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+                        {options.map(opt => (
+                            <div key={opt.value} onClick={() => { onChange(opt.value); setIsOpen(false); triggerHaptic(); }} className={`p-4 rounded-xl text-center font-medium cursor-pointer transition-all ${value === opt.value ? 'bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black shadow-lg' : 'bg-[#2A2A2A] text-white hover:bg-[#333]'}`}>
+                                {opt.label}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
 
         return (
             <div className="flex-1 relative">
@@ -295,24 +313,7 @@
                     <span className="truncate">{selectedLabel || placeholder}</span>
                     <Icon name="ChevronLeft" className={`w-4 h-4 transition-transform -rotate-90 text-gray-400`} />
                 </div>
-                
-                {isOpen && (
-                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
-                        <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border border-[#C89D7C]/30 rounded-3xl p-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] max-h-[60vh] flex flex-col">
-                            <div className="flex justify-between items-center mb-2 mt-2 px-4">
-                                <span className="text-gray-400 text-sm font-bold">{placeholder}</span>
-                                <button onClick={() => setIsOpen(false)} className="w-8 h-8 bg-black/50 rounded-full text-white font-bold pb-1 flex items-center justify-center">×</button>
-                            </div>
-                            <div className="overflow-y-auto hide-scrollbar flex-1 pb-4 px-2 space-y-2 mt-2" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
-                                {options.map(opt => (
-                                    <div key={opt.value} onClick={() => { onChange(opt.value); setIsOpen(false); triggerHaptic(); }} className={`p-4 rounded-xl text-center font-medium cursor-pointer transition-all ${value === opt.value ? 'bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black shadow-lg' : 'bg-[#2A2A2A] text-white hover:bg-[#333]'}`}>
-                                        {opt.label}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {isOpen && ReactDOM.createPortal(modalContent, document.body)}
             </div>
         );
     };
@@ -353,46 +354,47 @@
           if (arr[idx]) setter(arr[idx]);
       };
 
+      const modalContent = isOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
+            <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border border-[#C89D7C]/30 rounded-3xl p-6 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+              <div className="flex justify-between items-center mb-6">
+                <button onClick={() => { setIsOpen(false); triggerHaptic(); }} className="text-gray-400 font-medium px-2 py-1">Отмена</button>
+                <h3 className="text-white font-bold text-lg">Выбор времени</h3>
+                <button onClick={() => { onChange(`${hour}:${minute}`); setIsOpen(false); triggerHaptic(); }} className="text-[#C89D7C] font-bold px-2 py-1">Готово</button>
+              </div>
+              
+              <div className="flex justify-center gap-4 relative h-[150px] mb-4">
+                <div className="absolute top-1/2 -translate-y-1/2 left-4 right-4 h-[50px] bg-white/5 border-y border-[#C89D7C]/30 rounded-lg pointer-events-none z-0"></div>
+                
+                <div className="w-24 h-full overflow-y-auto hide-scrollbar snap-y snap-mandatory relative z-10" ref={hourRef} onScroll={() => handleScroll(hourRef, hours, setHour)} style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+                  <div className="h-[50px]"></div>
+                  {hours.map(h => (
+                    <div key={h} className={`h-[50px] flex items-center justify-center snap-center text-3xl font-bold transition-colors ${hour === h ? 'text-[#C89D7C]' : 'text-gray-600'}`}>{h}</div>
+                  ))}
+                  <div className="h-[50px]"></div>
+                </div>
+                
+                <div className="flex items-center justify-center text-3xl font-bold text-white z-10 h-full pb-1">:</div>
+                
+                <div className="w-24 h-full overflow-y-auto hide-scrollbar snap-y snap-mandatory relative z-10" ref={minRef} onScroll={() => handleScroll(minRef, minutes, setMinute)} style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+                  <div className="h-[50px]"></div>
+                  {minutes.map(m => (
+                    <div key={m} className={`h-[50px] flex items-center justify-center snap-center text-3xl font-bold transition-colors ${minute === m ? 'text-[#C89D7C]' : 'text-gray-600'}`}>{m}</div>
+                  ))}
+                  <div className="h-[50px]"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+      );
+
       return (
         <div className="flex-1 relative">
           <div onClick={(e) => { if(!disabled) { e.stopPropagation(); setIsOpen(true); } }} className={`w-full bg-[#2A2A2A] border border-gray-700 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-[#C89D7C] flex justify-between items-center cursor-pointer transition-colors ${disabled ? 'opacity-50' : 'hover:border-gray-500'}`}>
             <span className="truncate">{value || 'Время...'}</span>
             <Icon name="Clock" className="w-4 h-4 text-gray-400" />
           </div>
-          
-          {isOpen && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
-              <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border border-[#C89D7C]/30 rounded-3xl p-6 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-                <div className="flex justify-between items-center mb-6">
-                  <button onClick={() => { setIsOpen(false); triggerHaptic(); }} className="text-gray-400 font-medium px-2 py-1">Отмена</button>
-                  <h3 className="text-white font-bold text-lg">Выбор времени</h3>
-                  <button onClick={() => { onChange(`${hour}:${minute}`); setIsOpen(false); triggerHaptic(); }} className="text-[#C89D7C] font-bold px-2 py-1">Готово</button>
-                </div>
-                
-                <div className="flex justify-center gap-4 relative h-[150px] mb-4">
-                  <div className="absolute top-1/2 -translate-y-1/2 left-4 right-4 h-[50px] bg-white/5 border-y border-[#C89D7C]/30 rounded-lg pointer-events-none z-0"></div>
-                  
-                  <div className="w-24 h-full overflow-y-auto hide-scrollbar snap-y snap-mandatory relative z-10" ref={hourRef} onScroll={() => handleScroll(hourRef, hours, setHour)} style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
-                    <div className="h-[50px]"></div>
-                    {hours.map(h => (
-                      <div key={h} className={`h-[50px] flex items-center justify-center snap-center text-3xl font-bold transition-colors ${hour === h ? 'text-[#C89D7C]' : 'text-gray-600'}`}>{h}</div>
-                    ))}
-                    <div className="h-[50px]"></div>
-                  </div>
-                  
-                  <div className="flex items-center justify-center text-3xl font-bold text-white z-10 h-full pb-1">:</div>
-                  
-                  <div className="w-24 h-full overflow-y-auto hide-scrollbar snap-y snap-mandatory relative z-10" ref={minRef} onScroll={() => handleScroll(minRef, minutes, setMinute)} style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
-                    <div className="h-[50px]"></div>
-                    {minutes.map(m => (
-                      <div key={m} className={`h-[50px] flex items-center justify-center snap-center text-3xl font-bold transition-colors ${minute === m ? 'text-[#C89D7C]' : 'text-gray-600'}`}>{m}</div>
-                    ))}
-                    <div className="h-[50px]"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {isOpen && ReactDOM.createPortal(modalContent, document.body)}
         </div>
       );
     };
@@ -425,39 +427,40 @@
           if (durations[idx]) setMins(durations[idx]);
       };
 
+      const modalContent = isOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
+            <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border border-[#C89D7C]/30 rounded-3xl p-6 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+              <div className="flex justify-between items-center mb-6">
+                <button onClick={() => { setIsOpen(false); triggerHaptic(); }} className="text-gray-400 font-medium px-2 py-1">Отмена</button>
+                <h3 className="text-white font-bold text-lg">Длительность</h3>
+                <button onClick={() => { onChange(mins); setIsOpen(false); triggerHaptic(); }} className="text-[#C89D7C] font-bold px-2 py-1">Готово</button>
+              </div>
+              
+              <div className="flex justify-center relative h-[150px] mb-4">
+                <div className="absolute top-1/2 -translate-y-1/2 left-10 right-10 h-[50px] bg-white/5 border-y border-[#C89D7C]/30 rounded-lg pointer-events-none z-0"></div>
+                
+                <div className="w-32 h-full overflow-y-auto hide-scrollbar snap-y snap-mandatory relative z-10" ref={listRef} onScroll={handleScroll} style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+                  <div className="h-[50px]"></div>
+                  {durations.map(d => (
+                    <div key={d} className={`h-[50px] flex items-center justify-center snap-center text-3xl font-bold transition-colors ${mins === d ? 'text-[#C89D7C]' : 'text-gray-600'}`}>
+                      {d}
+                    </div>
+                  ))}
+                  <div className="h-[50px]"></div>
+                </div>
+                <div className="flex items-center justify-center text-lg font-medium text-gray-500 z-10 h-full pl-2 pointer-events-none">мин</div>
+              </div>
+            </div>
+          </div>
+      );
+
       return (
         <div className="relative">
           <div onClick={(e) => { if(!disabled) { e.stopPropagation(); setIsOpen(true); } }} className={`w-24 bg-[#2A2A2A] border border-gray-700 rounded-xl p-1.5 text-white text-sm focus:outline-none focus:border-[#C89D7C] flex justify-between items-center cursor-pointer transition-colors ${disabled ? 'opacity-50' : 'hover:border-gray-500'}`}>
             <span className="truncate pl-1 font-medium">{value ? `${value} мин` : 'Время'}</span>
             <Icon name="ChevronLeft" className="w-3 h-3 -rotate-90 text-gray-400 mr-1" />
           </div>
-          
-          {isOpen && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
-              <div onClick={e => e.stopPropagation()} className="w-full max-w-md bg-[#1A1A1A]/95 backdrop-blur-xl border border-[#C89D7C]/30 rounded-3xl p-6 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-                <div className="flex justify-between items-center mb-6">
-                  <button onClick={() => { setIsOpen(false); triggerHaptic(); }} className="text-gray-400 font-medium px-2 py-1">Отмена</button>
-                  <h3 className="text-white font-bold text-lg">Длительность</h3>
-                  <button onClick={() => { onChange(mins); setIsOpen(false); triggerHaptic(); }} className="text-[#C89D7C] font-bold px-2 py-1">Готово</button>
-                </div>
-                
-                <div className="flex justify-center relative h-[150px] mb-4">
-                  <div className="absolute top-1/2 -translate-y-1/2 left-10 right-10 h-[50px] bg-white/5 border-y border-[#C89D7C]/30 rounded-lg pointer-events-none z-0"></div>
-                  
-                  <div className="w-32 h-full overflow-y-auto hide-scrollbar snap-y snap-mandatory relative z-10" ref={listRef} onScroll={handleScroll} style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
-                    <div className="h-[50px]"></div>
-                    {durations.map(d => (
-                      <div key={d} className={`h-[50px] flex items-center justify-center snap-center text-3xl font-bold transition-colors ${mins === d ? 'text-[#C89D7C]' : 'text-gray-600'}`}>
-                        {d}
-                      </div>
-                    ))}
-                    <div className="h-[50px]"></div>
-                  </div>
-                  <div className="flex items-center justify-center text-lg font-medium text-gray-500 z-10 h-full pl-2 pointer-events-none">мин</div>
-                </div>
-              </div>
-            </div>
-          )}
+          {isOpen && ReactDOM.createPortal(modalContent, document.body)}
         </div>
       );
     };
@@ -852,6 +855,23 @@
           };
       }, []);
 
+      // Умный скролл ленты доходов при открытии вкладки Клиенты
+      useEffect(() => {
+          if (adminTab === 'clients') {
+              const scrollTimer = setTimeout(() => {
+                  const container = document.getElementById('revenue-scroll-container');
+                  const activeItem = document.getElementById('active-revenue-month');
+                  if (container && activeItem) {
+                      container.scrollTo({ 
+                          left: activeItem.offsetLeft - container.offsetLeft, 
+                          behavior: 'smooth' 
+                      });
+                  }
+              }, 100);
+              return () => clearTimeout(scrollTimer);
+          }
+      }, [adminTab]);
+
       // ==========================================
       // СИСТЕМА СВАЙПОВ КАЛЕНДАРЯ АДМИНА
       // ==========================================
@@ -930,7 +950,7 @@
               setLoadingBookings(false);
             },
             (error) => {
-              consoleerror("Ошибка слушателя записей:", error);
+              console.error("Ошибка слушателя записей:", error);
               setLoadingBookings(false);
             }
           );
@@ -1557,7 +1577,7 @@
               return (
                 <div key={idx} onClick={() => openStory(story)} className="flex flex-col items-center gap-2">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-[#754E33] to-[#E8CDB5] p-[1px] cursor-pointer hover:scale-105 transition-transform">
-                    <div className="w-full h-full rounded-full bg-[#1A1A1A] flex items-center justify-center">
+                    <div className="w-full h-full rounded-full bg-[#1A1A1A] flex items-center justify-center overflow-hidden">
                       <Icon name="Sparkles" className="w-5 h-5 sm:w-6 sm:h-6 text-[#C89D7C]" />
                     </div>
                   </div>
@@ -2167,16 +2187,55 @@
           if(!manualDate || !manualTime) return alert("Заполните Дату и Время!");
           triggerHaptic();
 
+          const cleanManualName = (manualName || "Без имени").trim();
+          const lowerManualName = cleanManualName.toLowerCase();
+          
+          let matchedTgId = null;
+          let updatedClients = editData.clients || [];
+
+          // Ищем клиента по ФИО (customName или originalName)
+          if (lowerManualName) {
+              const matchedClient = updatedClients.find(c => 
+                  (c.customName && c.customName.toLowerCase() === lowerManualName) ||
+                  (c.originalName && c.originalName.toLowerCase() === lowerManualName)
+              );
+              if (matchedClient) {
+                  matchedTgId = matchedClient.tgId;
+              }
+          }
+
+          // Если клиент не найден - создаем для него новую карточку!
+          if (!matchedTgId) {
+              matchedTgId = 'manual_' + Date.now();
+              const newClient = {
+                  tgId: matchedTgId,
+                  originalName: cleanManualName,
+                  customName: cleanManualName,
+                  username: manualContact.trim(),
+                  phone: manualPhone,
+                  visits: 0,
+                  totalSpent: 0,
+                  isBlacklisted: false,
+                  isArchived: false,
+                  firstVisit: new Date().toISOString()
+              };
+              updatedClients = [...updatedClients, newClient];
+              setEditData(prev => ({...prev, clients: updatedClients}));
+              setAppData(prev => ({...prev, clients: updatedClients}));
+              saveClientToFirebase(newClient);
+          }
+
           const newB = {
             id: 'b' + Date.now(),
             date: manualDate,
             time: manualTime,
-            clientName: manualName || "Без имени",
+            clientName: cleanManualName,
             clientContact: manualContact.trim() || "Ручная запись",
             phone: manualPhone,
             services: manualService || "Не указано",
             duration: 60,
             price: 0,
+            tgId: matchedTgId, // Жесткая привязка к карточке клиента
             createdAt: new Date().toISOString()
           };
 
@@ -2187,18 +2246,19 @@
             const dIdx = newDates.findIndex(d => d.date === manualDate);
             if (dIdx !== -1) {
               newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
-              const newData = {...editData, dates: newDates};
-              setEditData(newData);
-              setAppData(newData);
-              syncToFirebase(newData);
-              localStorage.setItem('electroAppData', JSON.stringify(newData));
             }
+            
+            const newData = {...editData, dates: newDates, clients: updatedClients};
+            setEditData(newData);
+            setAppData(newData);
+            syncToFirebase(newData);
+            localStorage.setItem('electroAppData', JSON.stringify(newData));
 
             setManualName(''); setManualContact(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
             fetchBookings();
             setShowManualBooking(false);
             setAdminCalendarDate(manualDate);
-            showToast("Слот успешно забронирован! ✨");
+            showToast("Слот забронирован и привязан к клиенту! ✨");
           } catch(e) {
              showToast("Ошибка бронирования ❌");
              console.error(e);
@@ -2858,18 +2918,18 @@
                                 </h3>
                                 <div className="flex gap-2 pb-1">
                                    {/* ИТОГОВЫЙ БЛОК (СТАТИЧНЫЙ СЛЕВА) */}
-                                   <div className="min-w-[90px] py-1.5 px-2.5 rounded-lg border border-[#C89D7C]/40 bg-[#C89D7C]/10 flex flex-col justify-center shrink-0 shadow-sm">
+                                   <div className="min-w-[90px] py-1.5 px-2.5 rounded-lg border border-[#C89D7C]/40 bg-[#C89D7C]/10 flex flex-col justify-center shrink-0 shadow-sm z-10 relative">
                                        <span className="text-[9px] uppercase font-bold text-[#C89D7C] tracking-wider mb-0.5">Всего</span>
                                        <span className="text-sm font-bold text-white drop-shadow-sm">{totalRevenueAllTime.toLocaleString('ru-RU')} ₽</span>
                                    </div>
                                    {/* МЕСЯЦА (Листаются) */}
-                                   <div className="flex gap-2 overflow-x-auto hide-scrollbar snap-x snap-mandatory flex-1">
+                                   <div id="revenue-scroll-container" className="flex gap-2 overflow-x-auto hide-scrollbar snap-x snap-mandatory flex-1 scroll-smooth relative">
                                        {shortMonthNames.map((shortM, idx) => {
                                           const fullM = fullMonthNames[idx];
                                           const total = revenueByMonth[shortM] || 0;
                                           const isCurrent = fullM.toLowerCase() === currentMonthName.toLowerCase();
                                           return (
-                                              <div key={idx} className={`snap-start min-w-[80px] py-1.5 px-2.5 rounded-lg border flex flex-col justify-center shrink-0 transition-all ${isCurrent ? 'bg-green-500/10 border-green-500/30' : 'bg-[#1A1A1A] border-white/5'}`}>
+                                              <div key={idx} id={isCurrent ? 'active-revenue-month' : undefined} className={`snap-start min-w-[80px] py-1.5 px-2.5 rounded-lg border flex flex-col justify-center shrink-0 transition-all ${isCurrent ? 'bg-green-500/10 border-green-500/30' : 'bg-[#1A1A1A] border-white/5'}`}>
                                                   <span className={`text-[9px] uppercase font-bold tracking-wider mb-0.5 ${isCurrent ? 'text-green-500' : 'text-gray-500'}`}>{fullM}</span>
                                                   <span className={`text-sm font-bold drop-shadow-sm ${isCurrent ? 'text-green-400' : 'text-gray-300'}`}>{total.toLocaleString('ru-RU')} ₽</span>
                                               </div>
