@@ -469,7 +469,8 @@
       const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
       const weekDays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
       const today = new Date();
-      for(let i=0; i<42; i++) {
+      // Генерируем дни на год вперед (365 дней), чтобы поиск и сортировка работали безотказно
+      for(let i=0; i<365; i++) {
          const d = new Date(today);
          d.setDate(today.getDate() + i);
          days.push({
@@ -764,6 +765,7 @@
       const [manualService, setManualService] = useState('');
       const [manualPhone, setManualPhone] = useState(''); 
 
+      const [settingsMonth, setSettingsMonth] = useState(new Date()); 
       const [adminCalendarDate, setAdminCalendarDate] = useState(globalCalendarDays[0].date);
       const [calendarMonth, setCalendarMonth] = useState(new Date()); 
       const hoursList = Array.from({length: 13}, (_, i) => i + 9); 
@@ -1962,6 +1964,16 @@
           const numVal = val === '' ? null : (parseInt(val) || 0);
           const updatedList = bookingsList.map(b => String(b.id) === String(bookingId) ? { ...b, actualPrice: numVal } : b);
           setBookingsList(updatedList);
+
+          // Мгновенный пересчет totalSpent (общей суммы покупок) в объекте клиента в памяти
+          if (editData) {
+            const updatedClientsEdit = buildClientsFromBookings(updatedList, editData.clients || []);
+            const newEditData = { ...editData, clients: updatedClientsEdit };
+            setEditData(newEditData);
+            if (appData) setAppData({ ...appData, clients: updatedClientsEdit });
+            localStorage.setItem('electroAppData', JSON.stringify(newEditData));
+          }
+
           if (db) {
             try {
               await db.collection("bookings").doc(String(bookingId)).update({ actualPrice: numVal });
@@ -2528,21 +2540,51 @@
                       </div>
                     </div>
 
+                    {/* КАЛЕНДАРЬ НАСТРОЙКИ СВОБОДНЫХ ОКОШЕК */}
                     <div className="glass-card-dark p-4 rounded-2xl border border-white/10">
                       <label className="block text-sm font-bold text-white mb-1">Свободные даты и окошки</label>
-                      <p className="text-xs text-gray-400 mb-4">Нажми на день, чтобы настроить его время.</p>
+                      <p className="text-xs text-gray-400 mb-4">Выберите месяц и день, чтобы настроить его расписание.</p>
                       
-                      <div className="grid grid-cols-7 gap-1 mb-4">
-                        {globalCalendarDays.map((item, idx) => {
-                          const isSelected = (editData.dates || []).some(d => d.date === item.date);
-                          const isEditingThis = adminSelectedDateObj?.date === item.date;
+                      {/* МЕСЯЦ */}
+                      <div className="flex justify-between items-center mb-4 bg-[#1A1A1A] p-2 rounded-xl border border-gray-700">
+                        <h3 className="text-sm font-bold text-white capitalize pl-2">
+                          {settingsMonth.toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
+                        </h3>
+                        <div className="flex gap-2">
+                          <button onClick={() => { triggerHaptic(); setSettingsMonth(new Date(settingsMonth.getFullYear(), settingsMonth.getMonth() - 1, 1)); }} className="text-[#C89D7C] hover:text-white px-3 py-1 text-lg leading-none transition-colors bg-[#2A2A2A] rounded-lg">‹</button>
+                          <button onClick={() => { triggerHaptic(); setSettingsMonth(new Date(settingsMonth.getFullYear(), settingsMonth.getMonth() + 1, 1)); }} className="text-[#C89D7C] hover:text-white px-3 py-1 text-lg leading-none transition-colors bg-[#2A2A2A] rounded-lg">›</button>
+                        </div>
+                      </div>
+
+                      {/* ДНИ НЕДЕЛИ */}
+                      <div className="grid grid-cols-7 mb-2 text-center text-[10px] text-gray-500 font-bold uppercase">
+                        <div>П</div><div>В</div><div>С</div><div>Ч</div><div>П</div><div>С</div><div>В</div>
+                      </div>
+                      
+                      {/* СЕТКА ДНЕЙ */}
+                      <div className="grid grid-cols-7 gap-y-3 mb-6 text-center">
+                        {getMonthGrid(settingsMonth).map((cell, idx) => {
+                          const dateStr = formatDateStr(cell.dateObj);
+                          const isSelected = adminSelectedDateObj?.date === dateStr;
+                          const isWorkingDay = (editData.dates || []).some(d => d.date === dateStr);
+                          const isToday = cell.dateObj.toDateString() === new Date().toDateString();
+
                           return (
-                            <div key={idx} onClick={() => { triggerHaptic(); setAdminSelectedDateObj(item); setNewTimeVal(''); }} 
-                                 className={`flex flex-col items-center justify-center py-2 rounded-lg cursor-pointer transition-colors border-2 
-                                 ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C]' : 'bg-[#1A1A1A] text-gray-500 border-gray-800'}
-                                 ${isEditingThis ? 'ring-2 ring-white scale-105' : ''}`}>
-                              <span className="text-[10px] leading-none mb-1 opacity-80">{item.day}</span>
-                              <span className="text-sm font-bold leading-none">{item.date.split(' ')[0]}</span>
+                            <div key={idx} 
+                                 onClick={() => { 
+                                     triggerHaptic(); 
+                                     const dayStr = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][cell.dateObj.getDay()];
+                                     setAdminSelectedDateObj({ date: dateStr, day: dayStr }); 
+                                     setNewTimeVal(''); 
+                                 }} 
+                                 className="flex flex-col items-center justify-center relative h-10"
+                            >
+                              <div className={`w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition-all border-2 z-10
+                               ${!cell.isCurrentMonth ? 'text-gray-600 border-transparent' : 'text-white border-transparent'}
+                               ${isSelected ? 'bg-[#C89D7C] text-black border-[#C89D7C] shadow-[0_0_10px_rgba(200,157,124,0.5)] scale-110' : (isWorkingDay ? 'border-[#C89D7C]/50 text-[#C89D7C]' : 'hover:bg-white/10')}
+                               ${isToday && !isSelected && !isWorkingDay ? 'bg-white/5' : ''}`}>
+                                <span className="text-sm font-bold leading-none">{cell.dateObj.getDate()}</span>
+                              </div>
                             </div>
                           );
                         })}
@@ -2566,7 +2608,7 @@
                                    return (idxA !== -1 && idxB !== -1) ? idxA - idxB : 0;
                                 });
                                 setEditData({...editData, dates: newDates});
-                              }} className="bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black px-4 py-2 rounded-lg font-bold text-sm">
+                              }} className="bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-md hover:opacity-90">
                                 Сделать рабочим
                               </button>
                             </div>
@@ -2581,14 +2623,14 @@
                               const newDates = [...(editData.dates || [])];
                               newDates.splice(dateEntryIndex, 1);
                               setEditData({...editData, dates: newDates});
-                            }} className="absolute top-3 right-3 text-red-400 text-xs font-bold bg-red-400/10 px-2 py-1 rounded-md">Сделать выходным</button>
+                            }} className="absolute top-3 right-3 text-red-400 text-xs font-bold bg-red-400/10 px-2 py-1 rounded-md hover:bg-red-400/20 transition-colors">Сделать выходным</button>
                             
                             <p className="text-[#C89D7C] font-bold mb-3">{adminSelectedDateObj.date}, {adminSelectedDateObj.day}</p>
                             
                             <div className="flex flex-wrap gap-2 mb-4">
                               {(entry.slots || []).length === 0 && <span className="text-xs text-gray-500">Нет свободного времени</span>}
                               {(entry.slots || []).map((time, idx) => (
-                                <div key={idx} className="bg-[#2A2A2A] border border-[#C89D7C]/30 rounded-lg px-2 py-1 flex items-center gap-1">
+                                <div key={idx} className="bg-[#2A2A2A] border border-[#C89D7C]/30 rounded-lg px-2 py-1 flex items-center gap-1 shadow-sm">
                                   <span className="text-sm text-white font-medium">{time}</span>
                                   <button onClick={() => {
                                     triggerHaptic();
@@ -2610,7 +2652,7 @@
                                 newDates[dateEntryIndex].slots.sort();
                                 setEditData({...editData, dates: newDates});
                                 setNewTimeVal('');
-                              }} className="bg-[#C89D7C] text-black px-4 py-2 rounded-lg font-bold text-sm">Добавить</button>
+                              }} className="bg-[#C89D7C] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-md hover:opacity-90">Добавить</button>
                             </div>
                           </div>
                         );
