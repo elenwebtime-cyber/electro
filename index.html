@@ -816,7 +816,7 @@
 
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
             if (userTgId === ADMIN_TG_ID) {
-              if (!user || user.email !== 'admin@electro.app') {
+              if (!user || user.email !== 'boss@electro.app') {
                 try {
                   if (user) await auth.signOut();
                   await auth.signInWithEmailAndPassword(atob("YWRtaW5AZWxlY3Ryby5hcHA="), atob("U3VwZXJBZG1pbjEyMyE="));
