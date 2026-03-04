@@ -1400,8 +1400,13 @@
                         `⏳ Забронировано: ${selectedDuration} мин\n` +
                         `💰 Ожидаемая сумма: ~${totalPrice} ₽`;
 
+        // БРОНЯ (Шаг 4): Детерминированный ID на основе даты и времени
+        const safeDateStr = String(selectedDate).replace(/\s+/g, '_');
+        const safeTimeStr = String(selectedTime).replace(':', '_');
+        const deterministicId = `b_${safeDateStr}_${safeTimeStr}`;
+
         const newBooking = {
-          id: 'b' + Date.now(),
+          id: deterministicId,
           date: selectedDate,
           time: selectedTime,
           clientName: finalClientName,
@@ -1416,8 +1421,35 @@
 
         try {
             if (db) {
-                // Дожидаемся успешной записи в базу
-                await db.collection("bookings").doc(newBooking.id).set(newBooking);
+                // 1. Предварительная проверка на перекрытия времени (защита от "нахлеста" процедур)
+                const snapshot = await db.collection("bookings").where("date", "==", selectedDate).get();
+                const existingDayBookings = [];
+                snapshot.forEach(doc => existingDayBookings.push(normalizeBooking(doc.data(), doc.id)));
+                
+                let freshAvailableSlots = [...daySlots];
+                existingDayBookings.forEach(eb => {
+                    freshAvailableSlots = removeOverlappingSlots(freshAvailableSlots, eb.time, getBookingBlockedMins(eb));
+                });
+
+                const stillFits = hasEnoughContinuousTimeWindow(
+                  freshAvailableSlots,
+                  selectedTime,
+                  selectedDuration,
+                  REST_AFTER_CLIENT_MINS,
+                  [...(appData.defaultSlots || []), ...daySlots]
+                );
+
+                if (!stillFits) throw new Error("OVERLAP");
+
+                // 2. Атомарная транзакция: защита от записи миллисекунда в миллисекунду
+                const bookingRef = db.collection("bookings").doc(deterministicId);
+                await db.runTransaction(async (transaction) => {
+                    const doc = await transaction.get(bookingRef);
+                    if (doc.exists) {
+                        throw new Error("SLOT_TAKEN");
+                    }
+                    transaction.set(bookingRef, newBooking);
+                });
             }
 
             // Только после успеха показываем экран
@@ -1464,7 +1496,12 @@
 
         } catch (err) {
             console.error("Firebase booking error:", err);
-            alert("К сожалению, это время уже занято или произошла ошибка. Пожалуйста, выберите другое время.");
+            setShowMemo(false); // Прячем памятку
+            if (err.message === "SLOT_TAKEN" || err.message === "OVERLAP") {
+                alert("Ой! Кажется, это окошко только что заняли 😔 Пожалуйста, выберите другое время.");
+            } else {
+                alert("К сожалению, произошла ошибка сети. Пожалуйста, попробуйте еще раз.");
+            }
         }
       };
 
