@@ -735,7 +735,7 @@
 
     function App() {
       const [isAppReady, setIsAppReady] = useState(false);
-      const [showAdminAuth, setShowAdminAuth] = useState(false); // НОВОЕ СОСТОЯНИЕ ДЛЯ ЭКРАНА ВХОДА АДМИНА
+      const [showAdminAuth, setShowAdminAuth] = useState(false); 
       
       const [appData, setAppData] = useState(null); 
       const [editData, setEditData] = useState(null);
@@ -805,6 +805,20 @@
       const [clientListTab, setClientListTab] = useState('active'); 
       
       let tapTimeout = useRef(null);
+
+      // =========================================================================
+      // ШАГ 8: Единая функция сохранения кэша (Убираем мусор localSave1...12)
+      // =========================================================================
+      const saveToLocalCache = (dataToSave) => {
+        if (!dataToSave) return;
+        const cacheData = { ...dataToSave };
+        delete cacheData.clients; // Всегда вырезаем телефоны перед сохранением на устройство
+        try {
+           localStorage.setItem('electroAppData', JSON.stringify(cacheData));
+        } catch (e) {
+           console.error("Ошибка сохранения в кэш:", e);
+        }
+      };
 
       // Refs для свайпа назад
       const activeTabRef = useRef(activeTab);
@@ -924,6 +938,16 @@
         toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 3000);
       };
 
+      // =========================================================================
+      // ШАГ 8: Чистим слушатель Firebase, чтобы не было утечек памяти
+      // =========================================================================
+      const stopFetchingBookings = () => {
+          if (unsubscribeBookingsRef.current) {
+              unsubscribeBookingsRef.current();
+              unsubscribeBookingsRef.current = null;
+          }
+      };
+
       const fetchBookings = () => {
         if (!db) return;
         const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
@@ -974,8 +998,13 @@
       };
 
       useEffect(() => {
-        if (adminTab === 'calendar' || adminTab === 'clients') fetchBookings();
-      }, [adminTab]);
+        if (activeTab === 'admin' && (adminTab === 'calendar' || adminTab === 'clients')) {
+            fetchBookings();
+        } else {
+            stopFetchingBookings(); // Останавливаем слежку, если ушли из админки
+        }
+        return () => stopFetchingBookings(); // Подчищаем при удалении компонента
+      }, [activeTab, adminTab]);
 
       useEffect(() => {
         if (window.Telegram && window.Telegram.WebApp) {
@@ -1068,11 +1097,6 @@
 
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
             if (userTgId === ADMIN_TG_ID) {
-              // ---------------------------------------------------------------------------------
-              // 🚨 ШАГ 3 ВЫПОЛНЕН: ПАРОЛЬ ПОЛНОСТЬЮ УДАЛЕН ИЗ КОДА 🚨
-              // Если зашел Админ, но он не залогинен в Firebase (или у него нет токена админа)
-              // Мы больше не логиним его автоматически через хардкод. Мы показываем красивое окно!
-              // ---------------------------------------------------------------------------------
               if (!user || user.email !== 'boss@electro.app') {
                 if (user) await auth.signOut();
                 setShowAdminAuth(true); // Включаем экран ввода пароля
@@ -1133,7 +1157,7 @@
         setTapCount(prev => {
           if (prev + 1 >= 5) {
             const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-            if (userTgId === ADMIN_TG_ID || !window.Telegram?.WebApp?.initDataUnsafe?.user) {
+            if (userTgId === ADMIN_TG_ID) {
               setEditData(appData); 
               setShowAdminGear(true);
               triggerHaptic();
@@ -1209,9 +1233,7 @@
                     if (!pass) return;
                     try {
                         triggerHaptic();
-                        // Firebase напрямую проверит введенный пароль (например, Sim12773666). В коде его нет!
                         await firebase.auth().signInWithEmailAndPassword(atob("Ym9zc0BlbGVjdHJvLmFwcA=="), pass);
-                        // Если пароль верный, сработает onAuthStateChanged и пустит вас внутрь!
                     } catch (err) {
                         triggerHaptic();
                         alert("Неверный пароль 😔");
@@ -1305,7 +1327,6 @@
 
         triggerHaptic();
         setShowMemo(false); 
-        setActiveTab('success'); 
 
         const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
         const clientName = tgUser.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : "Неизвестный клиент";
@@ -1373,35 +1394,6 @@
 
         const displayDate = parseDateForDisplay(selectedDate).full;
 
-        const messageToAdmin = `🔥 *Новая запись!*\n\n` +
-                        `👤 Клиент: ${safeName} ${safeUsername} ${clientId}\n` +
-                        (clientPhone ? `📞 Телефон: ${safePhone}\n` : ``) +
-                        `📅 ${displayDate} в ${selectedTime}\n` +
-                        `🌸 Зоны: ${safeServices}${safeAddons}\n` +
-                        `⏳ Забронировано: ${selectedDuration} мин\n` +
-                        `💰 Ожидаемая сумма: ~${totalPrice} ₽`;
-
-        if (GOOGLE_SCRIPT_URL) {
-          const initData = window.Telegram?.WebApp?.initData || ''; // Получаем хэш авторизации Telegram
-          const fetchOpts = (payload) => ({
-            method: 'POST',
-            keepalive: true, 
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({...payload, initData: initData}) // Передаем initData вместо пароля
-          });
-
-          fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: CHAT_ID, text: messageToAdmin }))
-             .catch(error => console.error("Ошибка отправки админу", error));
-
-          if (tgUser.id) {
-            const safeAddress = escapeMD(appData.address);
-            const safeNote = escapeMD(appData.addressNote);
-            const messageToClient = `✨ *${safeName}, ваша запись подтверждена!*\n\n📅 Дата: ${displayDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${safeServices}${safeAddons}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${safeAddress}\n_${safeNote}_\n\nЖду вас! ❤️`;
-            fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: tgUser.id, text: messageToClient }))
-               .catch(error => console.error("Ошибка отправки клиенту", error));
-          }
-        }
-
         const newBooking = {
           id: 'b' + Date.now(),
           date: selectedDate,
@@ -1416,19 +1408,51 @@
           createdAt: new Date().toISOString()
         };
 
-        if (db) {
-          db.collection("bookings").doc(newBooking.id).set(newBooking).catch(err => console.error("Firebase booking error:", err));
-        }
+        try {
+            if (db) {
+                await db.collection("bookings").doc(newBooking.id).set(newBooking);
+            }
+            
+            const messageToAdmin = `🔥 *Новая запись!*\n\n` +
+                            `👤 Клиент: ${safeName} ${safeUsername} ${clientId}\n` +
+                            (clientPhone ? `📞 Телефон: ${safePhone}\n` : ``) +
+                            `📅 ${displayDate} в ${selectedTime}\n` +
+                            `🌸 Зоны: ${safeServices}${safeAddons}\n` +
+                            `⏳ Забронировано: ${selectedDuration} мин\n` +
+                            `💰 Ожидаемая сумма: ~${totalPrice} ₽`;
 
-        const updatedDates = [...(appData.dates || [])];
-        const targetDateIdx = updatedDates.findIndex(d => d.date === selectedDate);
-        if (targetDateIdx !== -1) {
-          updatedDates[targetDateIdx].slots = removeOverlappingSlots(updatedDates[targetDateIdx].slots, selectedTime, selectedDuration);
-          const newData = { ...appData, dates: updatedDates, clients: updatedClients };
-          setAppData(newData);
-          setEditData(newData);
-          syncToFirebase(newData);
-          const localSave1 = { ...newData }; delete localSave1.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave1));
+            if (GOOGLE_SCRIPT_URL) {
+              const initData = window.Telegram?.WebApp?.initData || ''; 
+              const fetchOpts = (payload) => ({
+                method: 'POST',
+                keepalive: true, 
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({...payload, initData: initData}) 
+              });
+
+              fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: CHAT_ID, text: messageToAdmin }))
+                 .catch(error => console.error("Ошибка отправки админу", error));
+
+              if (tgUser.id) {
+                const safeAddress = escapeMD(appData.address);
+                const safeNote = escapeMD(appData.addressNote);
+                const messageToClient = `✨ *${safeName}, ваша запись подтверждена!*\n\n📅 Дата: ${displayDate}\n⏰ Время: ${selectedTime}\n🌸 Зоны: ${safeServices}${safeAddons}\n⏳ Примерное время: ${selectedDuration} мин\n💰 Примерная стоимость: ~${totalPrice} ₽\n\n📍 Адрес: ${safeAddress}\n_${safeNote}_\n\nЖду вас! ❤️`;
+                fetch(GOOGLE_SCRIPT_URL, fetchOpts({ chat_id: tgUser.id, text: messageToClient }))
+                   .catch(error => console.error("Ошибка отправки клиенту", error));
+              }
+            }
+            
+            setActiveTab('success');
+            
+            const newData = { ...appData, clients: updatedClients };
+            setAppData(newData);
+            setEditData(newData);
+            saveToLocalCache(newData); // ШАГ 8
+
+        } catch (err) {
+            console.error("Критическая ошибка бронирования:", err);
+            alert("К сожалению, произошла ошибка! 😔 Возможно, пропал интернет или этот слот только что заняли. Пожалуйста, обновите страницу и попробуйте еще раз.");
+            setActiveTab('main'); 
         }
       };
 
@@ -1465,7 +1489,7 @@
         setAppData(newData);
         setEditData(newData);
         
-        const localSave2 = { ...newData }; delete localSave2.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave2));
+        saveToLocalCache(newData); // ШАГ 8
         
         showToast("Спасибо! Отзыв отправлен на модерацию. 💖");
         setRevName('');
@@ -1530,7 +1554,6 @@
 
             const newDates = [...(editData.dates || [])];
             
-            // Восстанавливаем старые слоты (все, которые были перекрыты до этого)
             if (editingBooking.date !== editBDate || editingBooking.time !== editBTime || editingBooking.duration !== safeDuration) {
                 const oldDIdx = newDates.findIndex(d => d.date === editingBooking.date);
                 if (oldDIdx !== -1) {
@@ -1543,7 +1566,6 @@
                 }
             }
             
-            // Вырезаем новые слоты на основе обновленного времени/длительности
             const newDIdx = newDates.findIndex(d => d.date === editBDate);
             if (newDIdx !== -1) {
                 newDates[newDIdx].slots = removeOverlappingSlots(newDates[newDIdx].slots, editBTime, safeDuration);
@@ -1553,10 +1575,9 @@
             setEditData(newData);
             setAppData(newData);
             syncToFirebase(newData);
-            const localSave3 = { ...newData }; delete localSave3.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave3));
+            saveToLocalCache(newData); // ШАГ 8
 
             setEditingBooking(null);
-            // Синхронизируем открытую карточку с новыми данными
             if (viewingBookingDetails && viewingBookingDetails.id === updatedB.id) {
                 setViewingBookingDetails(updatedB);
             }
@@ -1610,7 +1631,7 @@
             if (editData) setEditData(newData);
             if (appData) setAppData(newData);
             syncToFirebase(newData);
-            const localSave4 = { ...newData }; delete localSave4.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave4));
+            saveToLocalCache(newData); // ШАГ 8
             
             fetchBookings();
             showToast("Бронь отменена, слоты возвращены. 🔄");
@@ -1781,6 +1802,13 @@
             availableSlotsForDate = availableSlotsForDate.filter(time => {
                 const [h, m] = time.split(':').map(Number);
                 return h > currentHour || (h === currentHour && m > currentMin);
+            });
+        }
+
+        if (selectedDate) {
+            const bookingsForThisDate = bookingsList.filter(b => b.date === selectedDate);
+            bookingsForThisDate.forEach(b => {
+                availableSlotsForDate = removeOverlappingSlots(availableSlotsForDate, b.time, b.duration);
             });
         }
 
@@ -2201,7 +2229,17 @@
             const parsed = parseDateForDisplay(d.date);
             const mMap = {'Янв':'01', 'Фев':'02', 'Мар':'03', 'Апр':'04', 'Май':'05', 'Июн':'06', 'Июл':'07', 'Авг':'08', 'Сен':'09', 'Окт':'10', 'Ноя':'11', 'Дек':'12'};
             const mNum = parsed.month ? (mMap[parsed.month] || parsed.month) : '';
-            text += `${parsed.day}.${mNum}.${parsed.year} - ${(d.slots||[]).join(', ')}\n`;
+            
+            // Динамически высчитываем свободные слоты для копирования (с учетом записей)
+            let currentSlots = d.slots || [];
+            const bookingsForThisDate = bookingsList.filter(b => b.date === d.date);
+            bookingsForThisDate.forEach(b => {
+                currentSlots = removeOverlappingSlots(currentSlots, b.time, b.duration);
+            });
+            
+            if (currentSlots.length > 0) {
+                text += `${parsed.day}.${mNum}.${parsed.year} - ${currentSlots.join(', ')}\n`;
+            }
           });
           text += "\nЗапись по ссылке в профиле! ✨";
 
@@ -2233,7 +2271,7 @@
             const newEditData = { ...editData, clients: updatedClientsEdit };
             setEditData(newEditData);
             if (appData) setAppData({ ...appData, clients: updatedClientsEdit });
-            const localSave12 = { ...newEditData }; delete localSave12.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave12));
+            saveToLocalCache(newEditData); // ШАГ 8
           }
 
           if (db) {
@@ -2306,17 +2344,12 @@
           try {
             if(db) await db.collection("bookings").doc(newB.id).set(newB);
 
-            const newDates = [...(editData.dates || [])];
-            const dIdx = newDates.findIndex(d => d.date === manualDate);
-            if (dIdx !== -1) {
-              newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
-            }
-            
-            const newData = {...editData, dates: newDates, clients: updatedClients};
+            // ВАЖНО: Мы больше не удаляем слоты из настроек (masterData) при ручной записи.
+            // Умный календарь сделает это сам на лету.
+            const newData = {...editData, clients: updatedClients};
             setEditData(newData);
             setAppData(newData);
-            syncToFirebase(newData);
-            const localSave5 = { ...newData }; delete localSave5.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave5));
+            saveToLocalCache(newData); // ШАГ 8
 
             setManualName(''); setManualContact(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
             fetchBookings();
@@ -2348,17 +2381,7 @@
           try {
             if(db) await db.collection("bookings").doc(newB.id).set(newB);
 
-            const newDates = [...(editData.dates || [])];
-            const dIdx = newDates.findIndex(d => d.date === manualDate);
-            if (dIdx !== -1) {
-              newDates[dIdx].slots = removeOverlappingSlots(newDates[dIdx].slots, manualTime, 60);
-              const newData = {...editData, dates: newDates};
-              setEditData(newData);
-              setAppData(newData);
-              syncToFirebase(newData);
-              const localSave6 = { ...newData }; delete localSave6.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave6));
-            }
-
+            // Аналогично: больше не вырезаем слот из masterData.
             setManualName(''); setManualContact(''); setManualDate(''); setManualTime(''); setManualService(''); setManualPhone('');
             fetchBookings();
             setShowManualBooking(false);
@@ -2471,7 +2494,7 @@
           setEditData(newEditData);
           setAppData(newEditData);
           await syncToFirebase(newEditData);
-          const localSave7 = { ...newEditData }; delete localSave7.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave7));
+          saveToLocalCache(newEditData); // ШАГ 8
           showToast("Отзыв успешно опубликован! ✅");
         };
 
@@ -2484,7 +2507,7 @@
           setEditData(newEditData);
           setAppData(newEditData);
           await syncToFirebase(newEditData);
-          const localSave8 = { ...newEditData }; delete localSave8.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave8));
+          saveToLocalCache(newEditData); // ШАГ 8
           showToast("Отзыв удален. 🗑️");
         };
 
@@ -2534,7 +2557,7 @@
           
           deleteClientFromFirebase(tgId);
           await syncToFirebase(newEditData);
-          const localSave9 = { ...newEditData }; delete localSave9.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave9));
+          saveToLocalCache(newEditData); // ШАГ 8
           showToast("Клиент удален! 🗑️");
         };
 
@@ -2577,7 +2600,7 @@
            
            saveClientToFirebase(client);
            await syncToFirebase(newEditData);
-           const localSave10 = { ...newEditData }; delete localSave10.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave10));
+           saveToLocalCache(newEditData); // ШАГ 8
 
            setNewClientName('');
            setNewClientContact('');
@@ -2591,7 +2614,7 @@
           setIsSaving(true);
           setAppData(editData);
           await syncToFirebase(editData);
-          const localSave11 = { ...editData }; delete localSave11.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave11));
+          saveToLocalCache(editData); // ШАГ 8
           setIsSaving(false);
           showToast("Настройки успешно сохранены! ✓");
         };
@@ -3467,12 +3490,12 @@
             </div>
           )}
 
-          {activeTab === 'main' && renderMain()}
-          {activeTab === 'booking' && renderBooking()}
-          {activeTab === 'success' && renderSuccess()}
-          {activeTab === 'admin' && renderAdminPanel()}
-          {activeTab === 'reviews' && renderReviews()}
-          {activeTab === 'story_page' && renderStoryPage()}
+          {activeTab === 'main' && appData && renderMain()}
+          {activeTab === 'booking' && appData && renderBooking()}
+          {activeTab === 'success' && appData && renderSuccess()}
+          {activeTab === 'admin' && appData && renderAdminPanel()}
+          {activeTab === 'reviews' && appData && renderReviews()}
+          {activeTab === 'story_page' && appData && renderStoryPage()}
 
           {/* ВСПЛЫВАЮЩАЯ ГАЛЕРЕЯ (МОДАЛЬНОЕ ОКНО) */}
           {viewingStory && viewingStory.type === 'gallery' && (
