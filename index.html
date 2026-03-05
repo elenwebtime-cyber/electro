@@ -1092,6 +1092,17 @@
                    } catch(err) {
                      finalData.clients = finalData.clients || [];
                    }
+                } else if (userTgId) {
+                   try {
+                     const clientDoc = await db.collection("clients").doc(String(userTgId)).get();
+                     if (clientDoc.exists) {
+                         finalData.clients = [clientDoc.data()];
+                     } else {
+                         finalData.clients = [];
+                     }
+                   } catch(err) {
+                     finalData.clients = [];
+                   }
                 } else {
                    finalData.clients = [];
                 }
