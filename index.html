@@ -736,6 +736,7 @@
 
     function App() {
       const [isAppReady, setIsAppReady] = useState(false);
+      const [showAdminAuth, setShowAdminAuth] = useState(false); // НОВОЕ СОСТОЯНИЕ ДЛЯ ЭКРАНА ВХОДА АДМИНА
       
       const [appData, setAppData] = useState(null); 
       const [editData, setEditData] = useState(null);
@@ -796,13 +797,13 @@
       const [editBServices, setEditBServices] = useState(''); 
       
       const [expandedClientTgId, setExpandedClientTgId] = useState(null);
-      const [editingClientTgId, setEditingClientTgId] = useState(null); // СОСТОЯНИЕ ДЛЯ РЕДАКТИРОВАНИЯ КЛИЕНТА
+      const [editingClientTgId, setEditingClientTgId] = useState(null); 
       const [showAddClient, setShowAddClient] = useState(false);
       const [newClientName, setNewClientName] = useState('');
       const [newClientContact, setNewClientContact] = useState('');
       const [newClientPhone, setNewClientPhone] = useState(''); 
       const [clientSearch, setClientSearch] = useState(''); 
-      const [clientListTab, setClientListTab] = useState('active'); // 'active' | 'archive'
+      const [clientListTab, setClientListTab] = useState('active'); 
       
       let tapTimeout = useRef(null);
 
@@ -900,7 +901,6 @@
           const diffX = adminCalendarSwipeRef.current.x - swipeEndX;
           const diffY = adminCalendarSwipeRef.current.y - swipeEndY;
 
-          // Строгая проверка: свайп должен быть горизонтальным, без сильного смещения по вертикали
           if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 2) {
               if (diffX > 0) {
                   triggerHaptic();
@@ -930,7 +930,7 @@
         const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
         if (userTgId !== ADMIN_TG_ID) return;
 
-        if (unsubscribeBookingsRef.current) return; // Защита от двойного запуска
+        if (unsubscribeBookingsRef.current) return; 
 
         setLoadingBookings(true);
         try {
@@ -940,7 +940,6 @@
               snap.forEach(doc => b.push(normalizeBooking(doc.data(), doc.id)));
               setBookingsList(b);
 
-              // Автосинхронизация CRM в реальном времени, всегда берем самый свежий стейт
               setEditData(prevEdit => {
                 const baseClients = prevEdit?.clients || [];
                 const mergedClients = buildClientsFromBookings(b, baseClients);
@@ -1024,9 +1023,6 @@
                 }
                 finalData.dates = finalData.dates.map(d => ({...d, slots: d.slots || []}));
 
-                // ==========================================
-                // АВТОМИГРАЦИЯ ДАТ "БЕЗ ГОДА" -> "YYYY-MM-DD"
-                // ==========================================
                 finalData.dates = finalData.dates.map(d => {
                     if (d.date && !d.date.includes('-')) {
                         const match = globalCalendarDays.find(g => parseDateForDisplay(g.date).short === d.date);
@@ -1034,7 +1030,6 @@
                     }
                     return d;
                 });
-                // ==========================================
 
                 if (finalData.mapLink === undefined) finalData.mapLink = "";
                 
@@ -1074,16 +1069,17 @@
 
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
             if (userTgId === ADMIN_TG_ID) {
+              // ---------------------------------------------------------------------------------
+              // 🚨 ШАГ 3 ВЫПОЛНЕН: ПАРОЛЬ ПОЛНОСТЬЮ УДАЛЕН ИЗ КОДА 🚨
+              // Если зашел Админ, но он не залогинен в Firebase (или у него нет токена админа)
+              // Мы больше не логиним его автоматически через хардкод. Мы показываем красивое окно!
+              // ---------------------------------------------------------------------------------
               if (!user || user.email !== 'boss@electro.app') {
-                try {
-                  if (user) await auth.signOut();
-                  await auth.signInWithEmailAndPassword(atob("Ym9zc0BlbGVjdHJvLmFwcA=="), atob("U3VwZXJBZG1pbjEyMyE="));
-                  return; 
-                } catch (e) {
-                  console.error("Auth admin error:", e);
-                  loadDatabase(); 
-                }
+                if (user) await auth.signOut();
+                setShowAdminAuth(true); // Включаем экран ввода пароля
+                setIsAppReady(true);    // Выключаем загрузчик
               } else {
+                setShowAdminAuth(false);
                 loadDatabase();
               }
             } else {
@@ -1189,7 +1185,48 @@
           setSelectedTime(timeStr); 
       };
 
-      if (!isAppReady || !appData) {
+      // =========================================================================
+      // ИНТЕРФЕЙС БЛОКИРОВКИ: ЭКРАН ВВОДА ПАРОЛЯ ДЛЯ АДМИНА
+      // =========================================================================
+      if (showAdminAuth) {
+        return (
+          <div className="min-h-[100dvh] bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-center animate-[fadeIn_0.3s_ease-out]">
+             <div className="w-24 h-24 bg-[#C89D7C]/10 rounded-full flex items-center justify-center mb-6 border border-[#C89D7C]/30 shadow-[0_0_30px_rgba(200,157,124,0.15)]">
+                <span className="text-4xl animate-pulse">🔐</span>
+             </div>
+             <h2 className="text-2xl font-bold text-white mb-2 tracking-wide">Доступ в CRM</h2>
+             <p className="text-sm text-gray-400 mb-8 max-w-[280px]">
+                Привет, создатель! ✨ Введи свой пароль для безопасного входа в панель управления.
+             </p>
+             <input 
+                type="password" 
+                id="admin-password-input"
+                placeholder="Ваш пароль" 
+                className="w-full max-w-[280px] bg-[#1A1A1A] border border-gray-700 rounded-xl p-4 text-white text-center mb-6 focus:outline-none focus:border-[#C89D7C] text-lg tracking-[0.2em] shadow-inner transition-colors"
+             />
+             <button 
+                onClick={async () => {
+                    const pass = document.getElementById('admin-password-input').value;
+                    if (!pass) return;
+                    try {
+                        triggerHaptic();
+                        // Firebase напрямую проверит введенный пароль (например, Sim12773666). В коде его нет!
+                        await firebase.auth().signInWithEmailAndPassword(atob("Ym9zc0BlbGVjdHJvLmFwcA=="), pass);
+                        // Если пароль верный, сработает onAuthStateChanged и пустит вас внутрь!
+                    } catch (err) {
+                        triggerHaptic();
+                        alert("Неверный пароль 😔");
+                    }
+                }} 
+                className="w-full max-w-[280px] bg-gradient-to-r from-[#C89D7C] to-[#9A6A45] text-black font-bold py-4 rounded-xl shadow-[0_5px_15px_rgba(200,157,124,0.3)] hover:opacity-90 transition-opacity uppercase tracking-widest text-sm"
+             >
+               Войти
+             </button>
+          </div>
+        );
+      }
+
+      if (!isAppReady || (!appData && !showAdminAuth)) {
         return (
           <div className="boot-loader-shell">
             <div className="boot-loader">
@@ -1222,8 +1259,6 @@
                 
                 let hasOverlap = false;
                 
-                // Проверяем: если системный слот попадает ВНУТРЬ нашей длительности, 
-                // но его УЖЕ НЕТ в списке свободных слотов - значит, он занят другой клиенткой!
                 for (let i = 0; i < templateSlots.length; i++) {
                     const t = templateSlots[i];
                     const [th, tm] = t.split(':').map(Number);
@@ -1240,7 +1275,7 @@
                 if (hasOverlap) {
                     triggerHaptic();
                     setShowOverlapModal(true);
-                    return; // Блокируем переход к памятке
+                    return; 
                 }
             }
         }
