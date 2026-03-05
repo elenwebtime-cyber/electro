@@ -1092,21 +1092,6 @@
                    } catch(err) {
                      finalData.clients = finalData.clients || [];
                    }
-                } else if (userTgId) {
-                   try {
-                     let cList = [];
-                     const clientDoc = await db.collection("clients").doc(String(userTgId)).get();
-                     if (clientDoc.exists) cList.push(clientDoc.data());
-                     
-                     const badGuys = await db.collection("clients").where("isBlacklisted", "==", true).get();
-                     badGuys.forEach(d => {
-                         if (!cList.find(c => String(c.tgId) === String(d.data().tgId))) cList.push(d.data());
-                     });
-                     
-                     finalData.clients = cList;
-                   } catch(err) {
-                     finalData.clients = [];
-                   }
                 } else {
                    finalData.clients = [];
                 }
@@ -1337,15 +1322,8 @@
       const isUserBlacklisted = () => {
         const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
         if (!tgUser.id) return false;
-        const cleanTgUser = tgUser.username ? tgUser.username.toLowerCase() : '';
-
-        return (appData.clients || []).some(c => {
-             if (!c.isBlacklisted) return false;
-             if (String(c.tgId) === String(tgUser.id)) return true;
-             const dbUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
-             if (cleanTgUser && dbUser === cleanTgUser) return true;
-             return false;
-        });
+        const client = (appData.clients || []).find(c => String(c.tgId) === String(tgUser.id));
+        return client?.isBlacklisted || false;
       };
 
       const isExistingClient = () => {
@@ -1380,24 +1358,6 @@
         if (tgUser.id) {
             const cleanTgUsername = clientUsername ? clientUsername.replace(/[@()]/g, '').trim().toLowerCase() : '';
             const cleanTgPhone = clientPhone ? clientPhone.replace(/[^\d]/g, '') : '';
-
-            // --- ФИНАЛЬНЫЙ ЩИТ ОТ ЧС (БЕЗ ЖЕСТКОЙ ПРИВЯЗКИ ID) ---
-            const isBlocked = updatedClients.some(c => {
-                 if (!c.isBlacklisted) return false;
-                 if (String(c.tgId) === String(tgUser.id)) return true;
-                 const dbUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
-                 const dbPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
-                 if (cleanTgUsername && dbUser === cleanTgUsername) return true;
-                 if (cleanTgPhone && dbPhone === cleanTgPhone) return true;
-                 return false;
-            });
-
-            if (isBlocked) {
-                alert("К сожалению, запись недоступна 😔");
-                setActiveTab('main');
-                return;
-            }
-            // -------------------------------------------------------------------------
 
             let cIdx = updatedClients.findIndex(c => String(c.tgId) === String(tgUser.id));
 
