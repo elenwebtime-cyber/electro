@@ -1381,7 +1381,7 @@
             const cleanTgUsername = clientUsername ? clientUsername.replace(/[@()]/g, '').trim().toLowerCase() : '';
             const cleanTgPhone = clientPhone ? clientPhone.replace(/[^\d]/g, '') : '';
 
-            // --- ФИНАЛЬНЫЙ ЩИТ ОТ ЧС (проверка по номеру и нику перед сохранением) ---
+            // --- ФИНАЛЬНЫЙ ЩИТ ОТ ЧС (БЕЗ ЖЕСТКОЙ ПРИВЯЗКИ ID) ---
             const isBlocked = updatedClients.some(c => {
                  if (!c.isBlacklisted) return false;
                  if (String(c.tgId) === String(tgUser.id)) return true;
