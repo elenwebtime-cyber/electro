@@ -1427,6 +1427,7 @@
           const newData = { ...appData, dates: updatedDates, clients: updatedClients };
           setAppData(newData);
           setEditData(newData);
+          syncToFirebase(newData);
           const localSave1 = { ...newData }; delete localSave1.clients; localStorage.setItem('electroAppData', JSON.stringify(localSave1));
         }
       };
