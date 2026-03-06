@@ -648,14 +648,12 @@
       const manualClients = [];
       const realClientsMap = new Map();
 
-      // СБРОС счетчиков у всех, чтобы при удалении записи старые значения стирались!
       (existingClients || []).forEach(c => {
          if (!c || !c.tgId) return;
-         const resetClient = { ...c, visits: 0, totalSpent: 0 };
          if (String(c.tgId).startsWith('manual_')) {
-             manualClients.push(resetClient);
+             manualClients.push({...c});
          } else {
-             realClientsMap.set(String(c.tgId), resetClient);
+             realClientsMap.set(String(c.tgId), {...c});
          }
       });
 
@@ -692,55 +690,41 @@
              }
          }
          
-         // Считаем стату для ВСЕХ записей (и ручных, и обычных)
-         const prev = statsMap.get(tgIdStr) || {
-             tgId: tgIdStr,
-             originalName: b.clientName || 'Клиент',
-             customName: '',
-             username: extractUsernameFromContact(b.clientContact),
-             phone: toSafeString(b.phone, ''),
-             visits: 0,
-             totalSpent: 0,
-             isBlacklisted: false,
-             firstVisit: toSafeString(b.createdAt, new Date().toISOString())
-         };
-         prev.visits += 1;
-         const paid = (raw.actualPrice !== undefined && raw.actualPrice !== null && raw.actualPrice !== '') ? Number(raw.actualPrice) : (Number(raw.price) || 0);
-         prev.totalSpent += Number.isFinite(paid) ? paid : 0;
-         if (!prev.phone && b.phone) prev.phone = b.phone;
-         if (!prev.username) prev.username = extractUsernameFromContact(b.clientContact);
-         if (!prev.originalName && b.clientName) prev.originalName = b.clientName;
-         
-         statsMap.set(tgIdStr, prev);
+         if (!isManualBooking) {
+             const prev = statsMap.get(tgIdStr) || {
+                 tgId: b.tgId,
+                 originalName: b.clientName || 'Клиент',
+                 customName: '',
+                 username: extractUsernameFromContact(b.clientContact),
+                 phone: toSafeString(b.phone, ''),
+                 visits: 0,
+                 totalSpent: 0,
+                 isBlacklisted: false,
+                 firstVisit: toSafeString(b.createdAt, new Date().toISOString())
+             };
+             prev.visits += 1;
+             const paid = (raw.actualPrice !== undefined && raw.actualPrice !== null && raw.actualPrice !== '') ? Number(raw.actualPrice) : (Number(raw.price) || 0);
+             prev.totalSpent += Number.isFinite(paid) ? paid : 0;
+             if (!prev.phone && b.phone) prev.phone = b.phone;
+             if (!prev.username) prev.username = extractUsernameFromContact(b.clientContact);
+             if (!prev.originalName && b.clientName) prev.originalName = b.clientName;
+             
+             statsMap.set(tgIdStr, prev);
+         }
       });
 
       statsMap.forEach((stat, key) => {
-          if (key.startsWith('manual_')) {
-              const mIdx = manualClients.findIndex(mc => String(mc.tgId) === key);
-              if (mIdx !== -1) {
-                  const base = manualClients[mIdx];
-                  manualClients[mIdx] = {
-                      ...base,
-                      ...stat,
-                      originalName: toSafeString(base.originalName, stat.originalName),
-                      customName: toSafeString(base.customName, stat.customName || stat.originalName),
-                      username: toSafeString(base.username, stat.username),
-                      phone: toSafeString(base.phone, stat.phone)
-                  };
-              }
-          } else {
-              const base = realClientsMap.get(key) || {};
-              realClientsMap.set(key, {
-                  ...base,
-                  ...stat,
-                  originalName: toSafeString(base.originalName, stat.originalName),
-                  customName: toSafeString(base.customName, stat.customName || stat.originalName),
-                  username: toSafeString(base.username, stat.username),
-                  phone: toSafeString(base.phone, stat.phone),
-                  isBlacklisted: !!base.isBlacklisted,
-                  isArchived: !!base.isArchived
-              });
-          }
+          const base = realClientsMap.get(key) || {};
+          realClientsMap.set(key, {
+              ...base,
+              ...stat,
+              originalName: toSafeString(base.originalName, stat.originalName),
+              customName: toSafeString(base.customName, stat.customName || stat.originalName),
+              username: toSafeString(base.username, stat.username),
+              phone: toSafeString(base.phone, stat.phone),
+              isBlacklisted: !!base.isBlacklisted,
+              isArchived: !!base.isArchived
+          });
       });
 
       realClientsMap.forEach(c => finalClients.push(c));
@@ -967,7 +951,7 @@
       const fetchBookings = () => {
         if (!db) return;
         const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-        // 🔥 УБРАЛИ БЛОКИРОВКУ: if (userTgId !== ADMIN_TG_ID) return;
+        if (userTgId !== ADMIN_TG_ID) return;
 
         if (unsubscribeBookingsRef.current) return; 
 
@@ -983,16 +967,13 @@
                 const baseClients = prevEdit?.clients || [];
                 const mergedClients = buildClientsFromBookings(b, baseClients);
                 
-                // 🔥 Сохраняем карточки новых клиентов в базу ТОЛЬКО если это админ
-                if (userTgId === ADMIN_TG_ID) {
-                    const baseIds = new Set(baseClients.map(c => String(c.tgId)));
-                    mergedClients.forEach(c => {
-                      if (!c || c.tgId === undefined || c.tgId === null) return;
-                      const id = String(c.tgId);
-                      if (baseIds.has(id)) return;
-                      db.collection("clients").doc(id).set(c).catch(console.error);
-                    });
-                }
+                const baseIds = new Set(baseClients.map(c => String(c.tgId)));
+                mergedClients.forEach(c => {
+                  if (!c || c.tgId === undefined || c.tgId === null) return;
+                  const id = String(c.tgId);
+                  if (baseIds.has(id)) return;
+                  db.collection("clients").doc(id).set(c).catch(console.error);
+                });
 
                 return prevEdit ? { ...prevEdit, clients: mergedClients } : prevEdit;
               });
@@ -1016,10 +997,14 @@
         }
       };
 
-      // 🔥 Очищаем слушатель при выходе из приложения (запуск перенесли ниже)
       useEffect(() => {
-        return () => stopFetchingBookings();
-      }, []);
+        if (activeTab === 'admin' && (adminTab === 'calendar' || adminTab === 'clients')) {
+            fetchBookings();
+        } else {
+            stopFetchingBookings(); // Останавливаем слежку, если ушли из админки
+        }
+        return () => stopFetchingBookings(); // Подчищаем при удалении компонента
+      }, [activeTab, adminTab]);
 
       useEffect(() => {
         if (window.Telegram && window.Telegram.WebApp) {
@@ -1091,21 +1076,6 @@
                    } catch(err) {
                      finalData.clients = finalData.clients || [];
                    }
-                } else if (userTgId) {
-                   try {
-                     let cList = [];
-                     const clientDoc = await db.collection("clients").doc(String(userTgId)).get();
-                     if (clientDoc.exists) cList.push(clientDoc.data());
-                     
-                     const badGuys = await db.collection("clients").where("isBlacklisted", "==", true).get();
-                     badGuys.forEach(d => {
-                         if (!cList.find(c => String(c.tgId) === String(d.data().tgId))) cList.push(d.data());
-                     });
-                     
-                     finalData.clients = cList;
-                   } catch(err) {
-                     finalData.clients = [];
-                   }
                 } else {
                    finalData.clients = [];
                 }
@@ -1119,9 +1089,6 @@
           setAppData(finalData);
           setEditData(finalData);
           setIsAppReady(true);
-          
-          // 🔥 Запускаем слежку за бронями ТОЛЬКО когда Firebase Auth подтвердил вход!
-          fetchBookings();
         };
 
         if (db) {
@@ -1302,30 +1269,35 @@
       // ==========================================
       const handlePreBooking = () => {
         if (selectedDate && selectedTime) {
-            const [h, m] = selectedTime.split(':').map(Number);
-            const startMins = h * 60 + m;
-            const endMins = startMins + selectedDuration;
-            
-            // Проверяем по "живому" списку реальных записей
-            const bookingsForDate = bookingsList.filter(b => b.date === selectedDate);
-            let hasOverlap = false;
-            
-            for (let b of bookingsForDate) {
-                const [bh, bm] = b.time.split(':').map(Number);
-                const bStart = bh * 60 + bm;
-                const bEnd = bStart + Number(b.duration);
+            const targetDate = (appData.dates || []).find(d => d.date === selectedDate);
+            if (targetDate) {
+                const currentSlots = targetDate.slots || [];
+                const templateSlots = appData.defaultSlots || [];
                 
-                // Формула пересечения
-                if (startMins < bEnd && endMins > bStart) {
-                    hasOverlap = true;
-                    break;
+                const [h, m] = selectedTime.split(':').map(Number);
+                const startMins = h * 60 + m;
+                const endMins = startMins + selectedDuration;
+                
+                let hasOverlap = false;
+                
+                for (let i = 0; i < templateSlots.length; i++) {
+                    const t = templateSlots[i];
+                    const [th, tm] = t.split(':').map(Number);
+                    const tMins = th * 60 + tm;
+                    
+                    if (tMins > startMins && tMins < endMins) {
+                        if (!currentSlots.includes(t)) {
+                            hasOverlap = true;
+                            break;
+                        }
+                    }
                 }
-            }
-            
-            if (hasOverlap) {
-                triggerHaptic();
-                setShowOverlapModal(true);
-                return; 
+                
+                if (hasOverlap) {
+                    triggerHaptic();
+                    setShowOverlapModal(true);
+                    return; 
+                }
             }
         }
         setShowMemo(true);
@@ -1334,21 +1306,14 @@
       const isUserBlacklisted = () => {
         const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
         if (!tgUser.id) return false;
-        const cleanTgUser = tgUser.username ? tgUser.username.toLowerCase() : '';
-
-        return (appData.clients || []).some(c => {
-             if (!c.isBlacklisted) return false;
-             if (String(c.tgId) === String(tgUser.id)) return true;
-             const dbUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
-             if (cleanTgUser && dbUser === cleanTgUser) return true;
-             return false;
-        });
+        const client = (appData.clients || []).find(c => c.tgId === tgUser.id);
+        return client?.isBlacklisted || false;
       };
 
       const isExistingClient = () => {
         const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
         if (!tgUser.id) return false;
-        return (appData.clients || []).some(c => String(c.tgId) === String(tgUser.id));
+        return (appData.clients || []).some(c => c.tgId === tgUser.id);
       };
 
       // =========================================================================
@@ -1378,46 +1343,7 @@
             const cleanTgUsername = clientUsername ? clientUsername.replace(/[@()]/g, '').trim().toLowerCase() : '';
             const cleanTgPhone = clientPhone ? clientPhone.replace(/[^\d]/g, '') : '';
 
-            // --- ФИНАЛЬНЫЙ ЩИТ ОТ ЧС (БЕЗ ЖЕСТКОЙ ПРИВЯЗКИ ID) ---
-            const isBlocked = updatedClients.some(c => {
-                 if (!c.isBlacklisted) return false;
-                 if (String(c.tgId) === String(tgUser.id)) return true;
-                 const dbUser = c.username ? c.username.replace(/[@()]/g, '').trim().toLowerCase() : '';
-                 const dbPhone = c.phone ? c.phone.replace(/[^\d]/g, '') : '';
-                 if (cleanTgUsername && dbUser === cleanTgUsername) return true;
-                 if (cleanTgPhone && dbPhone === cleanTgPhone) return true;
-                 return false;
-            });
-
-            if (isBlocked) {
-                alert("К сожалению, запись недоступна 😔");
-                setActiveTab('main');
-                return;
-            }
-            // -------------------------------------------------------------------------
-
-            // --- ЖЕЛЕЗНАЯ ПРОВЕРКА ОТ НАКЛАДОК ПЕРЕД СОХРАНЕНИЕМ (защита от "гонки") ---
-            const [h, m] = selectedTime.split(':').map(Number);
-            const startMins = h * 60 + m;
-            const endMins = startMins + selectedDuration;
-
-            const bookingsForDate = bookingsList.filter(b => b.date === selectedDate);
-            const hasOverlapFinal = bookingsForDate.some(b => {
-                const [bh, bm] = b.time.split(':').map(Number);
-                const bStart = bh * 60 + bm;
-                const bEnd = bStart + Number(b.duration);
-                return startMins < bEnd && endMins > bStart;
-            });
-
-            if (hasOverlapFinal) {
-                triggerHaptic();
-                alert("Ой! Этот слот только что успели занять. Пожалуйста, выберите другое время 😔");
-                setActiveTab('main');
-                return;
-            }
-            // -------------------------------------------------------------------------
-
-            let cIdx = updatedClients.findIndex(c => String(c.tgId) === String(tgUser.id));
+            let cIdx = updatedClients.findIndex(c => c.tgId === tgUser.id);
 
             if (cIdx === -1) {
                  cIdx = updatedClients.findIndex(c => {
@@ -3193,7 +3119,7 @@
                                           </div>
                                         </div>
                                         <div className="text-xs text-gray-400 bg-black/30 px-2 py-1 rounded-md border border-white/5">
-                                          Визитов: <span className="text-white font-bold">{clientBookings.length}</span>
+                                          Визитов: <span className="text-white font-bold">{clientBookings.length > 0 ? clientBookings.length : (client.visits || 1)}</span>
                                         </div>
                                      </div>
 
