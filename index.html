@@ -1302,35 +1302,30 @@
       // ==========================================
       const handlePreBooking = () => {
         if (selectedDate && selectedTime) {
-            const targetDate = (appData.dates || []).find(d => d.date === selectedDate);
-            if (targetDate) {
-                const currentSlots = targetDate.slots || [];
-                const templateSlots = appData.defaultSlots || [];
+            const [h, m] = selectedTime.split(':').map(Number);
+            const startMins = h * 60 + m;
+            const endMins = startMins + selectedDuration;
+            
+            // Проверяем по "живому" списку реальных записей
+            const bookingsForDate = bookingsList.filter(b => b.date === selectedDate);
+            let hasOverlap = false;
+            
+            for (let b of bookingsForDate) {
+                const [bh, bm] = b.time.split(':').map(Number);
+                const bStart = bh * 60 + bm;
+                const bEnd = bStart + Number(b.duration);
                 
-                const [h, m] = selectedTime.split(':').map(Number);
-                const startMins = h * 60 + m;
-                const endMins = startMins + selectedDuration;
-                
-                let hasOverlap = false;
-                
-                for (let i = 0; i < templateSlots.length; i++) {
-                    const t = templateSlots[i];
-                    const [th, tm] = t.split(':').map(Number);
-                    const tMins = th * 60 + tm;
-                    
-                    if (tMins > startMins && tMins < endMins) {
-                        if (!currentSlots.includes(t)) {
-                            hasOverlap = true;
-                            break;
-                        }
-                    }
+                // Формула пересечения
+                if (startMins < bEnd && endMins > bStart) {
+                    hasOverlap = true;
+                    break;
                 }
-                
-                if (hasOverlap) {
-                    triggerHaptic();
-                    setShowOverlapModal(true);
-                    return; 
-                }
+            }
+            
+            if (hasOverlap) {
+                triggerHaptic();
+                setShowOverlapModal(true);
+                return; 
             }
         }
         setShowMemo(true);
@@ -1396,6 +1391,27 @@
 
             if (isBlocked) {
                 alert("К сожалению, запись недоступна 😔");
+                setActiveTab('main');
+                return;
+            }
+            // -------------------------------------------------------------------------
+
+            // --- ЖЕЛЕЗНАЯ ПРОВЕРКА ОТ НАКЛАДОК ПЕРЕД СОХРАНЕНИЕМ (защита от "гонки") ---
+            const [h, m] = selectedTime.split(':').map(Number);
+            const startMins = h * 60 + m;
+            const endMins = startMins + selectedDuration;
+
+            const bookingsForDate = bookingsList.filter(b => b.date === selectedDate);
+            const hasOverlapFinal = bookingsForDate.some(b => {
+                const [bh, bm] = b.time.split(':').map(Number);
+                const bStart = bh * 60 + bm;
+                const bEnd = bStart + Number(b.duration);
+                return startMins < bEnd && endMins > bStart;
+            });
+
+            if (hasOverlapFinal) {
+                triggerHaptic();
+                alert("Ой! Этот слот только что успели занять. Пожалуйста, выберите другое время 😔");
                 setActiveTab('main');
                 return;
             }
