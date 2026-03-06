@@ -967,7 +967,7 @@
       const fetchBookings = () => {
         if (!db) return;
         const userTgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-        if (userTgId !== ADMIN_TG_ID) return;
+        // 🔥 УБРАЛИ БЛОКИРОВКУ: if (userTgId !== ADMIN_TG_ID) return;
 
         if (unsubscribeBookingsRef.current) return; 
 
@@ -983,13 +983,16 @@
                 const baseClients = prevEdit?.clients || [];
                 const mergedClients = buildClientsFromBookings(b, baseClients);
                 
-                const baseIds = new Set(baseClients.map(c => String(c.tgId)));
-                mergedClients.forEach(c => {
-                  if (!c || c.tgId === undefined || c.tgId === null) return;
-                  const id = String(c.tgId);
-                  if (baseIds.has(id)) return;
-                  db.collection("clients").doc(id).set(c).catch(console.error);
-                });
+                // 🔥 Сохраняем карточки новых клиентов в базу ТОЛЬКО если это админ
+                if (userTgId === ADMIN_TG_ID) {
+                    const baseIds = new Set(baseClients.map(c => String(c.tgId)));
+                    mergedClients.forEach(c => {
+                      if (!c || c.tgId === undefined || c.tgId === null) return;
+                      const id = String(c.tgId);
+                      if (baseIds.has(id)) return;
+                      db.collection("clients").doc(id).set(c).catch(console.error);
+                    });
+                }
 
                 return prevEdit ? { ...prevEdit, clients: mergedClients } : prevEdit;
               });
@@ -1013,14 +1016,10 @@
         }
       };
 
+      // 🔥 Очищаем слушатель при выходе из приложения (запуск перенесли ниже)
       useEffect(() => {
-        if (activeTab === 'admin' && (adminTab === 'calendar' || adminTab === 'clients')) {
-            fetchBookings();
-        } else {
-            stopFetchingBookings(); // Останавливаем слежку, если ушли из админки
-        }
-        return () => stopFetchingBookings(); // Подчищаем при удалении компонента
-      }, [activeTab, adminTab]);
+        return () => stopFetchingBookings();
+      }, []);
 
       useEffect(() => {
         if (window.Telegram && window.Telegram.WebApp) {
@@ -1120,6 +1119,9 @@
           setAppData(finalData);
           setEditData(finalData);
           setIsAppReady(true);
+          
+          // 🔥 Запускаем слежку за бронями ТОЛЬКО когда Firebase Auth подтвердил вход!
+          fetchBookings();
         };
 
         if (db) {
